@@ -216,6 +216,8 @@ export const subSetCutRate = (pct, effectiveFrom) =>
 export const adminAssignSubTask = (taskId, engineerId) =>
   _call("admin_assign_sub_task", { p_task_id: taskId, p_engineer_id: engineerId || null });
 export const subListTasks = (from = null, to = null) => _call("sub_list_tasks", { p_from: from, p_to: to });
+// 작업 검색 (Mig 237) — 고객명·주소·작업번호·전화 뒷자리. 단계·기간과 상관없이 최근순 50건.
+export const subSearchTasks = (query) => _call("sub_search_tasks", { p_query: String(query || "") });
 // 작업 상세 한 건 (Mig 221) — 서버가 "호출자의 협력사 작업인지" 확인한 뒤에만 내용을 준다.
 //   반환: rowToTask 로 변환한 작업 객체 (운영자 상세 화면이 쓰는 형태) 또는 null.
 export async function subGetTaskDetail(taskId) {

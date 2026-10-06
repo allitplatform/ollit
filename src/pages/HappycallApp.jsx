@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import SafeTopCover from "../components/SafeTopCover.jsx";
 import { getCategoryMeta } from "../lib/serviceCatalog.js";
 import {
   loadTasksForRole as getTasks,
@@ -2240,6 +2241,8 @@ export default function HappycallApp({ user, onLogout }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#0A0A0A", paddingTop: "env(safe-area-inset-top, 12px)" }}>
+      {/* 2026-10-06 — 스크롤한 내용이 시계·배터리 줄 밑으로 비치지 않게 불투명 띠로 덮는다 */}
+      <SafeTopCover background="#0A0A0A"/>
       {/* Step 5-6 UX — 상단 sticky 박스 (다크/라이트/로그아웃) 제거 */}
       {/* Step 5-6 UX hotfix — paddingTop env(safe-area-inset-top, 12px) — 휴대폰 status bar 영역 보호 */}
 

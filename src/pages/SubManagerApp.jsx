@@ -17,15 +17,18 @@ import { AdminTaskDetailScreen } from "../components/AdminTaskDetailScreen.jsx";
 import { RoleSwitcher } from "../components/RoleSwitcher.jsx";
 import SubAssignSheet from "../components/SubAssignSheet.jsx";
 import CategoryChip, { categoryBar } from "../components/CategoryChip.jsx";
+import { getCategoryMeta } from "../lib/serviceCatalog.js";
 import { subManagerListStaffRemits, subListDailySettlements } from "../lib/subcontractorsDb.js";
-import { fmtWon as fmtWonMoney } from "../utils/money.js";
 import { loadFontSize, applyFontSize } from "../utils/fontSize.js";
 import BottomSheet, { SheetButtons } from "../components/BottomSheet.jsx";
 import SubStaffManage from "../components/SubStaffManage.jsx";
 import SafeTopCover from "../components/SafeTopCover.jsx";
+import SubManagerHome from "../components/SubManagerHome.jsx";
+import { subSearchTasks } from "../lib/subcontractorsDb.js";
 
 const DONE = ["완료", "취소", "visit_only", "정산완료"];
 const TABS = [
+  { key: "all",    label: "전체" },
   { key: "todo",   label: "미배정" },
   { key: "assigned", label: "배정" },
   { key: "fixed",  label: "일정확정" },
@@ -111,7 +114,7 @@ function kstParts(iso) {
 }
 
 export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
-  const [view, setView] = useState("tasks");          // tasks(작업) | settle(정산)
+  const [view, setView] = useState("home");           // home(홈) | tasks(작업) | settle(정산) | staff(기사) | me(내 정보)
   const [tab, setTab] = useState("todo");
   const [tasks, setTasks] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -134,6 +137,15 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   // 2026-10-06 — 화면 정리: 하단 탭 4개(작업·정산·기사·내 정보), "지금 할 일" 요약 띠, 기사 검색 시트
   const [engSheet, setEngSheet] = useState(false);
   const [settleFocus, setSettleFocus] = useState(0);   // 띠를 눌러 정산으로 갈 때마다 +1 → 확인 대기 상자로 스크롤
+  // 2026-10-06 Mig 237 — 작업 검색(서버) + 촘촘 보기
+  const [query, setQuery] = useState("");
+  const [found, setFound] = useState(null);            // null = 검색 중이 아님 / 배열 = 검색 결과
+  const [searching, setSearching] = useState(false);
+  const [searchErr, setSearchErr] = useState("");
+  const [dense, setDense] = useState(() => {
+    try { return localStorage.getItem("ollit_sub_task_density") !== "normal"; } catch (_e) { return true; }   // 기본 = 촘촘
+  });
+  const changeDense = (v) => { setDense(v); try { localStorage.setItem("ollit_sub_task_density", v ? "dense" : "normal"); } catch (_e) { /* 저장 실패는 무시 */ } };
   const [engQuery, setEngQuery] = useState("");
   const [todo, setTodo] = useState({ waiting: 0, todayFee: 0 });   // 받음 확인 대기 건수 / 오늘 보낼 수수료
   const [fontSize, setFontSizeState] = useState(() => loadFontSize());
@@ -161,17 +173,49 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
     }
     setTodo({ waiting, todayFee });
   }, []);
-  useEffect(() => { if (view === "tasks") loadTodo(); }, [view, loadTodo]);
+  useEffect(() => { if (view === "home" || view === "tasks") loadTodo(); }, [view, loadTodo]);
+
+  // 검색 — 입력이 멈추고 0.35초 뒤 서버에서 찾는다 (2글자 이상). 지우면 원래 목록.
+  useEffect(() => {
+    const q = query.trim();
+    if (q.length < 2) { setFound(null); setSearching(false); setSearchErr(""); return undefined; }
+    setSearching(true);
+    let alive = true;
+    const timer = setTimeout(async () => {
+      const res = await subSearchTasks(q);
+      if (!alive) return;
+      setFound(res.ok ? (Array.isArray(res.tasks) ? res.tasks : []) : []);
+      setSearchErr(res.ok ? "" : (res.error || "검색하지 못했습니다."));
+      setSearching(false);
+    }, 350);
+    return () => { alive = false; clearTimeout(timer); };
+  }, [query]);
+
+  // 홈에서 넘어올 때: 화면·단계·필터를 한 번에 맞춘다
+  const goFromHome = useCallback((to) => {
+    if (!to) return;
+    if (to.view === "tasks") {
+      setQuery("");
+      setFDate(to.date || "");
+      setFEng(to.eng || "");
+      if (to.tab) setTab(to.tab);
+      else if (to.date || to.eng) setTab("all");
+    }
+    if (to.focusRemits) setSettleFocus(n => n + 1);
+    setView(to.view);
+  }, []);
 
   const groups = useMemo(() => {
-    const g = { todo: [], assigned: [], fixed: [], doing: [], done: [], cancel: [] };
+    const g = { all: [], todo: [], assigned: [], fixed: [], doing: [], done: [], cancel: [] };
     for (const t of tasks) {
       if (fEng && t.assigned_engineer_id !== fEng) continue;
       if (fDate && taskDay(t) !== fDate) continue;
-      g[bucketOf(t)].push(t);
+      const b = bucketOf(t);
+      g[b].push(t);
+      if (b !== "cancel") g.all.push(t);          // "전체" 는 취소를 뺀 모든 단계
     }
     const asc = (a, b) => String(a.sort_at || "").localeCompare(String(b.sort_at || ""));
-    g.todo.sort(asc); g.assigned.sort(asc); g.fixed.sort(asc); g.doing.sort(asc);
+    g.todo.sort(asc); g.assigned.sort(asc); g.fixed.sort(asc); g.doing.sort(asc); g.all.sort(asc);
     g.done.sort((a, b) => String(b.completed_at || "").localeCompare(String(a.completed_at || "")));
     g.cancel.sort((a, b) => String(b.sort_at || "").localeCompare(String(a.sort_at || "")));
     return g;
@@ -184,7 +228,10 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
     return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], "ko"));
   }, [tasks]);
 
-  const list = groups[tab] || [];
+  // 홈의 "미배정 n" 은 작업 탭 필터와 무관하게 전체에서 센다
+  const groupsAll = useMemo(() => ({ todo: tasks.filter(t => bucketOf(t) === "todo").length }), [tasks]);
+  // 검색 중이면 검색 결과(단계·기간 무관, 최근순), 아니면 고른 단계의 목록
+  const list = found !== null ? found : (groups[tab] || []);
 
   // 상세 열기 — 서버가 소속을 확인하는 RPC(sub_get_task_detail, Mig 221)로 한 건을 읽어
   //   운영자 상세 화면에 넘긴다. 자기 협력사 작업이 아니면 서버가 내용을 주지 않는다.
@@ -368,15 +415,15 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   }
 
   // ── 탭 화면 (작업 · 정산 · 기사 · 내 정보) ──
-  const NAV = [["tasks", "📋", "작업"], ["settle", "💰", "정산"], ["staff", "👷", "기사"], ["me", "👤", "내 정보"]];
-  const viewTitle = view === "settle" ? "정산" : view === "staff" ? "기사" : view === "me" ? "내 정보" : "작업";
+  const NAV = [["home", "🏠", "홈"], ["tasks", "📋", "작업"], ["settle", "💰", "정산"], ["staff", "👷", "기사"], ["me", "👤", "내 정보"]];
+  const viewTitle = view === "home" ? "홈" : view === "settle" ? "정산" : view === "staff" ? "기사" : view === "me" ? "내 정보" : "작업";
   const fEngName = fEng ? ((engOptions.find(([id]) => id === fEng) || [])[1] || "기사") : "";
-  const todoItems = [
-    groups.todo.length > 0 ? { key: "todo", label: `미배정 ${groups.todo.length}`, onClick: () => setTab("todo") } : null,
-    // "보고됨"(올데이케어 송금 보고)과 헷갈리지 않게 "기사 송금 확인". 누르면 정산 탭의 그 상자로 간다.
-    todo.waiting > 0 ? { key: "wait", label: `기사 송금 확인 ${todo.waiting}`, onClick: () => { setSettleFocus(n => n + 1); setView("settle"); } } : null,
-    todo.todayFee > 0 ? { key: "fee", label: `오늘 보낼 수수료 ${fmtWonMoney(todo.todayFee)}`, onClick: () => setView("settle") } : null,
-  ].filter(Boolean);
+  const smallChip = (on) => ({
+    display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, height: 30, padding: "0 10px", borderRadius: 999,
+    fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap", boxSizing: "border-box",
+    border: on ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
+    background: on ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)", color: "var(--text-primary)",
+  });
 
   return (
     <div style={{
@@ -397,18 +444,61 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
               {subName} <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>· {user?.name} 님 · {viewTitle}</span>
             </div>
             {onSwitchRole && <RoleSwitcher user={user} onSwitch={onSwitchRole}/>}
-            {view === "tasks" && <button onClick={() => { load(); loadTodo(); }} disabled={loading} style={{ ...btnGhost, padding: "6px 10px" }}>{loading ? "…" : "새로고침"}</button>}
+            {(view === "tasks" || view === "home") && <button onClick={() => { load(); loadTodo(); }} disabled={loading} style={{ ...btnGhost, padding: "6px 10px" }}>{loading ? "…" : "새로고침"}</button>}
           </div>
-          <div style={{ display: view === "tasks" ? "flex" : "none", gap: 6, marginTop: 8, overflowX: "auto" }}>
+          {view === "tasks" && (
+            <>
+              {/* 검색 — 고객명 · 전화 뒷자리 · 주소 · 작업번호. 단계·기간과 상관없이 서버에서 찾는다. */}
+              <div style={{ position: "relative", marginTop: 8 }}>
+                <input
+                  value={query} onChange={e => setQuery(e.target.value)} placeholder="고객명 · 전화 뒷 4자리 · 주소 · 작업번호"
+                  aria-label="작업 검색" enterKeyHint="search"
+                  style={{ ...fieldInput, minHeight: 40, padding: "8px 36px 8px 12px" }}
+                />
+                {query && (
+                  <button type="button" onClick={() => setQuery("")} aria-label="검색어 지우기" style={{
+                    position: "absolute", right: 0, top: 0, width: 40, height: 40, background: "transparent", border: "none",
+                    fontSize: 16, color: "var(--text-secondary)", cursor: "pointer", fontFamily: "inherit",
+                  }}>✕</button>
+                )}
+              </div>
+              {/* 작은 필터 줄 — 날짜 · 기사 · (오른쪽) 보통 | 촘촘 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
+                <label style={{ ...smallChip(!!fDate), position: "relative" }}>
+                  <span aria-hidden="true">📅</span>{fDate ? fmtFilterDate(fDate) : "날짜 전체"}
+                  <input type="date" value={fDate} onChange={e => setFDate(e.target.value)} aria-label="날짜 필터"
+                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, border: "none", padding: 0, margin: 0, cursor: "pointer" }}/>
+                </label>
+                <button type="button" onClick={() => { setEngQuery(""); setEngSheet(true); }} aria-label="기사 필터" style={smallChip(!!fEng)}>
+                  <span aria-hidden="true">👷</span>{fEng ? fEngName : "기사 전체"}
+                </button>
+                {(fDate || fEng) && (
+                  <button type="button" onClick={() => { setFDate(""); setFEng(""); }} style={{ ...smallChip(false), border: "none", background: "transparent", color: "var(--text-secondary)", textDecoration: "underline", padding: "0 4px" }}>해제</button>
+                )}
+                <span style={{ flex: 1 }}/>
+                <span style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 999, overflow: "hidden", flexShrink: 0 }}>
+                  {[[false, "보통"], [true, "촘촘"]].map(([v, label]) => (
+                    <button key={label} type="button" onClick={() => changeDense(v)} style={{
+                      height: 28, padding: "0 10px", border: "none", fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+                      background: dense === v ? "var(--text-primary)" : "transparent",
+                      color: dense === v ? "var(--bg-primary)" : "var(--text-secondary)",
+                    }}>{label}</button>
+                  ))}
+                </span>
+              </div>
+            </>
+          )}
+          <div style={{ display: view === "tasks" && found === null ? "flex" : "none", gap: 6, marginTop: 8, overflowX: "auto" }}>
             {TABS.filter(tb => tb.key !== "cancel" || groups.cancel.length > 0 || tab === "cancel").map(tb => {
               const n = groups[tb.key].length;
               const on = tab === tb.key;
               return (
                 <button key={tb.key} onClick={() => setTab(tb.key)} style={{
-                  flex: "1 0 auto", padding: "8px 10px", borderRadius: 10, fontFamily: "inherit", cursor: "pointer",
+                  flex: "1 0 auto", padding: "5px 10px", borderRadius: 999, fontFamily: "inherit", cursor: "pointer",
                   border: on ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
                   background: on ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)",
-                  color: "var(--text-primary)", fontSize: 13, fontWeight: 800, whiteSpace: "nowrap",
+                  color: "var(--text-primary)", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap",
+                  opacity: n === 0 && !on ? 0.45 : 1,           // 0건인 칩은 흐리게
                 }}>
                   {tb.label}{" "}
                   <span style={{ color: tb.key === "todo" && n > 0 ? "#E5484D" : "var(--text-secondary)" }}>{n}</span>
@@ -419,6 +509,17 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
         </div>
       </div>
 
+      {view === "home" && (
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <SubManagerHome
+            tasks={tasks}
+            todo={{ unassigned: groupsAll.todo, waiting: todo.waiting, todayFee: todo.todayFee }}
+            loading={loading}
+            onRefresh={() => { load(); loadTodo(); }}
+            onGo={goFromHome}
+          />
+        </div>
+      )}
       {view === "staff" && (
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
           <SubStaffManage subName={subName}/>
@@ -463,45 +564,14 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
           </div>
         )}
 
-        {/* "지금 할 일" 요약 띠 — 0건 항목은 숨긴다. 누르면 해당 단계 탭 / 정산 화면으로. */}
-        {todoItems.length > 0 && (
-          <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 10 }}>
-            {todoItems.map(it => (
-              <button key={it.key} onClick={it.onClick} style={{
-                flexShrink: 0, padding: "8px 12px", borderRadius: 999, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
-                fontSize: 12, fontWeight: 800, border: "1px solid rgba(229,72,77,0.4)", background: "rgba(229,72,77,0.10)", color: "#E5484D",
-              }}>{it.label} ›</button>
-            ))}
-          </div>
-        )}
-
-        {/* 필터 줄 — 날짜 / 기사(검색 시트) */}
-        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, marginBottom: (fDate || fEng) ? 4 : 10 }}>
-          <label style={{ ...filterBox, position: "relative", borderColor: fDate ? "var(--accent, #FF1B8D)" : "var(--border)" }}>
-            <span aria-hidden="true">📅</span>
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {fDate ? fmtFilterDate(fDate) : "날짜 전체"}
-            </span>
-            <input type="date" value={fDate} onChange={e => setFDate(e.target.value)} aria-label="날짜 필터"
-              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, border: "none", padding: 0, margin: 0, cursor: "pointer" }}/>
-          </label>
-          <button type="button" onClick={() => { setEngQuery(""); setEngSheet(true); }} aria-label="기사 필터"
-            style={{ ...filterBox, width: "100%", textAlign: "left", borderColor: fEng ? "var(--accent, #FF1B8D)" : "var(--border)" }}>
-            <span aria-hidden="true">👷</span>
-            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fEng ? fEngName : "기사 전체"}</span>
-          </button>
-        </div>
-        {(fDate || fEng) && (
-          <div style={{ textAlign: "right", marginBottom: 8 }}>
-            <button onClick={() => { setFDate(""); setFEng(""); }}
-              style={{ background: "transparent", border: "none", padding: "4px 2px", fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", fontFamily: "inherit", cursor: "pointer", textDecoration: "underline" }}>
-              필터 해제
-            </button>
+        {found !== null && (
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", margin: "0 2px 8px" }}>
+            {searching ? "찾는 중…" : `검색 결과 ${list.length}건${list.length >= 50 ? " (최근 50건까지)" : ""} · 단계·기간과 상관없이 찾았습니다`}
           </div>
         )}
         {!error && !loading && list.length === 0 && (
           <div style={{ textAlign: "center", color: "var(--text-secondary)", fontSize: 14, padding: "48px 0" }}>
-            해당 상태의 작업이 없습니다.
+            {found !== null ? (searching ? "찾는 중…" : (searchErr ? `검색하지 못했습니다 — ${searchErr}` : "찾는 작업이 없습니다.")) : "해당 상태의 작업이 없습니다."}
           </div>
         )}
 
@@ -514,6 +584,34 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
           const day = taskDay(t);
           const showHead = idx === 0 || taskDay(list[idx - 1]) !== day;
           const engDigits = String(t.engineer_phone || "").replace(/[^0-9]/g, "");
+          const stLabel = st === "확정" ? "일정확정" : st === "진행중" ? "진행" : st === "visit_only" ? "방문만" : st;
+          // 촘촘 보기 — 한두 줄: 시각 · 종목 아이콘 · 고객 · 동네 / 담당 · 상태. 버튼 줄 없음(카드를 누르면 상세).
+          if (dense) {
+            const cat = getCategoryMeta(catTask(t));
+            return (
+              <div key={t.id}>
+                {showHead && <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-secondary)", margin: idx === 0 ? "2px 2px 6px" : "12px 2px 6px" }}>{dayHead(day)}</div>}
+                <div onClick={() => openDetail(t.id)} style={{
+                  background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 10,
+                  padding: "9px 10px", marginBottom: 6, cursor: "pointer",
+                  display: "flex", alignItems: "center", gap: 8, minHeight: 44, boxSizing: "border-box",
+                  ...categoryBar(catTask(t)),
+                  ...(cancelled ? { opacity: 0.6, filter: "grayscale(1)" } : {}),
+                }}>
+                  <span style={{ width: 44, flexShrink: 0, fontSize: 13, fontWeight: 800, color: "var(--accent, #FF1B8D)" }}>{timeShort(t)}</span>
+                  <span aria-hidden="true" title={cat.label} style={{ flexShrink: 0, fontSize: 14 }}>{cat.icon}</span>
+                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: 700 }}>
+                    {t.customer_name}
+                    <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>{townOf(t) ? ` · ${townOf(t)}` : ""}</span>
+                  </span>
+                  <span style={{ flexShrink: 0, maxWidth: 72, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, fontWeight: 700, color: hasEng ? "var(--text-secondary)" : "#E5484D" }}>
+                    {hasEng ? (t.engineer_name || "") : "미배정"}
+                  </span>
+                  <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 6, background: ss.bg, color: ss.fg, whiteSpace: "nowrap" }}>{stLabel}</span>
+                </div>
+              </div>
+            );
+          }
           return (
             <div key={t.id}>
               {/* 날짜가 바뀌는 곳에 묶음 머리 — 오늘 / 내일 / 10월 9일(금) */}
@@ -640,6 +738,16 @@ function timeText(t) {
   return t.requested_time ? `희망 ${t.requested_time}` : "시간 미정";
 }
 
+// 촘촘 카드의 시각 — "20:00" / 없으면 "미정"
+function timeShort(t) {
+  const iso = t.scheduled_at || t.scheduledAt;
+  if (iso) {
+    const d = new Date(iso);
+    if (!Number.isNaN(d.getTime())) return d.toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" });
+  }
+  return t.requested_time ? String(t.requested_time).slice(0, 5) : "미정";
+}
+
 // 묶음 머리 — 오늘 / 내일 / 10월 9일(금) / 날짜 미정
 function dayHead(ymd) {
   if (!ymd) return "날짜 미정";
@@ -666,12 +774,6 @@ function townOf(t) {
   return [gu, dong].filter(Boolean).join(" ");
 }
 
-const filterBox = {
-  display: "flex", alignItems: "center", gap: 6, boxSizing: "border-box", minWidth: 0, height: 44,
-  padding: "0 12px", borderRadius: 10, border: "1px solid var(--border)",
-  background: "var(--bg-elevated)", color: "var(--text-primary)",
-  fontSize: 16, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
-};
 const fieldLabel = { display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", margin: "10px 0 6px" };
 const fieldWrap = { width: "100%", maxWidth: "100%", overflow: "hidden", boxSizing: "border-box" };
 const fieldInput = {

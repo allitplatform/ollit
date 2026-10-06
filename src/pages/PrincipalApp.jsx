@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useMemo } from "react";
 //        App.jsx 측 loadTheme() 측측 측측측 측측 측측 (= 측측측 측측 측측 측측 측측 측측 측측 X).
 //        측측측 측측 측측 측측 측측 → --text-primary = #1A1A1A → Principal 측측 (#1A1512) 측 측측 측측.
 //   측측: 측측측 측측 측 applyThemeVars("dark") 측측 측측 측측 (= Admin/Engineer 측측 측측 동일 측측).
+import SafeTopCover from "../components/SafeTopCover.jsx";
 import { applyTheme as applyThemeVars, loadTheme } from "../styles/themes.js";
 // 2026-06-04 — 폰트 크기 공용 헬퍼 (EngineerMeTab과 공유).
 import { loadFontSize, applyFontSize, FONT_SIZE_OPTIONS } from "../utils/fontSize.js";
@@ -691,6 +692,8 @@ export default function PrincipalApp({ user, onLogout }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "#0A0A0A", paddingTop: "env(safe-area-inset-top, 12px)" }}>
+      {/* 2026-10-06 — 스크롤한 내용이 시계·배터리 줄 밑으로 비치지 않게 불투명 띠로 덮는다 */}
+      <SafeTopCover background="#0A0A0A"/>
       {/* Step 5-6 UX hotfix — paddingTop env(safe-area-inset-top, 12px) — 휴대폰 status bar 영역 보호 */}
       <style>{`
         
