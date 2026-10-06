@@ -290,6 +290,7 @@ function CutRateCard({ subName }) {
   const [from, setFrom] = useState("");
   const [busy, setBusy] = useState(false);
   const [showHistory, setShowHistory] = useState(false);
+  const [showHelp, setShowHelp] = useState(false);
 
   const load = useCallback(async () => {
     const res = await subGetCutRates();
@@ -324,7 +325,14 @@ function CutRateCard({ subName }) {
     <div style={card}>
       <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>{subName} 회사 몫</div>
+          <div style={{ display: "flex", alignItems: "center" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>{subName} 회사 몫</span>
+            {/* 설명은 ⓘ 를 눌러야 보인다 (터치 영역 40px) */}
+            <button type="button" onClick={() => setShowHelp(v => !v)} aria-label="회사 몫 설명" aria-expanded={showHelp} style={{
+              width: 40, height: 40, margin: "-10px 0 -10px 2px", background: "transparent", border: "none", cursor: "pointer",
+              fontSize: 16, color: showHelp ? "var(--accent, #FF1B8D)" : "var(--text-secondary)", fontFamily: "inherit",
+            }}>ⓘ</button>
+          </div>
           <div style={{ fontSize: 22, fontWeight: 800, marginTop: 2 }}>{data ? `${data.current_pct}%` : "…"}</div>
         </div>
         <button type="button" onClick={openEdit} disabled={!data} style={btnGhost}>변경</button>
@@ -335,10 +343,12 @@ function CutRateCard({ subName }) {
           {ymdLabel(data.upcoming.from)}부터 {data.upcoming.pct}% 적용 예정
         </div>
       )}
-      <div style={{ ...small, marginTop: 8 }}>
-        기사 수익 = 공급가 − 올데이케어 수수료 − 회사 몫(공급가 × 이 비율).
-        올데이케어 수수료와는 무관한, {subName} 안의 분배입니다. 작업을 완료한 날의 비율이 그 작업에 고정됩니다.
-      </div>
+      {showHelp && (
+        <div style={{ ...small, marginTop: 8, padding: "10px 12px", background: "var(--bg-inset, var(--bg-secondary))", borderRadius: 8 }}>
+          기사 수익 = 공급가 − 올데이케어 수수료 − 회사 몫(공급가 × 이 비율).
+          올데이케어 수수료와는 무관한, {subName} 안의 분배입니다. 작업을 완료한 날의 비율이 그 작업에 고정됩니다.
+        </div>
+      )}
       {history.length > 0 && (
         <button type="button" onClick={() => setShowHistory(v => !v)} style={{ ...btnGhost, border: "none", padding: "8px 0 0", color: "var(--text-secondary)" }}>
           변경 이력 {history.length}건 {showHistory ? "접기" : "보기"}

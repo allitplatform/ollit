@@ -130,6 +130,31 @@ export const CATEGORY_META = [
 ];
 export const CATEGORY_OTHER = { key: "etc", codes: [], label: "그 밖", short: "그 밖", icon: "🔧", color: "#9CA3AF" };
 
+// 서비스 단위 예외 — 종목보다 먼저 본다. (2026-10-06 사장님 결정: 냉매는 ⚡ 노랑 유지)
+//   판정 순서: 서비스 예외 → 종목 → 그 밖.
+//   서비스 code 또는 이름이 아래 값과 "정확히" 같을 때만 해당한다 (글자 포함 검사 없음).
+//   이름은 저장된 꼴("서비스_기종")에서 "_" 앞부분을 떼어 비교한다 — 아래 _serviceName 과 같은 규칙.
+export const SERVICE_EXCEPTIONS = [
+  {
+    key: "refrigerant", label: "냉매", short: "냉매", icon: "⚡", color: "#FFB800", textOnColor: "#1A1A1A",
+    codes: ["refrigerant", "refrigerant_check"],
+    names: ["냉매충전", "냉매점검", "냉매점검(YS-N)", "냉매점검(서울 경기북부만 가능)"],
+  },
+];
+function _exceptionOfItem(item) {
+  if (!item) return null;
+  if (typeof item === "string") {
+    const n = _serviceName(item);
+    return SERVICE_EXCEPTIONS.find(x => x.names.includes(n)) || null;
+  }
+  const code = String(item.serviceCode || item.service_code || "").trim();
+  if (code) {
+    const hit = SERVICE_EXCEPTIONS.find(x => x.codes.includes(code));
+    if (hit) return hit;
+  }
+  return _exceptionOfItem(String(item.workType || item.work_type || item.name || ""));
+}
+
 // 종목 code → 표의 한 줄 (없으면 "그 밖")
 export function categoryMetaByCode(code, name) {
   const c = String(code || "").trim();
@@ -209,16 +234,27 @@ function _categoryCodeOfItem(item) {
 export function getCategoryMeta(input) {
   if (!input) return CATEGORY_OTHER;
   if (typeof input === "string") {
+    const ex = _exceptionOfItem(input);
+    if (ex) return ex;
     const c = _categoryCodeOfItem(input);
     return c && c !== "common" ? categoryMetaByCode(c) : CATEGORY_OTHER;
   }
+  // 공통(출장비 등)을 뺀 "첫 항목" 이 정한다: 그 항목이 서비스 예외면 예외, 아니면 그 항목의 종목.
   const items = Array.isArray(input.workItems) ? input.workItems.filter(w => w && !(w.isCanceled || w.is_canceled)) : [];
   for (const it of items) {
     const c = _categoryCodeOfItem(it);
-    if (c && c !== "common") return categoryMetaByCode(c);
+    if (c === "common") continue;
+    const ex = _exceptionOfItem(it);
+    if (ex) return ex;
+    if (c) return categoryMetaByCode(c);
   }
-  const self = _categoryCodeOfItem({ serviceCode: input.serviceCode || input.service_code, workType: input.workType || input.work_type });
-  if (self && self !== "common") return categoryMetaByCode(self);
+  const selfItem = { serviceCode: input.serviceCode || input.service_code, workType: input.workType || input.work_type };
+  const self = _categoryCodeOfItem(selfItem);
+  if (self !== "common") {
+    const ex = _exceptionOfItem(selfItem);
+    if (ex) return ex;
+    if (self) return categoryMetaByCode(self);
+  }
   const direct = String(input.categoryCode || input.category_code || "").trim() || _catById.get(input.categoryId || input.category_id) || "";
   // 항목이 공통(출장비)뿐인 작업은 작업 자체의 종목 값을 따른다 (DB 를 읽은 뒤에만 알 수 있다)
   return direct ? categoryMetaByCode(direct) : CATEGORY_OTHER;
@@ -236,6 +272,11 @@ export function categoryTint(color, alpha = 0.14) {
 export function categoriesInTasks(tasks) {
   const seen = new Map();
   for (const t of (tasks || [])) { const m = getCategoryMeta(t); if (!seen.has(m.key)) seen.set(m.key, m); }
-  const order = (m) => { const i = CATEGORY_META.findIndex(x => x.key === m.key); return i < 0 ? (m.key === "etc" ? 999 : 500) : i; };
+  // 순서: 종목 표 순서, 서비스 예외(냉매)는 에어컨 바로 뒤, 표에 없는 새 종목은 그 뒤, "그 밖" 은 맨 끝
+  const order = (m) => {
+    if (SERVICE_EXCEPTIONS.some(x => x.key === m.key)) return 0.5;
+    const i = CATEGORY_META.findIndex(x => x.key === m.key);
+    return i < 0 ? (m.key === "etc" ? 999 : 500) : i;
+  };
   return [...seen.values()].sort((a, b) => order(a) - order(b));
 }

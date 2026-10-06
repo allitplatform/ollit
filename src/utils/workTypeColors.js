@@ -66,6 +66,11 @@ const COLORS_DEFAULT = {
 //   색·아이콘 = src/lib/serviceCatalog.js 의 종목 기준표.  name = 작업 이름(세척·냉매·설치 등) 그대로.
 //   위의 COLORS_* 상수는 더 이상 화면 색을 정하지 않는다 (이름표 참고용으로만 남김).
 function _paletteOf(meta) {
+  // 냉매(서비스 예외)는 원래의 노랑 팔레트 그대로 — 노랑 위 글자는 검정
+  if (meta.key === "refrigerant") {
+    const { name: _n, ...rest } = COLORS_REFRIGERANT;
+    return rest;
+  }
   const c = meta.color;
   return {
     main:  c,
@@ -83,6 +88,7 @@ function _nameOf(workType, meta) {
   if (kind === "install")     return COLORS_INSTALL.name;
   if (kind === "leak")        return leakDisplayLabel(workType);
   if (isHoodWork(workType))   return "주방후드";
+  if (meta.key === "refrigerant") return COLORS_REFRIGERANT.name;
   return meta.key === "etc" ? COLORS_DEFAULT.name : meta.label;
 }
 export function getWorkTypeColors(workType) {

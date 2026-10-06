@@ -17,6 +17,9 @@ import { AdminTaskDetailScreen } from "../components/AdminTaskDetailScreen.jsx";
 import { RoleSwitcher } from "../components/RoleSwitcher.jsx";
 import SubAssignSheet from "../components/SubAssignSheet.jsx";
 import CategoryChip, { categoryBar } from "../components/CategoryChip.jsx";
+import { subManagerListStaffRemits, subListDailySettlements } from "../lib/subcontractorsDb.js";
+import { fmtWon as fmtWonMoney } from "../utils/money.js";
+import { loadFontSize, applyFontSize } from "../utils/fontSize.js";
 import BottomSheet, { SheetButtons } from "../components/BottomSheet.jsx";
 import SubStaffManage from "../components/SubStaffManage.jsx";
 
@@ -125,6 +128,11 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const [rejectText, setRejectText] = useState("");
   const [fDate, setFDate] = useState("");             // YYYY-MM-DD (비우면 전체)
   const [fEng, setFEng] = useState("");               // 기사 id (비우면 전체)
+  // 2026-10-06 — 화면 정리: 하단 탭 4개(작업·정산·기사·내 정보), "지금 할 일" 요약 띠, 기사 검색 시트
+  const [engSheet, setEngSheet] = useState(false);
+  const [engQuery, setEngQuery] = useState("");
+  const [todo, setTodo] = useState({ waiting: 0, todayFee: 0 });   // 받음 확인 대기 건수 / 오늘 보낼 수수료
+  const [fontSize, setFontSizeState] = useState(() => loadFontSize());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -136,6 +144,20 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   }, []);
 
   useEffect(() => { load(); }, [load]);
+
+  // "지금 할 일" 요약 — 받음 확인 대기(기사가 보냈다고 보고했는데 아직 확인 안 한 줄), 오늘 보낼 수수료
+  const loadTodo = useCallback(async () => {
+    const [rm, ds] = await Promise.all([subManagerListStaffRemits(), subListDailySettlements()]);
+    let waiting = 0, todayFee = 0;
+    if (rm.ok) for (const st of (rm.staff || [])) for (const d of (st.days || [])) if (d.status === "보고됨") waiting += 1;
+    if (ds.ok) {
+      const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+      const row = (ds.days || []).find(d => d.date === today);
+      if (row && !row.locked && Number(row.fee) > 0) todayFee = Number(row.fee);
+    }
+    setTodo({ waiting, todayFee });
+  }, []);
+  useEffect(() => { if (view === "tasks") loadTodo(); }, [view, loadTodo]);
 
   const groups = useMemo(() => {
     const g = { todo: [], assigned: [], fixed: [], doing: [], done: [] };
@@ -339,43 +361,42 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
     );
   }
 
-  // ── 작업 목록 ──
+  // ── 탭 화면 (작업 · 정산 · 기사 · 내 정보) ──
+  const NAV = [["tasks", "📋", "작업"], ["settle", "💰", "정산"], ["staff", "👷", "기사"], ["me", "👤", "내 정보"]];
+  const viewTitle = view === "settle" ? "정산" : view === "staff" ? "기사" : view === "me" ? "내 정보" : "작업";
+  const fEngName = fEng ? ((engOptions.find(([id]) => id === fEng) || [])[1] || "기사") : "";
+  const todoItems = [
+    groups.todo.length > 0 ? { key: "todo", label: `미배정 ${groups.todo.length}`, onClick: () => setTab("todo") } : null,
+    todo.waiting > 0 ? { key: "wait", label: `받음 확인 대기 ${todo.waiting}`, onClick: () => setView("settle") } : null,
+    todo.todayFee > 0 ? { key: "fee", label: `오늘 보낼 수수료 ${fmtWonMoney(todo.todayFee)}`, onClick: () => setView("settle") } : null,
+  ].filter(Boolean);
+
   return (
-    <div style={{ minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-primary)", fontFamily: "'Pretendard', sans-serif", paddingBottom: 40 }}>
+    <div style={{
+      minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-primary)", fontFamily: "'Pretendard', sans-serif",
+      paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 84px)",     // 하단 탭에 가려지지 않게
+    }}>
+      {/* 머리: 회사명 + 이름 한 줄. 작업 탭에서만 단계 탭과 함께 고정한다. */}
       <div style={{
-        // 작업 목록에서는 탭이 따라오도록 고정, 정산 보기에서는 고정하지 않는다
-        //   (고정 머리가 정산 화면의 제목·새로고침 버튼을 가리던 문제 — 2026-10-06 실화면 확인).
         position: view === "tasks" ? "sticky" : "relative", top: 0, zIndex: 5,
         background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)",
-        padding: "calc(env(safe-area-inset-top, 0px) + 12px) 14px 10px",
+        padding: "calc(env(safe-area-inset-top, 0px) + 8px) 12px 8px",
       }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            <div style={{ flex: 1, minWidth: 0 }}>
-              <div style={{ fontSize: 17, fontWeight: 800 }}>{subName}</div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{user?.name} 님 · {view === "settle" ? "수수료 정산" : view === "staff" ? "기사 관리" : "작업 관리"}</div>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 32 }}>
+            <div style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {subName} <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>· {user?.name} 님 · {viewTitle}</span>
             </div>
             {onSwitchRole && <RoleSwitcher user={user} onSwitch={onSwitchRole}/>}
-            {view === "tasks" && <button onClick={load} disabled={loading} style={btnGhost}>{loading ? "…" : "새로고침"}</button>}
+            {view === "tasks" && <button onClick={() => { load(); loadTodo(); }} disabled={loading} style={{ ...btnGhost, padding: "6px 10px" }}>{loading ? "…" : "새로고침"}</button>}
           </div>
-          {/* 작업 / 정산 전환 */}
-          <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-            {[["tasks", "작업"], ["settle", "정산"], ["staff", "기사"]].map(([k, label]) => (
-              <button key={k} onClick={() => setView(k)} style={{
-                flex: 1, padding: "9px 0", borderRadius: 10, fontFamily: "inherit", cursor: "pointer",
-                border: "1px solid var(--border)", fontSize: 14, fontWeight: 800,
-                background: view === k ? "var(--text-primary)" : "var(--bg-elevated)",
-                color: view === k ? "var(--bg-primary)" : "var(--text-primary)",
-              }}>{label}</button>
-            ))}
-          </div>
-          <div style={{ display: view === "tasks" ? "flex" : "none", gap: 6, marginTop: 12, overflowX: "auto" }}>
+          <div style={{ display: view === "tasks" ? "flex" : "none", gap: 6, marginTop: 8, overflowX: "auto" }}>
             {TABS.map(tb => {
               const n = groups[tb.key].length;
               const on = tab === tb.key;
               return (
                 <button key={tb.key} onClick={() => setTab(tb.key)} style={{
-                  flex: "1 0 auto", padding: "9px 10px", borderRadius: 10, fontFamily: "inherit", cursor: "pointer",
+                  flex: "1 0 auto", padding: "8px 10px", borderRadius: 10, fontFamily: "inherit", cursor: "pointer",
                   border: on ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
                   background: on ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)",
                   color: "var(--text-primary)", fontSize: 13, fontWeight: 800, whiteSpace: "nowrap",
@@ -392,26 +413,60 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
       {view === "staff" && (
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
           <SubStaffManage subName={subName}/>
-          <div style={{ padding: "0 12px" }}>
-            <button onClick={onLogout} style={{ ...btnGhost, width: "100%", padding: "12px 0" }}>로그아웃</button>
-          </div>
         </div>
       )}
       {view === "settle" && (
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
           <SubManagerSettleView/>
-          <div style={{ padding: "0 12px" }}>
-            <button onClick={onLogout} style={{ ...btnGhost, width: "100%", padding: "12px 0" }}>로그아웃</button>
-          </div>
         </div>
       )}
-      <div style={{ maxWidth: 720, margin: "0 auto", padding: "12px 12px 0", display: view === "tasks" ? "block" : "none" }}>
+      {view === "me" && (
+        <div style={{ maxWidth: 720, margin: "0 auto", padding: 12 }}>
+          <div style={meCard}>
+            <div style={{ fontSize: 17, fontWeight: 800 }}>{user?.name || "—"}</div>
+            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{subName} · 관리자</div>
+            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{user?.phone || ""}</div>
+          </div>
+          <div style={meCard}>
+            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 8 }}>글자 크기</div>
+            <div style={{ display: "flex", gap: 6 }}>
+              {[["small", "작게"], ["medium", "기본"], ["large", "크게"]].map(([k, label]) => (
+                <button key={k} onClick={() => { applyFontSize(k); setFontSizeState(k); }} style={{
+                  flex: 1, padding: "10px 0", borderRadius: 10, fontFamily: "inherit", cursor: "pointer", fontSize: 13, fontWeight: 800,
+                  border: fontSize === k ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
+                  background: fontSize === k ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)",
+                  color: "var(--text-primary)",
+                }}>{label}</button>
+              ))}
+            </div>
+          </div>
+          <div style={{ ...meCard, fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+            기사 삭제 · 전화번호 변경 · 관리자 지정은 올데이케어 운영자에게 요청해 주세요.
+          </div>
+          <button onClick={onLogout} style={{ ...btnGhost, width: "100%", padding: "13px 0", color: "#E5484D" }}>로그아웃</button>
+        </div>
+      )}
+
+      <div style={{ maxWidth: 720, margin: "0 auto", padding: "10px 12px 0", display: view === "tasks" ? "block" : "none" }}>
         {error && (
           <div style={{ background: "rgba(229,72,77,0.12)", color: "#E5484D", borderRadius: 12, padding: 14, fontSize: 14, fontWeight: 700, lineHeight: 1.5 }}>
             {error}
           </div>
         )}
-        {/* 필터 줄 — 한 줄 2칸 같은 폭. 날짜 칸은 글자("날짜 전체" / "10/8 (수)")를 보여 주고, 누르면 달력이 뜬다. */}
+
+        {/* "지금 할 일" 요약 띠 — 0건 항목은 숨긴다. 누르면 해당 단계 탭 / 정산 화면으로. */}
+        {todoItems.length > 0 && (
+          <div style={{ display: "flex", gap: 6, overflowX: "auto", marginBottom: 10 }}>
+            {todoItems.map(it => (
+              <button key={it.key} onClick={it.onClick} style={{
+                flexShrink: 0, padding: "8px 12px", borderRadius: 999, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
+                fontSize: 12, fontWeight: 800, border: "1px solid rgba(229,72,77,0.4)", background: "rgba(229,72,77,0.10)", color: "#E5484D",
+              }}>{it.label} ›</button>
+            ))}
+          </div>
+        )}
+
+        {/* 필터 줄 — 날짜 / 기사(검색 시트) */}
         <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, marginBottom: (fDate || fEng) ? 4 : 10 }}>
           <label style={{ ...filterBox, position: "relative", borderColor: fDate ? "var(--accent, #FF1B8D)" : "var(--border)" }}>
             <span aria-hidden="true">📅</span>
@@ -421,11 +476,11 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
             <input type="date" value={fDate} onChange={e => setFDate(e.target.value)} aria-label="날짜 필터"
               style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, border: "none", padding: 0, margin: 0, cursor: "pointer" }}/>
           </label>
-          <select value={fEng} onChange={e => setFEng(e.target.value)} aria-label="기사 필터"
-            style={{ ...filterBox, width: "100%", WebkitAppearance: "none", appearance: "none", borderColor: fEng ? "var(--accent, #FF1B8D)" : "var(--border)" }}>
-            <option value="">기사 전체</option>
-            {engOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
-          </select>
+          <button type="button" onClick={() => { setEngQuery(""); setEngSheet(true); }} aria-label="기사 필터"
+            style={{ ...filterBox, width: "100%", textAlign: "left", borderColor: fEng ? "var(--accent, #FF1B8D)" : "var(--border)" }}>
+            <span aria-hidden="true">👷</span>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{fEng ? fEngName : "기사 전체"}</span>
+          </button>
         </div>
         {(fDate || fEng) && (
           <div style={{ textAlign: "right", marginBottom: 8 }}>
@@ -441,65 +496,163 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
           </div>
         )}
 
-        {list.map(t => {
+        {list.map((t, idx) => {
           const closed = DONE.includes(t.status);
           const hasEng = !!t.assigned_engineer_id;
           const st = hasEng || closed ? t.status : "미배정";
           const ss = STATUS_STYLE[st] || { bg: "var(--bg-secondary)", fg: "var(--text-secondary)" };
+          const day = taskDay(t);
+          const showHead = idx === 0 || taskDay(list[idx - 1]) !== day;
+          const engDigits = String(t.engineer_phone || "").replace(/[^0-9]/g, "");
           return (
-            <div key={t.id} style={{
-              background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14,
-              padding: 14, marginBottom: 10,
-              ...categoryBar(catTask(t)),          // 종목 색 띠 (상태 배지와 겹치지 않게 띠·칩으로만)
-            }}>
-              <div onClick={() => openDetail(t.id)} style={{ cursor: "pointer" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, background: ss.bg, color: ss.fg, whiteSpace: "nowrap" }}>
-                    {st === "확정" ? "일정확정" : st === "진행중" ? "진행" : st === "visit_only" ? "방문만" : st}
-                  </span>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+            <div key={t.id}>
+              {/* 날짜가 바뀌는 곳에 묶음 머리 — 오늘 / 내일 / 10월 9일(금) */}
+              {showHead && <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-secondary)", margin: idx === 0 ? "2px 2px 8px" : "16px 2px 8px" }}>{dayHead(day)}</div>}
+              <div style={{
+                background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14,
+                padding: 14, marginBottom: 10,
+                ...categoryBar(catTask(t)),          // 종목 색 띠 (상태 배지와 겹치지 않게 띠·칩으로만)
+              }}>
+                <div onClick={() => openDetail(t.id)} style={{ cursor: "pointer" }}>
+                  {/* ① 종목 칩 · 방문 시각 · 상태 배지 */}
+                  <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                    <CategoryChip task={catTask(t)} size="sm"/>
+                    <span style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 800, color: "var(--accent, #FF1B8D)" }}>{timeText(t)}</span>
+                    <span style={{ fontSize: 11, fontWeight: 800, padding: "3px 8px", borderRadius: 6, background: ss.bg, color: ss.fg, whiteSpace: "nowrap" }}>
+                      {st === "확정" ? "일정확정" : st === "진행중" ? "진행" : st === "visit_only" ? "방문만" : st}
+                    </span>
+                  </div>
+                  {/* ② 고객 · 동네(구·동) · 작업 항목 요약 */}
+                  <div style={{ fontSize: 14, fontWeight: 700, marginTop: 8, lineHeight: 1.45 }}>
                     {t.customer_name}
+                    <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>{" · "}{townOf(t) || "주소 없음"}{" · "}{workLabel(t)}</span>
+                  </div>
+                </div>
+                {/* ③ 담당 기사 + 전화 */}
+                <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, minHeight: 36 }}>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 700, color: hasEng ? "var(--text-primary)" : "#E5484D" }}>
+                    {hasEng ? `담당 ${t.engineer_name || ""}` : "담당 기사 미배정"}
                   </span>
-                  <span style={{ fontSize: 11, color: "var(--text-secondary)" }}>{t.task_no}</span>
+                  {hasEng && engDigits && (
+                    <a href={`tel:${engDigits}`} aria-label={`${t.engineer_name || "기사"} 전화`} title="기사 전화" style={{
+                      width: 36, height: 36, borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg-secondary)",
+                      display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 16, textDecoration: "none", flexShrink: 0,
+                    }}>📞</a>
+                  )}
                 </div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent, #FF1B8D)", marginTop: 8 }}>{fmtWhen(t)}</div>
-                <div style={{ fontSize: 13, marginTop: 4, lineHeight: 1.45 }}>{t.address || t.district || "주소 없음"}</div>
-                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 6, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
-                  <CategoryChip task={catTask(t)} size="sm"/>
-                  <span>{workLabel(t)}{hasEng ? ` · 담당 ${t.engineer_name || ""}` : ""}</span>
-                </div>
-              </div>
 
-              <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
-                {t.phone && <a href={`tel:${t.phone}`} style={btnLink}>고객 통화</a>}
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  {t.phone && <a href={`tel:${t.phone}`} style={btnLink}>고객 통화</a>}
+                  {!closed && t.status !== "진행중" && (
+                    <button onClick={() => setPicking(t)} style={hasEng ? btnLinkBtn : btnMain}>
+                      {hasEng ? "기사 변경" : "배정"}
+                    </button>
+                  )}
+                  {!closed && t.status !== "진행중" && hasEng && (
+                    <button onClick={() => openSchedule(t)} style={t.status === "확정" ? btnLinkBtn : btnMain}>
+                      {t.status === "확정" ? "일정 변경" : "일정 확정"}
+                    </button>
+                  )}
+                  <button onClick={() => openDetail(t.id)} disabled={detailLoading} style={btnLinkBtn}>상세</button>
+                </div>
                 {!closed && t.status !== "진행중" && (
-                  <button onClick={() => setPicking(t)} style={hasEng ? btnLinkBtn : btnMain}>
-                    {hasEng ? "기사 변경" : "배정"}
+                  <button onClick={() => { setRejectText(""); setRejecting(t); }}
+                    style={{ background: "transparent", border: "none", padding: "10px 0 0", fontSize: 12, fontWeight: 700,
+                             color: "var(--text-secondary)", fontFamily: "inherit", cursor: "pointer", textDecoration: "underline" }}>
+                    올데이케어로 반려
                   </button>
                 )}
-                {!closed && t.status !== "진행중" && hasEng && (
-                  <button onClick={() => openSchedule(t)} style={t.status === "확정" ? btnLinkBtn : btnMain}>
-                    {t.status === "확정" ? "일정 변경" : "일정 확정"}
-                  </button>
-                )}
-                <button onClick={() => openDetail(t.id)} disabled={detailLoading} style={btnLinkBtn}>상세</button>
               </div>
-              {!closed && t.status !== "진행중" && (
-                <button onClick={() => { setRejectText(""); setRejecting(t); }}
-                  style={{ background: "transparent", border: "none", padding: "10px 0 0", fontSize: 12, fontWeight: 700,
-                           color: "var(--text-secondary)", fontFamily: "inherit", cursor: "pointer", textDecoration: "underline" }}>
-                  올데이케어로 반려
-                </button>
-              )}
             </div>
           );
         })}
+      </div>
 
-        <button onClick={onLogout} style={{ ...btnGhost, width: "100%", marginTop: 16, padding: "12px 0" }}>로그아웃</button>
+      {/* 기사 필터 — 검색 시트 (기사가 많아도 찾기 쉽게) */}
+      {engSheet && (
+        <BottomSheet
+          onClose={() => setEngSheet(false)}
+          title="기사 선택"
+          header={(
+            <input value={engQuery} onChange={e => setEngQuery(e.target.value)} placeholder="이름 검색"
+              style={{ ...fieldInput, marginTop: 10 }}/>
+          )}
+          footer={<SheetButtons onCancel={() => setEngSheet(false)} cancelLabel="닫기"/>}
+        >
+          {[["", "기사 전체"], ...engOptions.filter(([, name]) => !engQuery.trim() || String(name).includes(engQuery.trim()))].map(([id, name]) => (
+            <button key={id || "all"} type="button" onClick={() => { setFEng(id); setEngSheet(false); }} style={{
+              display: "block", width: "100%", textAlign: "left", padding: "13px 12px", marginBottom: 6, borderRadius: 10,
+              fontFamily: "inherit", cursor: "pointer", fontSize: 15, fontWeight: 700, color: "var(--text-primary)",
+              border: fEng === id ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
+              background: fEng === id ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)",
+            }}>{name}</button>
+          ))}
+          {engOptions.length === 0 && <div style={{ fontSize: 13, color: "var(--text-secondary)", padding: "8px 2px" }}>아직 배정된 기사가 없습니다.</div>}
+        </BottomSheet>
+      )}
+
+      {/* 하단 탭 — 기사 앱과 같은 자리·모양 */}
+      <div style={{
+        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100,
+        background: "var(--bg-primary)", borderTop: "1px solid var(--border)",
+        padding: "6px 4px calc(env(safe-area-inset-bottom, 0px) + 10px)",
+      }}>
+        <div style={{ maxWidth: 720, margin: "0 auto", display: "flex", justifyContent: "space-around" }}>
+          {NAV.map(([k, icon, label]) => (
+            <button key={k} onClick={() => setView(k)} style={{
+              flex: 1, padding: "6px 4px", background: "transparent", border: "none", cursor: "pointer", fontFamily: "inherit",
+              display: "flex", flexDirection: "column", alignItems: "center", gap: 2, minHeight: 48,
+              color: view === k ? "var(--accent, #FF1B8D)" : "var(--text-secondary)",
+            }}>
+              <span aria-hidden="true" style={{ fontSize: 20, lineHeight: 1 }}>{icon}</span>
+              <span style={{ fontSize: 11, fontWeight: view === k ? 800 : 600 }}>{label}</span>
+            </button>
+          ))}
+        </div>
       </div>
       {sheets}
     </div>
   );
+}
+
+const meCard = {
+  background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14, padding: 14, marginBottom: 10,
+};
+
+// 카드 ① 줄의 방문 시각 — "14:00" / 시간이 없으면 "시간 미정" (날짜는 묶음 머리가 보여 준다)
+function timeText(t) {
+  const iso = t.scheduled_at || t.scheduledAt;
+  if (iso) {
+    const d = new Date(iso);
+    if (!Number.isNaN(d.getTime())) return d.toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" });
+  }
+  return t.requested_time ? `희망 ${t.requested_time}` : "시간 미정";
+}
+
+// 묶음 머리 — 오늘 / 내일 / 10월 9일(금) / 날짜 미정
+function dayHead(ymd) {
+  if (!ymd) return "날짜 미정";
+  const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+  const tomorrow = new Date(Date.now() + 86400000).toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+  const d = new Date(`${ymd}T00:00:00+09:00`);
+  if (Number.isNaN(d.getTime())) return ymd;
+  const wd = d.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", weekday: "short" });
+  const label = `${Number(ymd.slice(5, 7))}월 ${Number(ymd.slice(8, 10))}일(${wd})`;
+  if (ymd === today) return `오늘 · ${label}`;
+  if (ymd === tomorrow) return `내일 · ${label}`;
+  return label;
+}
+
+// 고객 동네 — 구·동까지만 (상세 주소는 작업 상세에서)
+function townOf(t) {
+  const tokens = String(t.address || "").trim().split(/\s+/).filter(Boolean);
+  const gi = tokens.findIndex(x => /(구|군|시)$/.test(x) && !/(특별시|광역시|특별자치시)$/.test(x));
+  // 시 다음에 구가 또 오는 주소(수원시 영통구 …)는 더 안쪽 구를 쓴다
+  let i = gi;
+  if (i >= 0 && /시$/.test(tokens[i]) && tokens[i + 1] && /(구|군)$/.test(tokens[i + 1])) i += 1;
+  const gu = i >= 0 ? tokens[i] : (t.district || "");
+  const dong = i >= 0 && tokens[i + 1] && /(동|읍|면|가|리)$/.test(tokens[i + 1]) ? tokens[i + 1] : "";
+  return [gu, dong].filter(Boolean).join(" ");
 }
 
 const filterBox = {

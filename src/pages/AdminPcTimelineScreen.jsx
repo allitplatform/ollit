@@ -973,7 +973,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   const kind = isVisitOnly ? 'visit' : getServiceKind(task);
   // 2026-10-06 — 막대 색은 종목 기준표에서 (출장만 한 건은 기존 출장 색 유지)
   const kindColor = isVisitOnly ? (KIND_COLOR[kind] || KIND_COLOR_FALLBACK) : getCategoryMeta(task).color;
-  const textCol   = isVisitOnly ? (TEXT_ON_KIND[kind] || TEXT_ON_KIND_FALLBACK) : "#fff";
+  const textCol   = isVisitOnly ? (TEXT_ON_KIND[kind] || TEXT_ON_KIND_FALLBACK) : (getCategoryMeta(task).textOnColor || "#fff");
 
   // 2026-07-09 — status 별 시각 분기.
   //   · 취소 : todayTasks 필터에서 이미 제외 (아래 스타일 dead code).
