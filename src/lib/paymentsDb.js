@@ -18,6 +18,7 @@
 //        과거 호환·운영 사고 정정 용도로 남겨두나 신규 사용 금지.
 
 import { supabase } from "./supabase.js";
+import { getSessionAuth } from "./auth.js";
 
 // 2026-06-01 — task_id 배치 chunk (URL 길이 / 요청 크기 한계 회피).
 const TASK_ID_CHUNK = 300;
@@ -29,19 +30,28 @@ export async function reportEngineerRemit(taskIds) {
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
     return { ok: false, error: "taskIds 없음" };
   }
-  const ts = new Date().toISOString();
+  // 2026-10-06 Mig 211a — payments 직접 UPDATE → RPC (본인 배정 작업만, 서버에서 확인).
+  const { actor, token } = getSessionAuth();
+  if (!actor) return { ok: false, error: "로그인 정보가 없습니다. 다시 로그인해 주세요." };
   let okCount = 0;
   for (let i = 0; i < taskIds.length; i += TASK_ID_CHUNK) {
     const chunk = taskIds.slice(i, i + TASK_ID_CHUNK);
-    const { error } = await supabase
-      .from("payments")
-      .update({ engineer_remitted_at: ts })
-      .in("task_id", chunk);
+    const { data, error } = await supabase.rpc("engineer_report_remit", {
+      p_actor:    actor,
+      p_task_ids: chunk,
+      p_token:    token,
+    });
     if (error) {
       console.error("[reportEngineerRemit] 실패 chunk", i, error);
       return { ok: false, error: error.message, count: okCount };
     }
-    okCount += chunk.length;
+    if (!data || data.ok === false) {
+      return { ok: false, error: (data && data.error) || "보고 실패", count: okCount };
+    }
+    okCount += Number(data.count) || 0;
+  }
+  if (okCount === 0) {
+    return { ok: false, error: "보고할 수 있는 작업이 없습니다 (본인 배정 작업이 아니거나 이미 확인 완료).", count: 0 };
   }
   return { ok: true, count: okCount };
 }
@@ -55,19 +65,28 @@ export async function reportUsolRemit(taskIds) {
   if (!Array.isArray(taskIds) || taskIds.length === 0) {
     return { ok: false, error: "taskIds 없음" };
   }
-  const ts = new Date().toISOString();
+  // 2026-10-06 Mig 211a — payments 직접 UPDATE → RPC (본인 배정 작업만, 서버에서 확인).
+  const { actor, token } = getSessionAuth();
+  if (!actor) return { ok: false, error: "로그인 정보가 없습니다. 다시 로그인해 주세요." };
   let okCount = 0;
   for (let i = 0; i < taskIds.length; i += TASK_ID_CHUNK) {
     const chunk = taskIds.slice(i, i + TASK_ID_CHUNK);
-    const { error } = await supabase
-      .from("payments")
-      .update({ usol_remitted_at: ts })
-      .in("task_id", chunk);
+    const { data, error } = await supabase.rpc("engineer_report_usol_remit", {
+      p_actor:    actor,
+      p_task_ids: chunk,
+      p_token:    token,
+    });
     if (error) {
       console.error("[reportUsolRemit] 실패 chunk", i, error);
       return { ok: false, error: error.message, count: okCount };
     }
-    okCount += chunk.length;
+    if (!data || data.ok === false) {
+      return { ok: false, error: (data && data.error) || "보고 실패", count: okCount };
+    }
+    okCount += Number(data.count) || 0;
+  }
+  if (okCount === 0) {
+    return { ok: false, error: "보고할 수 있는 작업이 없습니다 (본인 배정 작업이 아니거나 이미 확인 완료).", count: 0 };
   }
   return { ok: true, count: okCount };
 }

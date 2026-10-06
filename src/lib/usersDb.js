@@ -15,6 +15,7 @@
 
 import { supabase } from "./supabase.js";
 import { currentUserId } from "./cancelRpc.js";
+import { getSessionAuth } from "./auth.js";
 import { PRINCIPAL_CODE_TO_ID } from "./commissionPoliciesDb.js";
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
@@ -144,6 +145,9 @@ export async function listUsersFromDb() {
 export async function upsertUserToDb({ code, patch }) {
   const actor = currentUserId();
   if (!actor) return { ok: false, error: "로그인 필요 (actor 없음)" };
+  // 2026-10-06 Mig 211c — 세션 값 필수. 211a 이전에 로그인한 기기는 값이 없으므로 재로그인 안내.
+  const { token } = getSessionAuth();
+  if (!token) return { ok: false, error: "보안 확인이 필요합니다. 로그아웃 후 다시 로그인해 주세요." };
   if (!patch || typeof patch !== "object") {
     return { ok: false, error: "patch 누락" };
   }
@@ -152,12 +156,13 @@ export async function upsertUserToDb({ code, patch }) {
     p_code:  code || null,
     p_patch: patch,
     p_actor: actor,
+    p_token: token,
   });
 
   if (error) {
     console.error("[usersDb.upsert:rpc]", error);
     if (_isRpcMissingError(error.message)) {
-      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 103)" };
+      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 103 / 211c)" };
     }
     return { ok: false, error: error.message || "RPC 호출 실패" };
   }
@@ -180,6 +185,9 @@ export async function upsertUserToDb({ code, patch }) {
 export async function setUserRolesToDb({ userId, pwaRoles }) {
   const actor = currentUserId();
   if (!actor) return { ok: false, error: "로그인 필요 (actor 없음)" };
+  // 2026-10-06 Mig 211c — 세션 값 필수. 211a 이전에 로그인한 기기는 값이 없으므로 재로그인 안내.
+  const { token } = getSessionAuth();
+  if (!token) return { ok: false, error: "보안 확인이 필요합니다. 로그아웃 후 다시 로그인해 주세요." };
   if (!userId) return { ok: false, error: "userId 누락" };
   if (!Array.isArray(pwaRoles) || pwaRoles.length === 0) {
     return { ok: false, error: "roles 비어있음 — 최소 1개 필요" };
@@ -200,12 +208,13 @@ export async function setUserRolesToDb({ userId, pwaRoles }) {
     p_user_id: userId,
     p_roles:   dbRoles,
     p_actor:   actor,
+    p_token:   token,
   });
 
   if (error) {
     console.error("[usersDb.setRoles:rpc]", error);
     if (_isRpcMissingError(error.message)) {
-      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 103)" };
+      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 103 / 211c)" };
     }
     return { ok: false, error: error.message || "RPC 호출 실패" };
   }
@@ -223,6 +232,9 @@ export async function setUserRolesToDb({ userId, pwaRoles }) {
 export async function resetUserPasswordToDb({ userId, newPassword }) {
   const actor = currentUserId();
   if (!actor) return { ok: false, error: "로그인 필요 (actor 없음)" };
+  // 2026-10-06 Mig 211c — 세션 값 필수. 211a 이전에 로그인한 기기는 값이 없으므로 재로그인 안내.
+  const { token } = getSessionAuth();
+  if (!token) return { ok: false, error: "보안 확인이 필요합니다. 로그아웃 후 다시 로그인해 주세요." };
   if (!userId) return { ok: false, error: "userId 누락" };
   if (!newPassword || String(newPassword).length < 4) {
     return { ok: false, error: "비밀번호는 4자 이상" };
@@ -232,12 +244,13 @@ export async function resetUserPasswordToDb({ userId, newPassword }) {
     p_user_id:      userId,
     p_new_password: String(newPassword),
     p_actor:        actor,
+    p_token:        token,
   });
 
   if (error) {
     console.error("[usersDb.resetPassword:rpc]", error);
     if (_isRpcMissingError(error.message)) {
-      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 103)" };
+      return { ok: false, error: "RPC 미배포 — 사장님 SQL 실행 필요 (Migration 103 / 211c)" };
     }
     return { ok: false, error: error.message || "RPC 호출 실패" };
   }

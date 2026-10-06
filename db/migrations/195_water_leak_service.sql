@@ -19,9 +19,17 @@
 BEGIN;
 
 -- [1] service type
-INSERT INTO service_types (id, category_id, code, name) VALUES
-  ('44444444-4444-4444-4444-444444444008', '33333333-3333-3333-3333-333333333001', 'water_leak', '누수')
-ON CONFLICT (id) DO NOTHING;
+-- FILE CORRECTED 2026-10-06 (file only - do NOT re-run on the live DB).
+--   The original text hardcoded id '44444444-4444-4444-4444-444444444008', which is
+--   already the id of fan_disassembly (Mig 034). The live row was created with a
+--   different id: water_leak = d5e26555-f078-42cf-9ffc-124a5134897f (owner verified).
+--   Rewritten to look up by code, with no hardcoded id. Rule from now on:
+--   add / reference services by code, never by a hardcoded id.
+INSERT INTO service_types (category_id, code, name)
+SELECT c.id, 'water_leak', '누수'
+FROM categories c
+WHERE c.code = 'aircon'
+ON CONFLICT (category_id, code) DO NOTHING;
 
 -- [2] work_types for 누수 (and 누설 backfill) - price 0, on-site pricing
 INSERT INTO work_types (service_type_id, appliance_type_id, code, name, default_unit_price)

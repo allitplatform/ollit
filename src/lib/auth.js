@@ -82,6 +82,17 @@ export function getCurrentUser() {
   }
 }
 
+// 2026-10-06 Mig 211a — RPC 호출용 { actor, token }.
+//   actor = 로그인 응답의 user_id, token = session_token
+//   (211a 이전에 로그인한 기기는 token 이 null → 서버 유예 모드에서 통과).
+export function getSessionAuth() {
+  const u = getCurrentUser();
+  return {
+    actor: (u && u.user_id) || null,
+    token: (u && u.session_token) || null,
+  };
+}
+
 export function signOut() {
   try { localStorage.removeItem(LS_KEY); } catch (e) { /* ignore */ }
 }

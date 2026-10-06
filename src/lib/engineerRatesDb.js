@@ -16,6 +16,7 @@
 // 외부 호출처 (data/engineers.js, AdminApp.jsx)는 import만 변경 / 응답 형태 유지.
 
 import { supabase } from "./supabase.js";
+import { getSessionAuth } from "./auth.js";
 
 const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 
@@ -83,68 +84,27 @@ export async function upsertEngineerRateToDb(payload) {
     return { ok: false, error: "rate 값이 잘못됨 (정수 0 이상 필요)" };
   }
 
-  // [1] engineerCode → user_id (UUID)
-  const u = await _resolveUserId(payload.engineerId);
-  if (!u.ok) return { ok: false, error: u.error };
-  const userId = u.userId;
+  // 2026-10-06 Mig 211a — engineer_rates 직접 쓰기 → RPC (운영자 확인은 서버에서).
+  const { actor, token } = getSessionAuth();
+  if (!actor) return { ok: false, error: "로그인 정보가 없습니다. 다시 로그인해 주세요." };
 
-  const workType      = String(payload.workType).trim();
-  const applianceCode = String(payload.applianceType).trim();
-  const note          = payload.note ? String(payload.note).trim() : null;
-
-  // [2] 존재 여부 확인 (3중 키)
-  const { data: existing, error: selErr } = await supabase
-    .from("engineer_rates")
-    .select("id")
-    .eq("tenant_id", TENANT_ID)
-    .eq("user_id", userId)
-    .eq("work_type", workType)
-    .eq("appliance_code", applianceCode)
-    .maybeSingle();
-
-  if (selErr) {
-    console.error("[engineerRatesDb.upsert:select]", selErr);
-    return { ok: false, error: selErr.message };
+  const { data, error } = await supabase.rpc("admin_upsert_engineer_rate", {
+    p_actor:          actor,
+    p_engineer_code:  String(payload.engineerId).trim(),
+    p_work_type:      String(payload.workType).trim(),
+    p_appliance_code: String(payload.applianceType).trim(),
+    p_rate:           rate,
+    p_note:           payload.note ? String(payload.note).trim() : null,
+    p_token:          token,
+  });
+  if (error) {
+    console.error("[engineerRatesDb.upsert]", error);
+    return { ok: false, error: error.message };
   }
-
-  if (existing) {
-    // UPDATE — 2026-06-07 .select("id")로 0행 감지 (RLS silent fail 방지망)
-    const { data: updated, error: updErr } = await supabase
-      .from("engineer_rates")
-      .update({
-        rate,
-        note,
-        updated_at: new Date().toISOString(),
-      })
-      .eq("id", existing.id)
-      .select("id");
-    if (updErr) {
-      console.error("[engineerRatesDb.upsert:update]", updErr);
-      return { ok: false, error: updErr.message };
-    }
-    if (!Array.isArray(updated) || updated.length === 0) {
-      console.error("[engineerRatesDb.upsert:update] 0행 — RLS 또는 조건 매칭 실패");
-      return { ok: false, error: "0행 매칭 — 저장 실패 (권한/조건 재확인)" };
-    }
-    return { ok: true, action: "update" };
+  if (!data || data.ok === false) {
+    return { ok: false, error: (data && data.error) || "저장 실패" };
   }
-
-  // INSERT
-  const { error: insErr } = await supabase
-    .from("engineer_rates")
-    .insert({
-      tenant_id:      TENANT_ID,
-      user_id:        userId,
-      work_type:      workType,
-      appliance_code: applianceCode,
-      rate,
-      note,
-    });
-  if (insErr) {
-    console.error("[engineerRatesDb.upsert:insert]", insErr);
-    return { ok: false, error: insErr.message };
-  }
-  return { ok: true, action: "create" };
+  return { ok: true, action: data.action || "update" };
 }
 
 // ============================================================
@@ -157,24 +117,23 @@ export async function deleteEngineerRateFromDb(payload) {
     return { ok: false, error: "필수 키 누락 (engineerId / workType / applianceType)" };
   }
 
-  const u = await _resolveUserId(payload.engineerId);
-  if (!u.ok) return { ok: false, error: u.error };
-  const userId = u.userId;
+  // 2026-10-06 Mig 211a — engineer_rates 직접 DELETE → RPC.
+  const { actor, token } = getSessionAuth();
+  if (!actor) return { ok: false, error: "로그인 정보가 없습니다. 다시 로그인해 주세요." };
 
-  const workType      = String(payload.workType).trim();
-  const applianceCode = String(payload.applianceType).trim();
-
-  const { error } = await supabase
-    .from("engineer_rates")
-    .delete()
-    .eq("tenant_id", TENANT_ID)
-    .eq("user_id", userId)
-    .eq("work_type", workType)
-    .eq("appliance_code", applianceCode);
-
+  const { data, error } = await supabase.rpc("admin_delete_engineer_rate", {
+    p_actor:          actor,
+    p_engineer_code:  String(payload.engineerId).trim(),
+    p_work_type:      String(payload.workType).trim(),
+    p_appliance_code: String(payload.applianceType).trim(),
+    p_token:          token,
+  });
   if (error) {
     console.error("[engineerRatesDb.delete]", error);
     return { ok: false, error: error.message };
+  }
+  if (!data || data.ok === false) {
+    return { ok: false, error: (data && data.error) || "삭제 실패" };
   }
   return { ok: true };
 }
