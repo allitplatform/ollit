@@ -55,6 +55,7 @@ import { setMaterialCostAdapter } from "../data/tasksDb.js";
 // 2026-06-02 — 정산 대기 측 partial payload 측 측 → id 측 full re-fetch + normalize (유솔 PrincipalApp.TaskDetail 측 동일 spec).
 import { v14NormalizeTask } from "../utils/v14Task.js";
 import { formatWorkTypeLabel } from "../utils/receptionForm.js";
+import { fmtWon } from "../utils/money.js";
 import { useSubcontractorIndex, subcontractorAssigneeLabel, adminAssignTaskToSubcontractor } from "../lib/subcontractorsDb.js";
 // 2026-06-17 — visit_only 되돌리기 다이얼로그 (Mig 138 unmark_visit_only RPC).
 import { UnmarkVisitOnlyDialog } from "./admin/UnmarkVisitOnlyDialog.jsx";
@@ -1128,7 +1129,7 @@ function SubFeeSplitCard({ task }) {
   const quote = Number(task.productPrice ?? task.estimateTotal ?? 0) || 0;
   const hasPay = !!task.payment && task.payment.track === "S";
   const fee = hasPay ? (Number(task.owner_amount) || 0) : null;
-  const won = (n) => `₩${Number(n || 0).toLocaleString("ko-KR")}`;
+  const won = fmtWon;
   const row = (label, value, strong, color) => (
     <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "5px 0" }}>
       <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>{label}</span>
@@ -1151,7 +1152,7 @@ function SubFeeSplitCard({ task }) {
           {row("받은 금액", won(received))}
           {row("부가세 포함 여부", task.vatIncluded ? `포함 (부가세 ${won(Math.max(0, received - supply))})` : "미포함")}
           {row("공급가", won(supply))}
-          {quote > 0 && supply < quote && row("견적 대비 공급가 차액", `− ${won(quote - supply)}`, true, "#E5484D")}
+          {quote > 0 && supply < quote && row("견적 대비 공급가 차액", won(supply - quote), true, "#E5484D")}
           {quote > 0 && supply < quote && (
             <div style={{ fontSize: 12, color: "#E5484D", lineHeight: 1.5, padding: "2px 0 4px" }}>
               사유: {task.supplyShortfallReason || "입력 없음"}

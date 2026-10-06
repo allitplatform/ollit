@@ -6,6 +6,7 @@ import { useState, useMemo } from "react";
 import { todayYmd } from "../../utils/dateLabel.js";
 import {
   computeRevenueByYmRange,
+  withSubFee,
   getPrevMonthSameDay,
   getMonthStart,
   getPrevMonthStart,
@@ -47,8 +48,9 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
       ? _sv(serverRanges?.prevSameDay)
       : _sv(serverRanges?.prevMonthToDate);
     return {
-      current:  curFromServer  || computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
-      previous: prevFromServer || computeRevenueByYmRange(apiTasks, prevStart, prevEnd, user),
+      // 서버 요약(직영·원청, track A)에는 협력사 수수료가 없다 → 같은 작업 목록에서 얹는다 (Mig 229).
+      current:  curFromServer  ? withSubFee(curFromServer,  apiTasks, curStart,  curEnd,  user) : computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
+      previous: prevFromServer ? withSubFee(prevFromServer, apiTasks, prevStart, prevEnd, user) : computeRevenueByYmRange(apiTasks, prevStart, prevEnd, user),
       periodLabel: label,
     };
   }, [apiTasks, user, period, serverSummary, serverRanges]);
@@ -63,7 +65,8 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
 
   const engineerPct  = (current.engineer  / denom) * 100;
   const principalPct = (current.principal / denom) * 100;
-  const ownerPct     = (current.owner     / denom) * 100;
+  // 막대 비율은 직영·원청분만으로 계산한다 (총액에 협력사 거래액이 없으므로). 금액 표시는 협력사 수수료 포함.
+  const ownerPct     = ((current.ownerDirect ?? current.owner) / denom) * 100;
 
   const cleaningPct    = (current.byService.cleaning    / denom) * 100;
   const refrigerantPct = (current.byService.refrigerant / denom) * 100;
@@ -171,6 +174,16 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
         )}
         {current.byService.other > 0 && (
           <ServiceBar t={t} label="기타" icon="•" amount={current.byService.other} pct={otherPct} color={t.textMuted}/>
+        )}
+        {/* 2026-10-06 Mig 229 — 협력사 수수료 (회사 수입에 포함된 금액). 받은 금액은 참고(거래액). */}
+        {(current.subFee || 0) !== 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 8, paddingTop: 8, borderTop: `1px solid ${t.border}` }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: t.textSecondary }}>협력사 수수료 · {current.subCount}건</span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: t.text }}>
+              {fmtKRW(current.subFee)}
+              <span style={{ fontSize: 10, fontWeight: 600, color: t.textMuted }}> (거래액 {fmtKRW(current.subGross)})</span>
+            </span>
+          </div>
         )}
       </div>
 

@@ -146,6 +146,9 @@ export const subReportDailyFee = (date, amount) =>
 export const adminListSubDailyFees = (from = null, to = null) => _call("admin_list_sub_daily_fees", { p_from: from, p_to: to });
 export const adminConfirmSubDailyFee = (subcontractorId, date, confirm = true) =>
   _call("admin_confirm_sub_daily_fee", { p_subcontractor_id: subcontractorId, p_date: date, p_confirm: !!confirm });
+// 송금 보고 취소 (Mig 227) — 보고됨/차액 상태만. 사유 필수. 확인 완료는 확인 취소를 먼저.
+export const adminCancelSubDailyReport = (subcontractorId, date, reason) =>
+  _call("admin_cancel_sub_daily_report", { p_subcontractor_id: subcontractorId, p_date: date, p_reason: String(reason || "") });
 
 // ── 협력사 관리자 ────────────────────────────────────────────
 export const subListStaff = () => _call("sub_list_staff", {});

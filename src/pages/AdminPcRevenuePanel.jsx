@@ -15,6 +15,7 @@ import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { useMinWidth } from "../utils/useIsPc.js";
 import {
   computeRevenueByYmRange,
+  withSubFee,
   getPrevMonthSameDay,
   getMonthStart,
   getPrevMonthStart,
@@ -62,8 +63,9 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
       ? _sv(serverRanges?.prevSameDay)
       : _sv(serverRanges?.prevMonthToDate);
     return {
-      current:  curFromServer  || computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
-      previous: prevFromServer || computeRevenueByYmRange(apiTasks, prevStart, prevEnd, user),
+      // 서버 요약(직영·원청, track A)에는 협력사 수수료가 없다 → 같은 작업 목록에서 얹는다 (Mig 229).
+      current:  curFromServer  ? withSubFee(curFromServer,  apiTasks, curStart,  curEnd,  user) : computeRevenueByYmRange(apiTasks, curStart, curEnd, user),
+      previous: prevFromServer ? withSubFee(prevFromServer, apiTasks, prevStart, prevEnd, user) : computeRevenueByYmRange(apiTasks, prevStart, prevEnd, user),
       periodLabel: label,
     };
   }, [apiTasks, user, period, serverSummary, serverRanges]);
@@ -72,7 +74,8 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
   const denom = total > 0 ? total : 1;
   const engineerPct  = (current.engineer  / denom) * 100;
   const principalPct = (current.principal / denom) * 100;
-  const ownerPct     = (current.owner     / denom) * 100;
+  // 막대 비율은 직영·원청분만으로 계산한다 (총액에 협력사 거래액이 없으므로). 금액 표시는 협력사 수수료 포함.
+  const ownerPct     = ((current.ownerDirect ?? current.owner) / denom) * 100;
 
   const diffPct = previous.total > 0
     ? ((current.total - previous.total) / previous.total) * 100
@@ -233,6 +236,16 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
             detail={sd.other}
             total={total}
           />
+        )}
+        {/* 2026-10-06 Mig 229 — 협력사 수수료 (회사 수입에 포함된 금액). 받은 금액은 참고(거래액). */}
+        {(current.subFee || 0) !== 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+            <span style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>협력사 수수료 · {current.subCount}건</span>
+            <span style={{ fontSize: 13, fontWeight: 700, color: "var(--text-primary)" }}>
+              {fmtKRW(current.subFee)}
+              <span style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)" }}> (거래액 {fmtKRW(current.subGross)})</span>
+            </span>
+          </div>
         )}
       </div>
 

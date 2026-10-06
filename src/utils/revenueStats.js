@@ -27,7 +27,42 @@ const EMPTY = {
     other:       { total: 0, count: 0, owner: 0 },
   },
   count: 0,
+  // 2026-10-06 Mig 229 — 협력사 작업(track S). 수수료만 회사 수입, 받은 금액은 참고(거래액).
+  //   owner       = 회사 수입 합계 (직영·원청 + 협력사 수수료)
+  //   ownerDirect = 협력사 수수료를 뺀 기존 회사 수입 (기존 숫자와 대조용)
+  ownerDirect: 0, subFee: 0, subGross: 0, subCount: 0,
 };
+
+// 협력사 작업 집계 — 완료 + track S + 완료일(KST)이 기간 안.
+function _sumSubFee(apiTasks, startYmd, endYmd) {
+  let subFee = 0, subGross = 0, subCount = 0;
+  for (const t of (apiTasks || [])) {
+    if (!t || t.status !== "완료") continue;
+    const track = t.track || t.payment?.track;
+    if (track !== "S") continue;
+    const completed = t.completedAt || t.completed_at;
+    if (!completed) continue;
+    const ymd = toKstYmd(completed);
+    if (!ymd || ymd < startYmd || ymd > endYmd) continue;
+    subFee   += Number(t.owner_amount || 0);
+    subGross += Number(t.receivedTotal ?? t.received_total ?? 0) || 0;
+    subCount += 1;
+  }
+  return { subFee, subGross, subCount };
+}
+
+// 기존 집계 결과(서버 요약 또는 클라이언트 계산의 직영·원청분)에 협력사 수수료를 얹는다.
+//   기존 칸(total / engineer / principal / byService / count)은 건드리지 않는다.
+//   owner 만 "기존 + 협력사 수수료" 로 바뀌고, 기존 값은 ownerDirect 에 남긴다.
+export function withSubFee(rev, apiTasks, startYmd, endYmd, user) {
+  if (!rev) return rev;
+  if (!canSeeField(user, "task.total_amount") || !startYmd || !endYmd) {
+    return { ...rev, ownerDirect: Number(rev.owner) || 0, subFee: 0, subGross: 0, subCount: 0 };
+  }
+  const sub = _sumSubFee(apiTasks, startYmd, endYmd);
+  const ownerDirect = Number(rev.owner) || 0;
+  return { ...rev, ownerDirect, owner: ownerDirect + sub.subFee, ...sub };
+}
 
 // 2026-07-14 — Stage 2c: 서버 집계(get_admin_dashboard_summary) 응답 → computeRevenueByYmRange 반환 형태 매핑.
 //   RevenueOverviewBlock(모바일) + AdminPcRevenuePanel(PC) 공용. '오늘' 뷰 전용 (RPC가 당일만 제공).
@@ -125,8 +160,11 @@ export function computeRevenueByYmRange(apiTasks, startYmd, endYmd, user) {
     }
   }
 
+  // 2026-10-06 Mig 229 — 협력사 수수료를 회사 수입에 포함 (완료일 기준). 기존 칸은 그대로.
+  const _sub = _sumSubFee(apiTasks, startYmd, endYmd);
   return {
-    total, engineer, principal, owner,
+    total, engineer, principal, owner: owner + _sub.subFee,
+    ownerDirect: owner, ..._sub,
     byService: { cleaning, refrigerant, install, leak, other },
     byServiceDetail: {
       cleaning:    { total: cleaning,    count: cleaningCount,    owner: cleaningOwner },

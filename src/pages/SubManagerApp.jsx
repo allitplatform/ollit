@@ -314,7 +314,10 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-primary)", fontFamily: "'Pretendard', sans-serif", paddingBottom: 40 }}>
       <div style={{
-        position: "sticky", top: 0, zIndex: 5, background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)",
+        // 작업 목록에서는 탭이 따라오도록 고정, 정산 보기에서는 고정하지 않는다
+        //   (고정 머리가 정산 화면의 제목·새로고침 버튼을 가리던 문제 — 2026-10-06 실화면 확인).
+        position: view === "tasks" ? "sticky" : "relative", top: 0, zIndex: 5,
+        background: "var(--bg-secondary)", borderBottom: "1px solid var(--border)",
         padding: "calc(env(safe-area-inset-top, 0px) + 12px) 14px 10px",
       }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>

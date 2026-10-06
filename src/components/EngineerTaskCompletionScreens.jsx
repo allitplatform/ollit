@@ -532,12 +532,21 @@ function CustomerCard({ task, accentColor, subText }) {
         display: "flex", alignItems: "center", gap: 6,
         fontSize: 14, fontWeight: 600,
       }}>
-        <span style={{ color: colors.main, fontWeight: 600 }}>
-          {colors.icon} {colors.name}
-        </span>
-        <span style={{ color: "var(--text-secondary)" }}>
-          {task.appliance ? `· ${task.appliance}` : ""}{task.qty ? ` ×${task.qty}대` : ""}
-        </span>
+        {/* 2026-10-06 — 기종이 없는 종목(주방후드·출장비 등)은 "(공통) ×1대" 대신 작업 이름만 보여 준다 */}
+        {(!task.appliance || task.appliance === "(공통)") ? (
+          <span style={{ color: colors.main, fontWeight: 600 }}>
+            {colors.icon} {String(task.workType || (Array.isArray(task.workItems) && task.workItems[0]?.workType) || colors.name).replace(/_\(공통\)$/, "")}
+          </span>
+        ) : (
+          <>
+            <span style={{ color: colors.main, fontWeight: 600 }}>
+              {colors.icon} {colors.name}
+            </span>
+            <span style={{ color: "var(--text-secondary)" }}>
+              {`· ${task.appliance}`}{task.qty ? ` ×${task.qty}대` : ""}
+            </span>
+          </>
+        )}
       </div>
       {subText && (
         <div style={{
