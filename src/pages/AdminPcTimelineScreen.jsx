@@ -14,7 +14,7 @@ import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 // 2026-06-20 trace — 모듈 로드 자체 확인 (HMR 미반영 진단).
 console.log('[AdminPcTimelineScreen MODULE LOADED v2026-06-20-trace5]');
 import { getTaskStatusColor } from "../utils/taskStatusColor.js";
-import { getServiceKind } from "../utils/workTypeKind.js";
+import { getServiceKind, leakDisplayLabel } from "../utils/workTypeKind.js";
 // 2026-07-11 — task 실질 취소 판정 (배지/목록/타임라인 일관).
 import { isEffectivelyCanceled } from "../utils/taskCancelState.js";
 // 2026-07-11 — visit_only 판정 (색 판정에서 냉매 등 prefill 잔존 workType 무시).
@@ -1009,7 +1009,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
     kind === "refrigerant" ? "냉매"
       : kind === "cleaning" ? "세척"
       : kind === "install"  ? "설치"
-      : kind === "leak"     ? "누설/누수"
+      : kind === "leak"     ? leakDisplayLabel(task)
       : "",
     task.status || "",
   ].filter(Boolean);

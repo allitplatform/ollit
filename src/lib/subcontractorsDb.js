@@ -5,6 +5,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "./supabase.js";
 import { getSessionAuth } from "./auth.js";
+import { rowToTask } from "../data/tasksDb.js";
 
 const NEED_LOGIN = "보안 확인이 필요합니다. 로그아웃 후 다시 로그인해 주세요.";
 
@@ -131,6 +132,37 @@ export const subStaffSetSupply = (taskId, supply, reason = null) =>
 // ── 협력사 관리자 ────────────────────────────────────────────
 export const subListStaff = () => _call("sub_list_staff", {});
 export const subListTasks = (from = null, to = null) => _call("sub_list_tasks", { p_from: from, p_to: to });
+// 작업 상세 한 건 (Mig 221) — 서버가 "호출자의 협력사 작업인지" 확인한 뒤에만 내용을 준다.
+//   반환: rowToTask 로 변환한 작업 객체 (운영자 상세 화면이 쓰는 형태) 또는 null.
+export async function subGetTaskDetail(taskId) {
+  const res = await _call("sub_get_task_detail", { p_task_id: taskId });
+  if (!res.ok || !res.task) return null;
+  const task = rowToTask(res.task);
+  if (task && res.task.principal_rel) task.principal = res.task.principal_rel.name || "";
+  return task;
+}
+
+// 메모 목록·추가 / 사진 목록 (Mig 222) — 서버가 소속을 확인한다.
+export async function subListTaskMemos(taskId) {
+  const res = await _call("sub_list_task_memos", { p_task_id: taskId });
+  return res.ok ? (Array.isArray(res.memos) ? res.memos : []) : [];
+}
+export const subAddTaskMemo = (taskId, body) =>
+  _call("sub_add_task_memo", { p_task_id: taskId, p_body: String(body || "") });
+// 반환 형태는 photosDb.listPhotosByTask 와 같다 ({ ok, photos:[{ id, step, url, ... }] }).
+export async function subListTaskPhotos(taskId) {
+  const res = await _call("sub_list_task_photos", { p_task_id: taskId });
+  if (!res.ok) return { ok: false, error: res.error, photos: [] };
+  const photos = (res.photos || []).map(row => {
+    const { data } = supabase.storage.from("task-photos").getPublicUrl(row.storage_path);
+    return {
+      id: row.id, taskId: row.task_id, step: row.step, storage_path: row.storage_path,
+      url: data?.publicUrl || "", uploadedBy: row.uploaded_by, uploadedAt: row.uploaded_at,
+    };
+  });
+  return { ok: true, photos };
+}
+
 // 일정 확정·변경 — scheduledAt: ISO 문자열. 배정 상태면 '확정' 으로 바뀐다.
 export const subSetSchedule = (taskId, scheduledAt) =>
   _call("sub_set_schedule", { p_task_id: taskId, p_scheduled_at: scheduledAt });

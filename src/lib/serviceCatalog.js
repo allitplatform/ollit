@@ -61,11 +61,25 @@ export function loadServiceCatalog(force = false) {
   return _promise;
 }
 
+// YS-N 전용 2종 — 운영 DB 의 service_types 에는 이 이름의 행이 없다 (mig 219 결과로 확인).
+//   유솔N 주문은 네이버 주문 일괄 등록 경로가 task_items 를 직접 넣는다.
+//   접수 화면의 기존 동작(유솔N 일 때 칩 노출)은 유지하려고 여기서 덧붙인다.
+const USOL_N_ONLY = [
+  { name: "추가선택(YS-N)", scope: "usol_n" },
+  { name: "냉매점검(YS-N)", scope: "usol_n" },
+];
+
 function _filter(catalog, principalCode) {
   const isUsolN = principalCode === "usol_n";
-  return catalog
+  const out = catalog
     .map(g => ({ ...g, items: g.items.filter(it => it.scope !== "usol_n" || isUsolN) }))
     .filter(g => g.items.length > 0);
+  if (isUsolN && !out.some(g => g.items.some(it => it.scope === "usol_n"))) {
+    const i = out.findIndex(g => g.key === "aircon");
+    if (i >= 0) out[i] = { ...out[i], items: [...out[i].items, ...USOL_N_ONLY] };
+    else out.unshift({ key: "aircon", label: "에어컨", items: [...USOL_N_ONLY] });
+  }
+  return out;
 }
 
 // 화면용 훅 — [{ key, label, items:[{name}] }]. principalCode 가 'usol_n' 일 때만 YS-N 전용 포함.

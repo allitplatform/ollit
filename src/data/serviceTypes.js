@@ -37,12 +37,22 @@ export const SERVICE_TYPES = {
   // 2026-07-08 — 표시 라벨만 '누설/누수' (id / kind='leak' 매칭키 무손).
   leak: {
     id:          "leak",
-    label:       "누설/누수",
+    label:       "냉매 누설·물 누수",
     icon:        "💧",
     color:       "#DC2626",
     textColor:   "#DC2626",
     bgColor:     "var(--bg-secondary)",
     borderColor: "#DC2626",
+  },
+  // 2026-10-06 Mig 215 — 주방후드 (업소용/가정용/후드설치). 기종 개념 없음.
+  hood: {
+    id:          "hood",
+    label:       "주방후드",
+    icon:        "🍳",
+    color:       "#14B8A6",
+    textColor:   "#14B8A6",
+    bgColor:     "var(--bg-secondary)",
+    borderColor: "#14B8A6",
   },
   visit: {
     id:          "visit",
@@ -110,6 +120,14 @@ export function detectServiceType(task) {
   const hasReal = (firstWt && !_isPlaceholderWorkType(firstWt))
                || (rootWt  && !_isPlaceholderWorkType(rootWt));
   if (!hasReal) return SERVICE_TYPES.undecided;
+
+  // 2026-10-06 — 주방후드: 에어컨 종류 판정보다 먼저 ("미정" 배지로 떨어지지 않게).
+  const _mainItem = Array.isArray(task.workItems) && task.workItems.length > 0 ? task.workItems[0] : null;
+  const _code = String((_mainItem && (_mainItem.serviceCode || _mainItem.service_code)) || "");
+  const _wtText = String(firstWt || rootWt || "");
+  if (_code.startsWith("hood") || _wtText.startsWith("주방후드") || _wtText.startsWith("후드설치")) {
+    return SERVICE_TYPES.hood;
+  }
 
   // serviceCode 우선 (DB) → workType startsWith → 5종 work_types.name 직접 매칭 (workTypeKind v2).
   const kind = getServiceKind(task);

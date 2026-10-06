@@ -7,8 +7,10 @@
 //   숨기는 범위: 정산 · 가계부 · 원청 · 다른 협력사 · 사용자 권한 (메뉴 자체가 없음).
 //   상태 흐름: 미배정 → 배정 → 확정(일정 확정) → 진행중 → 완료.
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { subListTasks, subListStaff, subAssignTask, subSetSchedule } from "../lib/subcontractorsDb.js";
-import { getTaskForListById } from "../data/tasksDb.js";
+import {
+  subListTasks, subListStaff, subAssignTask, subSetSchedule, subGetTaskDetail,
+  subListTaskMemos, subAddTaskMemo, subListTaskPhotos,
+} from "../lib/subcontractorsDb.js";
 import { v14NormalizeTask } from "../utils/v14Task.js";
 import { AdminTaskDetailScreen } from "../components/AdminTaskDetailScreen.jsx";
 import { RoleSwitcher } from "../components/RoleSwitcher.jsx";
@@ -89,6 +91,9 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const [schedTime, setSchedTime] = useState("");
   const [detail, setDetail] = useState(null);         // 운영자 상세 화면에 넘길 정규화 task
   const [detailLoading, setDetailLoading] = useState(false);
+  const [memos, setMemos] = useState([]);             // 상세 화면 메모 (RPC)
+  const [memoOpen, setMemoOpen] = useState(false);
+  const [memoText, setMemoText] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -113,11 +118,12 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
 
   const list = groups[tab] || [];
 
-  // 상세 열기 — 목록(RPC)에 있는 자기 협력사 작업의 id 로 전체 내용을 읽어 운영자 상세 화면에 넘긴다.
+  // 상세 열기 — 서버가 소속을 확인하는 RPC(sub_get_task_detail, Mig 221)로 한 건을 읽어
+  //   운영자 상세 화면에 넘긴다. 자기 협력사 작업이 아니면 서버가 내용을 주지 않는다.
   const openDetail = useCallback(async (taskId) => {
     setDetailLoading(true);
     try {
-      const row = await getTaskForListById(taskId);
+      const row = await subGetTaskDetail(taskId);
       const norm = row ? v14NormalizeTask(row) : null;
       // 방어: 목록에 없는 작업이거나 수행처가 다르면 열지 않는다.
       if (!norm || !norm.subcontractorId || norm.subcontractorId !== user?.subcontractor?.id) {
@@ -130,10 +136,32 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
     }
   }, [user]);
 
+  // 상세가 열려 있는 동안 메모 목록 (서버가 소속 확인 — Mig 222)
+  const detailId = detail ? detail.id : null;
+  useEffect(() => {
+    let alive = true;
+    if (!detailId) { setMemos([]); return undefined; }
+    subListTaskMemos(detailId).then(list => { if (alive) setMemos(list); });
+    return () => { alive = false; };
+  }, [detailId]);
+
+  async function saveMemo() {
+    if (busy || !detail) return;
+    const text = memoText.trim();
+    if (!text) { alert("메모 내용을 입력해 주세요."); return; }
+    setBusy(true);
+    const res = await subAddTaskMemo(detail.id, text);
+    setBusy(false);
+    if (!res.ok) { alert(res.error || "메모를 저장하지 못했습니다."); return; }
+    setMemoOpen(false);
+    setMemoText("");
+    setMemos(await subListTaskMemos(detail.id));
+  }
+
   const refreshAfterChange = useCallback(async (taskId) => {
     await load();
     if (detail && detail.id === taskId) {
-      const row = await getTaskForListById(taskId);
+      const row = await subGetTaskDetail(taskId);
       const norm = row ? v14NormalizeTask(row) : null;
       setDetail(norm && norm.subcontractorId === user?.subcontractor?.id ? norm : null);
     }
@@ -152,7 +180,8 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   function openSchedule(target) {
     const cur = kstParts(target.scheduled_at || target.scheduledAt);
     setSchedDate(cur.date || target.requested_date || target.requestedDate || "");
-    setSchedTime(cur.time || "");
+    // 시간이 아직 없으면 오전 10시를 제안 (빈 상자로 보이지 않게). 저장 전 바꿀 수 있다.
+    setSchedTime(cur.time || "10:00");
     setScheduling(target);
   }
 
@@ -211,10 +240,24 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
         <Sheet onClose={() => { if (!busy) setScheduling(null); }}>
           <div style={sheetTitle}>일정 확정 · 변경</div>
           <div style={sheetSub}>{scheduling.customer_name || scheduling.customer}</div>
-          <label style={fieldLabel}>날짜</label>
-          <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)} style={fieldInput}/>
-          <label style={fieldLabel}>시간</label>
-          <input type="time" step={600} value={schedTime} onChange={e => setSchedTime(e.target.value)} style={fieldInput}/>
+          <label style={fieldLabel}>날짜 선택</label>
+          <div style={fieldWrap}>
+            <input type="date" value={schedDate} onChange={e => setSchedDate(e.target.value)} style={fieldInput}/>
+          </div>
+          <label style={fieldLabel}>시간 선택{schedTime ? "" : " (아래에서 고르거나 직접 입력)"}</label>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
+            {["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00"].map(tm => (
+              <button key={tm} type="button" onClick={() => setSchedTime(tm)} style={{
+                padding: "8px 10px", borderRadius: 8, fontSize: 13, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+                border: schedTime === tm ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
+                background: schedTime === tm ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)",
+                color: "var(--text-primary)",
+              }}>{tm}</button>
+            ))}
+          </div>
+          <div style={fieldWrap}>
+            <input type="time" step={600} value={schedTime} onChange={e => setSchedTime(e.target.value)} style={fieldInput}/>
+          </div>
           <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 10, lineHeight: 1.5 }}>
             저장하면 상태가 "일정확정"으로 바뀝니다. 담당 기사가 먼저 배정돼 있어야 합니다.
           </div>
@@ -222,6 +265,21 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
             {busy ? "저장 중…" : "일정 저장"}
           </button>
           <button disabled={busy} onClick={() => setScheduling(null)} style={{ ...btnGhost, width: "100%", marginTop: 8 }}>닫기</button>
+        </Sheet>
+      )}
+      {memoOpen && detail && (
+        <Sheet onClose={() => { if (!busy) setMemoOpen(false); }}>
+          <div style={sheetTitle}>메모 추가</div>
+          <div style={sheetSub}>{detail.customer} · 올데이케어 운영자도 함께 봅니다</div>
+          <textarea
+            value={memoText} onChange={e => setMemoText(e.target.value)} rows={4} autoFocus
+            placeholder="현장 상황, 고객 통화 내용 등을 남겨 주세요"
+            style={{ ...fieldInput, resize: "vertical", lineHeight: 1.5 }}
+          />
+          <button disabled={busy} onClick={saveMemo} style={{ ...btnMain, width: "100%", marginTop: 12 }}>
+            {busy ? "저장 중…" : "메모 저장"}
+          </button>
+          <button disabled={busy} onClick={() => setMemoOpen(false)} style={{ ...btnGhost, width: "100%", marginTop: 8 }}>닫기</button>
         </Sheet>
       )}
     </>
@@ -239,6 +297,10 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
             onBack={() => { setDetail(null); load(); }}
             onAssign={() => setPicking(detail)}
             onScheduleChange={() => openSchedule(detail)}
+            fetchTask={subGetTaskDetail}
+            externalMemos={memos}
+            photoLoader={subListTaskPhotos}
+            onMemoAdd={() => { setMemoText(""); setMemoOpen(true); }}
           />
         </div>
         {sheets}
@@ -352,6 +414,7 @@ function Sheet({ children, onClose }) {
       <div onClick={e => e.stopPropagation()} style={{
         background: "var(--bg-secondary)", color: "var(--text-primary)", width: "100%", maxWidth: 560, maxHeight: "82vh", overflowY: "auto",
         borderRadius: "18px 18px 0 0", padding: "18px 16px calc(env(safe-area-inset-bottom, 0px) + 18px)",
+        boxSizing: "border-box", overflowX: "hidden",
       }}>
         {children}
       </div>
@@ -362,10 +425,13 @@ function Sheet({ children, onClose }) {
 const sheetTitle = { fontSize: 17, fontWeight: 800 };
 const sheetSub   = { fontSize: 13, color: "var(--text-secondary)", margin: "4px 0 14px" };
 const fieldLabel = { display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", margin: "10px 0 6px" };
+const fieldWrap = { width: "100%", maxWidth: "100%", overflow: "hidden", boxSizing: "border-box" };
 const fieldInput = {
-  width: "100%", boxSizing: "border-box", padding: "12px 12px", borderRadius: 10,
+  display: "block", width: "100%", maxWidth: "100%", minWidth: 0, boxSizing: "border-box",
+  padding: "12px 12px", borderRadius: 10, minHeight: 48,
   border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)",
   fontSize: 16, fontFamily: "inherit",
+  WebkitAppearance: "none", appearance: "none",
 };
 const btnMain = {
   flex: 1, background: "var(--accent, #FF1B8D)", color: "#fff", border: "none", borderRadius: 10, padding: "10px 12px",

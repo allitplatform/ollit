@@ -80,6 +80,12 @@ function _parseWorkTypeFromMemo(memo) {
   return "";
 }
 
+// 2026-10-06 — 기종이 없는 종목(주방후드·출장비 등)의 작업 행 이름은 "…_(공통)" 으로 저장돼 있다.
+//   화면에는 접미어 없이 보여 준다 ("주방후드(업소용)_(공통)" → "주방후드(업소용)").
+function _cleanWorkName(name) {
+  return typeof name === "string" ? name.replace(/_\(공통\)$/, "") : name;
+}
+
 export function rowToTask(row) {
   if (!row) return null;
   // Phase 4-2 fix — category_data jsonb 평탄화 (workType/workItems 등 별도 추출)
@@ -233,7 +239,7 @@ export function rowToTask(row) {
     workItems:     sortedTaskItems.length > 0
                      ? sortedTaskItems.map(it => ({
                          id:             it.id,    // task_items.id (UUID) — RPC 매칭 + 부분완료 측 catch
-                         workType:       it.work_types && it.work_types.name,
+                         workType:       it.work_types && _cleanWorkName(it.work_types.name),
                          serviceCode:    it.work_types?.service_types?.code || null,
                          orderType:      it.order_type || null,
                          appliance:      it.appliance_types && it.appliance_types.name,
@@ -254,7 +260,7 @@ export function rowToTask(row) {
     // 2026-05-24 — 대표값도 본작업 우선 (sortedTaskItems[0])
     // 2026-07-11 — 사장님 spec: workType 저장 안 된 옛 홈페이지 접수 recover.
     //   memo 의 "[홈페이지 접수 ...] 희망 서비스: 냉매충전" 형식에서 파싱.
-    workType:      cat.workType  || sortedTaskItems[0]?.work_types?.name || _parseWorkTypeFromMemo(row.request_note) || "",
+    workType:      cat.workType  || _cleanWorkName(sortedTaskItems[0]?.work_types?.name) || _parseWorkTypeFromMemo(row.request_note) || "",
     appliance:     cat.appliance || sortedTaskItems[0]?.appliance_types?.name || "",
     qty:           Number(cat.qty) || Number(sortedTaskItems[0]?.qty) || 1,
     quote:         cat.quote      || 0,

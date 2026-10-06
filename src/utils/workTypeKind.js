@@ -85,14 +85,32 @@ export const SERVICE_KIND_META = {
   cleaning:    { key: "cleaning",    label: "세척",       color: "#0EA5E9", icon: "❄" },
   refrigerant: { key: "refrigerant", label: "냉매",       color: "#FFB800", icon: "⚡" },
   install:     { key: "install",     label: "설치",       color: "#8B5CF6", icon: "🔧" },
-  leak:        { key: "leak",        label: "누설/누수",  color: "#DC2626", icon: "💧" },
+  leak:        { key: "leak",        label: "냉매 누설·물 누수",  color: "#DC2626", icon: "💧" },
   other:       { key: "other",       label: "기타",       color: "#9CA3AF", icon: "•" },
 };
 
 // 순서 표기·필터 chip 렌더용.
 export const SERVICE_KIND_ORDER = ["cleaning", "refrigerant", "install", "leak", "other"];
 
+// 2026-10-06 — 누설 계열의 표시 이름: "냉매 누설" / "물 누수". 구분이 안 되면 "냉매 누설·물 누수".
+//   input: 작업 종류 문자열, workItem, task 모두 가능.
+export function leakDisplayLabel(input) {
+  const main = typeof input === "string"
+    ? { workType: input }
+    : (Array.isArray(input?.workItems) && input.workItems.length > 0 ? input.workItems[0] : (input || {}));
+  const code = main.serviceCode || main.service_code || "";
+  const wt = String(main.workType || main.work_type || "");
+  if (code === "water_leak" || wt.startsWith("누수")) return "물 누수";
+  if (code === "leak" || wt.startsWith("누설")) return "냉매 누설";
+  return "냉매 누설·물 누수";
+}
+
 // task / workItem / 문자열 → META 하나.
 export function getServiceKindMeta(input) {
-  return SERVICE_KIND_META[getServiceKind(input)] || SERVICE_KIND_META.other;
+  const meta = SERVICE_KIND_META[getServiceKind(input)] || SERVICE_KIND_META.other;
+  // 2026-10-06 — 누설/누수 묶음 라벨을 실제 종류로 나눠 표시 (냉매 누설 / 물 누수).
+  if (meta.key === "leak") {
+    return { ...meta, label: leakDisplayLabel(input) };
+  }
+  return meta;
 }

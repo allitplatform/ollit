@@ -502,7 +502,7 @@ function WorkItemsEditor({ items, onChange, editable }) {
             </>
           ) : (
             <span style={{ fontSize: 12, color: "var(--text-primary)" }}>
-              {it.workType} {it.appliance && `· ${it.appliance}`} ×{it.qty || 1}
+              {formatWorkTypeLabel(it.workType)} {it.appliance && `· ${it.appliance}`} ×{it.qty || 1}
             </span>
           )}
         </div>

@@ -10,6 +10,7 @@ import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { DropdownPicker, HOURS, MINUTES, AMPM } from "./DropdownPicker.jsx";
 // 2026-06-16 — 주소 표시 + 복사 공통 컴포넌트.
 import { AddressLine } from "./common/AddressLine.jsx";
+import { formatWorkTypeLabel } from "../utils/receptionForm.js";
 
 function addDays(date, n) {
   const d = new Date(date);
@@ -156,7 +157,7 @@ export function EngineerNewAssignCallScreen({
         <div style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 12, marginBottom: 6 }}>
           <ServiceTypeIcon workType={task.workType} size={12} showLabel={true}/>
           <span>
-            {task.workType}
+            {formatWorkTypeLabel(task.workType)}
             {task.appliance ? ` · ${task.appliance}` : ""}
             {task.qty ? ` ×${task.qty}` : ""}
           </span>

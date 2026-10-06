@@ -54,6 +54,7 @@ import { setTaskItemReceivedAmount as apiSetItemReceived, getTaskByIdDb } from "
 import { setMaterialCostAdapter } from "../data/tasksDb.js";
 // 2026-06-02 — 정산 대기 측 partial payload 측 측 → id 측 full re-fetch + normalize (유솔 PrincipalApp.TaskDetail 측 동일 spec).
 import { v14NormalizeTask } from "../utils/v14Task.js";
+import { formatWorkTypeLabel } from "../utils/receptionForm.js";
 import { useSubcontractorIndex, subcontractorAssigneeLabel, adminAssignTaskToSubcontractor } from "../lib/subcontractorsDb.js";
 // 2026-06-17 — visit_only 되돌리기 다이얼로그 (Mig 138 unmark_visit_only RPC).
 import { UnmarkVisitOnlyDialog } from "./admin/UnmarkVisitOnlyDialog.jsx";
@@ -86,10 +87,12 @@ function getStateInfo(task) {
   return STATE_MAP[task.state] || { label: task.status || "예정", color: "var(--text-primary)" };
 }
 
-export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTask, onPartialCancel, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user, apiEngineers = [], toast, subMode = false }) {
+export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTask, onPartialCancel, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user, apiEngineers = [], toast, subMode = false, fetchTask = null, externalMemos = null, photoLoader = null }) {
   // 2026-10-06 — subMode: 협력사 관리자 화면에서 이 상세 화면을 그대로 재사용할 때.
   //   운영자 전용 기능(정산 카드, 견적·항목 수정, 취소·복구 메뉴, 협력사 넘기기, 기본 정보 수정,
   //   기사 메시지)은 숨기고, 배정·일정 변경은 부모가 넘긴 핸들러(협력사 RPC)를 쓴다.
+  //   fetchTask: 작업 재조회 함수. 협력사 모드에서는 서버가 소속을 확인하는 RPC(Mig 221)를 넘긴다.
+  const _fetchTask = fetchTask || getTaskByIdDb;
   // ════════════════════════════════════════════════════════════
   // 모든 hooks 측 측 측 (early return 측 측 측 측 측 — React #310 spec).
   // 2026-06-02 — early return 측 useTaskMemos 측 측 측 측 측 → hooks 순서 위반 발생 → fix.
@@ -131,7 +134,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   const reloadTask = async () => {
     if (!initialTask?.id) return;
     try {
-      const row = await getTaskByIdDb(initialTask.id);
+      const row = await _fetchTask(initialTask.id);
       if (row) {
         const normalized = v14NormalizeTask(row);
         if (normalized) setTask(normalized);
@@ -153,7 +156,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
     let alive = true;
     (async () => {
       try {
-        const row = await getTaskByIdDb(initialTask.id);
+        const row = await _fetchTask(initialTask.id);
         if (!alive) return;
         if (row) {
           const normalized = v14NormalizeTask(row);
@@ -177,7 +180,9 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
 
   // 2026-05-27 — Supabase task_memos hook (realtime 자동 갱신).
   //   task null 측 safe — task?.id || null params 측 호출 spec (hooks 순서 보장).
-  const { memos } = useTaskMemos(task?.id || null);
+  // 협력사 모드: 직접 조회하지 않고 부모가 RPC(Mig 222)로 읽어 넘긴 목록을 쓴다.
+  const { memos: _directMemos } = useTaskMemos(subMode ? null : (task?.id || null));
+  const memos = subMode ? (externalMemos || []) : _directMemos;
 
   // ════════════════════════════════════════════════════════════
   // 2026-06-02 — early return 측 측 → 메인 return 측 ternary (사장님 spec).
@@ -187,7 +192,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   // 2026-06-06 — 기본 정보 편집 후 task 재조회 (update_task_basic RPC 호출 끝 호출용).
   async function refetchTaskBasic() {
     if (!task?.id) return;
-    const row = await getTaskByIdDb(task.id);
+    const row = await _fetchTask(task.id);
     if (!row) return;
     const normalized = v14NormalizeTask(row);
     if (normalized) setTask(normalized);
@@ -209,7 +214,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
     if (action === "engineer_call") {
       const phone = taskArg.engineerPhone;
       if (phone) window.location.href = `tel:${phone}`;
-      else alert("프로 연락처가 없습니다");
+      else alert(subMode ? "기사 연락처가 없습니다" : "프로 연락처가 없습니다");
       return;
     }
     if (action === "memo")        return onMemoAdd && onMemoAdd();
@@ -373,6 +378,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
         onAssign={onAssign}
         onScheduleChange={onScheduleChange}
         onSendMessage={subMode ? undefined : () => setShowMessageModal(true)}
+        subMode={subMode}
       />
       {/* 2026-10-06 Mig 212~214 — 협력사로 넘기기 / 직영으로 회수 */}
       {!subMode && <SubcontractorCard task={task} onChanged={reloadTask}/>}
@@ -455,10 +461,10 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       })()}
       {/* 2026-05-22 — 재배정 요청 카드 (있을 때만 노출).
             2026-05-29 v2 (D7): status='취소' 면 숨김 (취소 우선, 재배정 의미 없음). */}
-      {task.reassignRequest?.requestedAt && task.status !== "취소" && <ReassignRequestCard request={task.reassignRequest}/>}
+      {task.reassignRequest?.requestedAt && task.status !== "취소" && <ReassignRequestCard request={task.reassignRequest} subMode={subMode}/>}
       {/* 카드 7 — 작업 사진 */}
-      <PhotoSection taskId={task.id} taskType={task.type}/>
-      <CompletionNotice task={task}/>
+      <PhotoSection taskId={task.id} taskType={task.type} photoLoader={photoLoader}/>
+      <CompletionNotice task={task} subMode={subMode}/>
       {/* 2026-06-17 — visit_only → 정상 작업 되돌리기 (운영자 전용 — RPC 가드 동일). */}
       {!subMode && task && task.status === "visit_only" && (
         <div style={{
@@ -516,7 +522,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
           >되돌리기 →</button>
         </div>
       )}
-      {showException && (
+      {showException && !subMode && (
         <ExceptionActions
           expanded={exceptionExpanded}
           onToggle={() => setExceptionExpanded(!exceptionExpanded)}
@@ -787,12 +793,14 @@ function MainCard({ task, onStatusChange }) {
           {task.state === "active" && task.startedAt && <> · 시작 {formatTimeOnly(task.startedAt)}</>}
           {Array.isArray(task.workItems) && task.workItems.length > 0 && (
             <> · {task.workItems.map(w => {
-              const base = `${w.appliance || w.workType || "—"}${w.qty ? ` ×${w.qty}` : ""}`;
+              // 기종이 없는 종목(주방후드·출장비 등)은 "(공통)" 대신 작업 이름을 보여 준다.
+              const _nm = (w.appliance && w.appliance !== "(공통)") ? w.appliance : formatWorkTypeLabel(w.workType);
+              const base = `${_nm || w.appliance || "—"}${w.qty ? ` ×${w.qty}` : ""}`;
               return (w.isCanceled || w.is_canceled) ? `${base} (취소)` : base;
             }).join(", ")}</>
           )}
           {!task.workItems && (task.appliance || task.workType) && (
-            <> · {task.appliance || task.workType}{task.qty ? ` ×${task.qty}` : ""}</>
+            <> · {task.appliance || formatWorkTypeLabel(task.workType)}{task.qty ? ` ×${task.qty}` : ""}</>
           )}
         </div>
       </div>
@@ -819,7 +827,7 @@ function engineerContactBtnStyle(active) {
 // 2026-05-26 D-2 — 작업 정보 카드 (연락처/주소/일정 + 배정 프로 + 고객 통화·일정 변경)
 //   유솔앱 PrincipalApp.jsx:983~ 패턴 측 catch. 핸들러 100% 측 catch (onAssign / onEdit /
 //   onScheduleChange / callCustomer 측 catch — 측 측 측 측 측 측 측 X).
-function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange, onSendMessage }) {
+function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange, onSendMessage, subMode = false }) {
   // 2026-10-06 Mig 212 — 협력사 작업이면 담당을 "협력사 · 직원명" 으로 표기
   const subIdx = useSubcontractorIndex();
   function callCustomer() {
@@ -899,7 +907,7 @@ function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange, onS
           borderTop: "1px solid var(--border)",
           display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10,
         }}>
-          <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>배정 프로</span>
+          <span style={{ fontSize: 11, color: "var(--text-secondary)", fontWeight: 600 }}>{subMode ? "담당 기사" : "배정 프로"}</span>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 13, fontWeight: 700, color: hasEngineer ? "var(--text-primary)" : "var(--text-tertiary, var(--text-secondary))" }}>
               {task.subcontractorId
@@ -928,6 +936,7 @@ function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange, onS
               type="button"
               onClick={onSendMessage}
               disabled={!hasEngineer}
+              hidden={subMode}
               aria-label="기사에게 메시지 전송"
               title={hasEngineer ? "메시지 전송 (앱 푸시 + 메시지 탭 저장)" : "기사 미배정"}
               style={engineerContactBtnStyle(hasEngineer)}
@@ -2818,7 +2827,7 @@ function ConsentCard({ consent }) {
 // 2026-05-22 — 재배정 요청 카드 (운영자 측 알림 + 안내)
 // task.reassignRequest = { reason, requestedAt }
 // ──────────────────────────────────────────────
-function ReassignRequestCard({ request }) {
+function ReassignRequestCard({ request, subMode = false }) {
   const reason = request?.reason || "";
   const requestedAt = request?.requestedAt || "";
   const requestedAtLabel = requestedAt ? formatDateTimeKST(requestedAt) : "";
@@ -2858,7 +2867,7 @@ function ReassignRequestCard({ request }) {
         borderRadius: 8,
         fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5, fontWeight: 500,
       }}>
-        💡 위 [배정 프로] 카드 측 [변경] 버튼으로 다른 기사를 배정해 주세요.
+        💡 위 [{subMode ? "담당 기사" : "배정 프로"}] 줄의 [변경] 버튼으로 다른 기사를 배정해 주세요.
       </div>
     </div>
     </div>
@@ -2868,7 +2877,7 @@ function ReassignRequestCard({ request }) {
 // 2026-05-29 v2 (D6) — CancelInfoCard 폐기. 변경 이력 카드(TaskChangesSection) 측
 //   cancel 이벤트 빨강 강조 + synthetic row(옛 작업 fallback) 으로 통합 표시.
 
-function PhotoSection({ taskId, taskType }) {
+function PhotoSection({ taskId, taskType, photoLoader = null }) {
   const [photos, setPhotos]   = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError]     = useState("");
@@ -2879,7 +2888,7 @@ function PhotoSection({ taskId, taskType }) {
     let alive = true;
     setLoading(true);
     setError("");
-    listPhotosByTask(taskId)
+    (photoLoader || listPhotosByTask)(taskId)
       .then(res => {
         if (!alive) return;
         if (!res.ok) {
@@ -3012,7 +3021,7 @@ const photoEmptyStyle = {
 };
 
 // ──────────────── 6. CompletionNotice ────────────────
-function CompletionNotice({ task }) {
+function CompletionNotice({ task, subMode = false }) {
   if (task.type === "external") return null;
   if (!["scheduled", "moving", "active"].includes(task.state)) return null;
 
@@ -3020,7 +3029,7 @@ function CompletionNotice({ task }) {
     <div style={{ padding: D1_OUTER_PAD }}>
       <div style={D1_CARD_STYLE}>
         <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginBottom: 4 }}>
-          ⏳ 프로가 작업 완료하면 자동으로 업데이트 됩니다
+          ⏳ {subMode ? "기사" : "프로"}가 작업 완료하면 자동으로 업데이트 됩니다
         </div>
         <div style={{ fontSize: 11, color: "var(--text-secondary)" }}>
           완료 후 사진과 정산 자동 표시

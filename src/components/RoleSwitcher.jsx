@@ -33,7 +33,7 @@ export function RoleSwitcher({ user, onSwitch, floating = false }) {
         boxShadow: "0 4px 12px rgba(0,0,0,0.3)",
       } : {}),
     }}>
-      <Segment label="프로"   active={activeDbRole === "engineer"} onClick={() => onSwitch("engineer")}/>
+      <Segment label={isSubSwitch ? "기사" : "프로"} active={activeDbRole === "engineer"} onClick={() => onSwitch("engineer")}/>
       <Segment label={otherLabel} active={activeDbRole === otherDbRole} onClick={() => onSwitch(otherDbRole)}/>
     </div>
   );

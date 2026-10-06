@@ -3,7 +3,7 @@
 // label = 텍스트 라벨 색 (다크 라이트 분리) / box = 옅은 박스 / sub = 부가 글자
 // buttonText = 채우기 버튼 위 글자 색 (냉매 노랑 위는 검정)
 
-import { getServiceKind } from "./workTypeKind.js";
+import { getServiceKind, leakDisplayLabel } from "./workTypeKind.js";
 
 const COLORS_CLEANING = {
   main:  "#0EA5E9",
@@ -44,7 +44,7 @@ const COLORS_LEAK = {
   sub:   { light: "#991B1B", dark: "#F87171" },
   label: { light: "#DC2626", dark: "#F87171" },
   icon:  "💧",
-  name:  "누설/누수",
+  name:  "냉매 누설·물 누수",
   buttonText: "#fff",
 };
 
@@ -67,7 +67,7 @@ export function getWorkTypeColors(workType) {
   if (kind === "cleaning")    return COLORS_CLEANING;
   if (kind === "refrigerant") return COLORS_REFRIGERANT;
   if (kind === "install")     return COLORS_INSTALL;
-  if (kind === "leak")        return COLORS_LEAK;
+  if (kind === "leak")        return { ...COLORS_LEAK, name: leakDisplayLabel(workType) };
   return COLORS_DEFAULT;
 }
 

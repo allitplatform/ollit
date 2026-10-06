@@ -2,7 +2,7 @@
 // theme context / CSS variable 의존 없는 강제 인라인 버전
 
 import { useEffect, useState } from "react";
-import { getServiceKind } from "../utils/workTypeKind.js";
+import { getServiceKind, leakDisplayLabel } from "../utils/workTypeKind.js";
 
 // V14 — 라이트·다크 동일 색 (시안 파랑 + 노랑)
 const COLOR_MAP = {
@@ -54,7 +54,7 @@ function _baseType(workType) {
   if (kind === "refrigerant") return "냉매충전";
   if (kind === "install")     return "설치";
   // 2026-07-08 — 표시 라벨만 '누설/누수' (kind='leak' 매칭·저장 무손).
-  if (kind === "leak")        return "누설/누수";
+  if (kind === "leak")        return leakDisplayLabel(workType);
   // 측 catch (점검/수리 등) — 옛 split fallback
   const s = String(workType || "").trim();
   if (!s) return "";

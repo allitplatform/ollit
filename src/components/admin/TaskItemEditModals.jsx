@@ -3,6 +3,7 @@
 //   가드: 미정산 + 트랙 B 차단 + 사유 5자+ + 정책 매칭 (추가) — 서버단 진실.
 //   클라는 1차 검증 + confirm + 적용 후 reload 콜백.
 
+import { formatWorkTypeLabel } from "../../utils/receptionForm.js";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { X } from "lucide-react";
 import {
@@ -329,7 +330,7 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
                     <select value={serviceTypeId} onChange={(e) => setServiceTypeId(e.target.value)} style={inputStyle(t)}>
                       <option value="">선택...</option>
                       {(pickerOpts?.serviceTypes || []).map(s => (
-                        <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                        <option key={s.id} value={s.id}>{formatWorkTypeLabel(s.name)} ({s.code})</option>
                       ))}
                     </select>
                   </div>
@@ -629,7 +630,7 @@ export function AddTaskItemModal({ t, task, actorId, onClose, onApplied }) {
                 <select value={serviceTypeId} onChange={(e) => setServiceTypeId(e.target.value)} style={inputStyle(t)}>
                   <option value="">선택...</option>
                   {(pickerOpts?.serviceTypes || []).map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.code})</option>
+                    <option key={s.id} value={s.id}>{formatWorkTypeLabel(s.name)} ({s.code})</option>
                   ))}
                 </select>
               </div>

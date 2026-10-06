@@ -123,12 +123,19 @@ export const WORK_TYPES = ["세척", "냉매충전", "누설", "누수", "설치
 //   매핑 없는 workType 은 identity 반환.
 export const WORK_TYPE_DISPLAY_LABEL = {
   // 2026-07-28 — 누수 종목 신설로 합본 라벨 폐기. 괄호 설명으로 구분 명확화.
-  "누설": "누설 (냉매)",
-  "누수": "누수 (물)",
+  // 2026-10-06 — 사장님 확정 표시 이름. 저장·매칭 키("누설"/"누수", service_types.name)는 바꾸지 않는다.
+  "누설": "냉매 누설",
+  "누수": "물 누수",
 };
 
 export function formatWorkTypeLabel(workType) {
-  return WORK_TYPE_DISPLAY_LABEL[workType] || workType;
+  if (WORK_TYPE_DISPLAY_LABEL[workType]) return WORK_TYPE_DISPLAY_LABEL[workType];
+  // "누설_벽걸이" 처럼 기종이 붙은 이름(work_types.name)도 앞머리만 표시 이름으로 바꾼다.
+  const s = String(workType || "");
+  for (const key of Object.keys(WORK_TYPE_DISPLAY_LABEL)) {
+    if (s.startsWith(key + "_") || s.startsWith(key + " ")) return WORK_TYPE_DISPLAY_LABEL[key] + s.slice(key.length);
+  }
+  return workType;
 }
 
 // ============================================
