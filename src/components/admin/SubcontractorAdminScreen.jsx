@@ -4,7 +4,25 @@
 //   · 직원 소속 지정은 기사 편집 화면의 "소속 협력사" 카드에서.
 //   · 전부 RPC — 운영자 확인 + 세션 값은 서버에서 검사.
 import { useCallback, useEffect, useState } from "react";
-import { adminListSubcontractors, adminUpsertSubcontractor, loadSubcontractorIndex } from "../../lib/subcontractorsDb.js";
+import { adminListSubcontractors, adminUpsertSubcontractor, loadSubcontractorIndex, subGetCutRates } from "../../lib/subcontractorsDb.js";
+
+// 2026-10-06 Mig 231 — 회사 몫 %(협력사가 소속 기사에게서 떼는 비율). 운영자는 보기만 한다.
+function CutRateLine({ subId }) {
+  const [d, setD] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    subGetCutRates(subId).then(res => { if (alive && res.ok) setD(res); });
+    return () => { alive = false; };
+  }, [subId]);
+  if (!d) return null;
+  return (
+    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 8 }}>
+      협력사 회사 몫 {d.current_pct}%
+      {d.upcoming ? ` → ${d.upcoming.from}부터 ${d.upcoming.pct}%` : ""}
+      {" "}(협력사 관리자가 설정 · 보기 전용 · 올데이케어 수수료와 무관)
+    </div>
+  );
+}
 
 const FIELDS = [
   { key: "name",                label: "협력사 이름",              required: true },
@@ -130,6 +148,7 @@ export function SubcontractorAdminScreen({ onBack }) {
                   ? <>{r.business_name} · {r.representative_name || "대표자 미입력"}<br/>사업자번호 {r.business_no || "미입력"} · {r.tax_type || "과세유형 미입력"}</>
                   : "사업자 정보 미입력"}
               </div>
+              <CutRateLine subId={r.id}/>
             </div>
           ))}
         </>

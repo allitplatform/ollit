@@ -150,8 +150,35 @@ export const adminConfirmSubDailyFee = (subcontractorId, date, confirm = true) =
 export const adminCancelSubDailyReport = (subcontractorId, date, reason) =>
   _call("admin_cancel_sub_daily_report", { p_subcontractor_id: subcontractorId, p_date: date, p_reason: String(reason || "") });
 
+// 이월 금액 환급 처리로 닫기 (Mig 233) — 운영자. 금액은 이월 금액과 같아야 한다. 사유 필수.
+export const adminCloseSubCarryRefund = (subcontractorId, date, amount, reason) =>
+  _call("admin_close_sub_carry_refund", {
+    p_subcontractor_id: subcontractorId, p_date: date, p_amount: Math.round(Number(amount) || 0), p_reason: String(reason || ""),
+  });
+
 // ── 협력사 관리자 ────────────────────────────────────────────
 export const subListStaff = () => _call("sub_list_staff", {});
+// 배정 시트용 기사 목록 (Mig 230) — 작업 한 건 기준. 협력사 관리자(자기 작업)와 운영자가 쓴다.
+//   기사별: zone_match / today_tasks / day_tasks / next_at / off / off_part
+export const subListStaffForTask = (taskId) => _call("sub_list_staff_for_task", { p_task_id: taskId });
+// 반려 (Mig 232) — 사유와 함께 올데이케어로 되돌린다. 진행 중·끝난 작업은 불가.
+export const subRejectTask = (taskId, reason) =>
+  _call("sub_reject_task", { p_task_id: taskId, p_reason: String(reason || "") });
+// ── 기사 관리 · 회사 몫 % (Mig 231) — 협력사 관리자 ──────────
+export const subManageListStaff = () => _call("sub_manage_list_staff", {});
+export const subAddStaff = (name, phone, region, zones) =>
+  _call("sub_add_staff", { p_name: name, p_phone: phone, p_region: region || null, p_zones: Array.isArray(zones) ? zones : [] });
+export const subUpdateStaffZones = (userId, region, zones) =>
+  _call("sub_update_staff_zones", { p_user_id: userId, p_region: region || null, p_zones: Array.isArray(zones) ? zones : [] });
+export const subSetStaffActive = (userId, active) =>
+  _call("sub_set_staff_active", { p_user_id: userId, p_active: !!active });
+// 회사 몫: 조회는 협력사 관리자(자기 것) 또는 운영자(subcontractorId 지정, 보기만). 변경은 협력사 관리자만.
+export const subGetCutRates = (subcontractorId = null) => _call("sub_get_cut_rates", { p_subcontractor_id: subcontractorId });
+export const subSetCutRate = (pct, effectiveFrom) =>
+  _call("sub_set_cut_rate", { p_pct: Math.round(Number(pct)), p_effective_from: effectiveFrom });
+// 운영자: 협력사 작업에 그 협력사 소속 기사 지정·해제 (Mig 230). engineerId = null 이면 해제.
+export const adminAssignSubTask = (taskId, engineerId) =>
+  _call("admin_assign_sub_task", { p_task_id: taskId, p_engineer_id: engineerId || null });
 export const subListTasks = (from = null, to = null) => _call("sub_list_tasks", { p_from: from, p_to: to });
 // 작업 상세 한 건 (Mig 221) — 서버가 "호출자의 협력사 작업인지" 확인한 뒤에만 내용을 준다.
 //   반환: rowToTask 로 변환한 작업 객체 (운영자 상세 화면이 쓰는 형태) 또는 null.

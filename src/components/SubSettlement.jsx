@@ -19,7 +19,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   subStaffListSettlement, subListDailySettlements, subReportDailyFee,
-  adminListSubDailyFees, adminConfirmSubDailyFee, adminCancelSubDailyReport,
+  adminListSubDailyFees, adminConfirmSubDailyFee, adminCancelSubDailyReport, adminCloseSubCarryRefund,
 } from "../lib/subcontractorsDb.js";
 import { fmtWon, fmtWonSigned } from "../utils/money.js";
 
@@ -35,10 +35,30 @@ const dayLabel = (ymd) => {
 const STATUS_STYLE = {
   "대기":      { fg: "var(--text-secondary)", bg: "var(--bg-inset)" },
   "이월":      { fg: NEG,                      bg: "rgba(59,130,246,0.12)" },
+  "보낼 금액 없음": { fg: "var(--text-secondary)", bg: "var(--bg-inset)" },
+  "환급 완료": { fg: "var(--success, #10B981)", bg: "rgba(16,185,129,0.12)" },
   "보고됨":    { fg: "var(--accent)",          bg: "var(--accent-bg)" },
   "확인 완료": { fg: "var(--success, #10B981)", bg: "rgba(16,185,129,0.12)" },
   "차액":      { fg: "var(--danger, #EF4444)",  bg: "rgba(239,68,68,0.12)" },
   "미입금":    { fg: "var(--danger, #EF4444)",  bg: "rgba(239,68,68,0.12)" },
+};
+// 합계가 정확히 0인 날은 "이월"이 아니라 "보낼 금액 없음"(회색, 버튼 없음). 음수일 때만 "이월".
+//   서버(mig 228)는 0 이하를 모두 "이월"로 돌려주므로 화면에서 나눈다.
+const ZERO = "보낼 금액 없음";
+// 환급 처리로 닫은 날(mig 233)은 서버가 "확인 완료" + 음수 합계로 돌려준다 → "환급 완료"로 표시.
+const REFUNDED = "환급 완료";
+const isClosed = (status) => status === "확인 완료" || status === REFUNDED;
+const fixDay = (d) => {
+  if (!d) return d;
+  if (d.status === "이월" && Number(d.fee) === 0) return { ...d, status: ZERO };
+  if (d.status === "확인 완료" && Number(d.fee) < 0) return { ...d, status: REFUNDED };
+  return d;
+};
+// 이월이 며칠째인지 (가장 오래된 이월 날짜 기준, 한국 시간)
+const carryAgeDays = (d) => {
+  const first = (Array.isArray(d.carry_from) && d.carry_from[0]) || d.date;
+  const t0 = new Date(`${first}T00:00:00+09:00`).getTime();
+  return Number.isNaN(t0) ? 0 : Math.floor((Date.now() - t0) / 86400000);
 };
 // 필터 묶음
 const NEEDS  = (role) => role === "admin" ? ["보고됨", "차액", "미입금"] : ["대기", "미입금", "차액"];
@@ -50,7 +70,7 @@ const FILTERS = [
 ];
 function matchFilter(status, key, role) {
   if (key === "all") return true;
-  if (key === "done") return status === "확인 완료";
+  if (key === "done") return isClosed(status);
   if (key === "reported") return status === "보고됨" || status === "차액";
   return NEEDS(role).includes(status) || status === "이월";
 }
@@ -222,7 +242,7 @@ function groupByEngineer(lines) {
 export function SubStaffSettleTab({ user }) {
   const fn = useCallback(() => subStaffListSettlement(), []);
   const { data, loading, error, load } = useLoader(fn);
-  const days = (data && data.days) || [];
+  const days = ((data && data.days) || []).map(fixDay);
   const [open, setOpen] = useState(null);
   const subName = user?.subcontractor?.name || "협력사";
 
@@ -367,7 +387,7 @@ function DayTable({ day, mode, onOpenTask }) {
 export function SubManagerSettleView() {
   const fn = useCallback(() => subListDailySettlements(), []);
   const { data, loading, error, load } = useLoader(fn);
-  const days = (data && data.days) || [];
+  const days = ((data && data.days) || []).map(fixDay);
   const [filter, setFilter] = useState("todo");
   const [reporting, setReporting] = useState(null);
   const [amount, setAmount] = useState("");
@@ -381,8 +401,8 @@ export function SubManagerSettleView() {
     for (const f of FILTERS) c[f.key] = days.filter(d => matchFilter(d.status, f.key, "sub")).length;
     return c;
   }, [days]);
-  const active = days.filter(d => d.status !== "확인 완료" && matchFilter(d.status, filter, "sub"));
-  const past = days.filter(d => d.status === "확인 완료" && (filter === "done" || filter === "all"));
+  const active = days.filter(d => !isClosed(d.status) && matchFilter(d.status, filter, "sub"));
+  const past = days.filter(d => isClosed(d.status) && (filter === "done" || filter === "all"));
 
   const canReport = (d) => !d.locked && Number(d.fee) > 0;
 
@@ -497,7 +517,7 @@ export function SubFeeAdminScreen({ onBack, onOpenTask }) {
 
   const rows = useMemo(() => {
     const out = [];
-    for (const s of subs) for (const d of (s.days || [])) out.push({ ...d, subId: s.id, subName: s.name, key: `${s.id}|${d.date}` });
+    for (const s of subs) for (const d of (s.days || [])) out.push({ ...fixDay(d), subId: s.id, subName: s.name, key: `${s.id}|${d.date}` });
     out.sort((a, b) => String(b.date).localeCompare(String(a.date)) || a.subName.localeCompare(b.subName, "ko"));
     return out;
   }, [subs]);
@@ -505,7 +525,7 @@ export function SubFeeAdminScreen({ onBack, onOpenTask }) {
   const summary = useMemo(() => {
     let unconfirmed = 0, waitingConfirm = 0, unpaid = 0;
     for (const r of rows) {
-      if (r.status === "확인 완료" || r.status === "이월") continue;
+      if (isClosed(r.status) || r.status === "이월" || r.status === ZERO) continue;
       unconfirmed += Number(r.fee) || 0;
       if (r.status === "보고됨" || r.status === "차액") waitingConfirm += 1;
       if (r.status === "미입금") unpaid += 1;
@@ -518,8 +538,36 @@ export function SubFeeAdminScreen({ onBack, onOpenTask }) {
     for (const f of FILTERS) c[f.key] = rows.filter(r => matchFilter(r.status, f.key, "admin")).length;
     return c;
   }, [rows]);
-  const active = rows.filter(r => r.status !== "확인 완료" && matchFilter(r.status, filter, "admin"));
-  const past = rows.filter(r => r.status === "확인 완료" && (filter === "done" || filter === "all"));
+  const active = rows.filter(r => !isClosed(r.status) && matchFilter(r.status, filter, "admin"));
+  const past = rows.filter(r => isClosed(r.status) && (filter === "done" || filter === "all"));
+  // 협력사별 "가장 마지막 이월 날짜" — 환급 처리로 닫을 수 있는 날 (뒤에 열린 날이 있으면 그날로 넘어간다)
+  const lastCarry = useMemo(() => {
+    const open = new Map();     // subId → 가장 늦은 열린 날짜
+    for (const r of rows) if (!r.locked && (!open.has(r.subId) || r.date > open.get(r.subId))) open.set(r.subId, r.date);
+    const set = new Set();
+    for (const r of rows) if (r.status === "이월" && Number(r.fee) < 0 && open.get(r.subId) === r.date) set.add(r.key);
+    return set;
+  }, [rows]);
+
+  // 환급 처리로 닫기 (Mig 233) — 이월 금액을 협력사에 돌려준 뒤 마감. 사유 필수.
+  async function closeRefund(r) {
+    if (busy) return;
+    const amount = -Number(r.fee);
+    if (!window.confirm(`가계부에 지출 ${fmtWon(amount)}이 기록됩니다.
+${r.subName} · ${dayLabel(r.date)} 이월 금액을 환급 처리로 닫을까요?`)) return;
+    const reason = window.prompt(`${r.subName} · ${dayLabel(r.date)} 이월 금액 ${fmtWon(amount)}을 협력사에 환급하고 닫습니다.
+가계부에 지출 ${fmtWon(amount)}이 기록됩니다. 닫은 뒤에는 화면에서 되돌릴 수 없습니다.
+
+사유를 입력해 주세요.`);
+    if (reason == null) return;
+    if (!String(reason).trim()) { window.alert("사유를 입력해 주세요."); return; }
+    setBusy(true);
+    const res = await adminCloseSubCarryRefund(r.subId, r.date, amount, String(reason).trim());
+    setBusy(false);
+    if (!res.ok) { window.alert(res.error || "처리하지 못했습니다."); return; }
+    if (res.cashflow_error) window.alert("환급 처리는 닫았지만 가계부 기록에 실패했습니다. 가계부에 직접 입력해 주세요.");
+    load();
+  }
 
   async function confirmRow(r, confirm) {
     if (busy) return;
@@ -579,6 +627,16 @@ export function SubFeeAdminScreen({ onBack, onOpenTask }) {
             </span>
           </div>
           <DayTable day={r} mode="task" onOpenTask={onOpenTask}/>
+          {lastCarry.has(r.key) && (
+            <div style={{ marginTop: 12 }}>
+              {carryAgeDays(r) >= 14 && (
+                <div style={{ ...S.small, color: "var(--danger, #EF4444)", fontWeight: 700, marginBottom: 8 }}>
+                  이월 {carryAgeDays(r)}일째 — 차감할 송금이 생기지 않고 있습니다.
+                </div>
+              )}
+              <button type="button" disabled={busy} onClick={() => closeRefund(r)} style={S.btnSub}>환급 처리로 닫기</button>
+            </div>
+          )}
           {r.locked && !r.confirmed_at && (
             <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
               <button type="button" disabled={busy} onClick={() => confirmRow(r, true)} style={{ ...S.btnMain, flex: 1 }}>입금 확인</button>
@@ -597,7 +655,9 @@ export function SubFeeAdminScreen({ onBack, onOpenTask }) {
               {pastOpen === r.key && (
                 <div style={{ paddingBottom: 10 }}>
                   <DayTable day={r} mode="task" onOpenTask={onOpenTask}/>
-                  <button type="button" disabled={busy} onClick={() => confirmRow(r, false)} style={{ ...S.btnSub, marginTop: 8 }}>확인 취소</button>
+                  {r.status !== REFUNDED && (
+                    <button type="button" disabled={busy} onClick={() => confirmRow(r, false)} style={{ ...S.btnSub, marginTop: 8 }}>확인 취소</button>
+                  )}
                 </div>
               )}
             </div>

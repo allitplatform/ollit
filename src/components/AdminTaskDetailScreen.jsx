@@ -56,6 +56,7 @@ import { setMaterialCostAdapter } from "../data/tasksDb.js";
 import { v14NormalizeTask } from "../utils/v14Task.js";
 import { formatWorkTypeLabel } from "../utils/receptionForm.js";
 import { fmtWon } from "../utils/money.js";
+import SubAssignSheet from "./SubAssignSheet.jsx";
 import { useSubcontractorIndex, subcontractorAssigneeLabel, adminAssignTaskToSubcontractor } from "../lib/subcontractorsDb.js";
 // 2026-06-17 — visit_only 되돌리기 다이얼로그 (Mig 138 unmark_visit_only RPC).
 import { UnmarkVisitOnlyDialog } from "./admin/UnmarkVisitOnlyDialog.jsx";
@@ -1042,6 +1043,7 @@ function SubcontractorCard({ task, onChanged }) {
   const subs = [...idx.names.values()].filter(s => s.active !== false);
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
+  const [picking, setPicking] = useState(false);
   const closed = ["완료", "취소", "visit_only", "정산완료"].includes(task?.status);
   const subId = task?.subcontractorId || null;
   if (!task || (subs.length === 0 && !subId)) return null;
@@ -1072,6 +1074,18 @@ function SubcontractorCard({ task, onChanged }) {
           </div>
         </div>
         {!closed && (subId ? (
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+          {/* 2026-10-06 Mig 230 — 운영자도 협력사 관리자와 같은 배정 시트로 그 협력사 기사를 지정 */}
+          {task.status !== "진행중" && (
+            <button
+              type="button" disabled={busy} onClick={() => setPicking(true)}
+              style={{
+                padding: "8px 12px", borderRadius: 10, border: "none",
+                background: "#8B5CF6", color: "#fff", fontSize: 12, fontWeight: 700,
+                fontFamily: "inherit", cursor: busy ? "default" : "pointer",
+              }}
+            >{task.assignedEngineerId ? "기사 변경" : "기사 지정"}</button>
+          )}
           <button
             type="button" disabled={busy}
             onClick={() => run(null, "이 작업을 직영으로 되돌릴까요?\n협력사 직원 배정은 해제됩니다.")}
@@ -1081,6 +1095,7 @@ function SubcontractorCard({ task, onChanged }) {
               fontFamily: "inherit", cursor: busy ? "default" : "pointer",
             }}
           >{busy ? "처리 중…" : "직영으로 회수"}</button>
+          </div>
         ) : (
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             {subs.length > 1 && (
@@ -1109,6 +1124,15 @@ function SubcontractorCard({ task, onChanged }) {
           </div>
         ))}
       </div>
+      {picking && subId && (
+        <SubAssignSheet
+          taskId={task.id}
+          mode="admin"
+          subtitle={task.customer || ""}
+          onClose={() => setPicking(false)}
+          onAssigned={() => { setPicking(false); if (typeof onChanged === "function") onChanged(); }}
+        />
+      )}
     </div>
   );
 }

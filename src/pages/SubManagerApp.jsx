@@ -9,12 +9,14 @@ import { SubManagerSettleView } from "../components/SubSettlement.jsx";
 //   상태 흐름: 미배정 → 배정 → 확정(일정 확정) → 진행중 → 완료.
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
-  subListTasks, subListStaff, subAssignTask, subSetSchedule, subGetTaskDetail,
+  subListTasks, subSetSchedule, subGetTaskDetail, subRejectTask,
   subListTaskMemos, subAddTaskMemo, subListTaskPhotos,
 } from "../lib/subcontractorsDb.js";
 import { v14NormalizeTask } from "../utils/v14Task.js";
 import { AdminTaskDetailScreen } from "../components/AdminTaskDetailScreen.jsx";
 import { RoleSwitcher } from "../components/RoleSwitcher.jsx";
+import SubAssignSheet from "../components/SubAssignSheet.jsx";
+import SubStaffManage from "../components/SubStaffManage.jsx";
 
 const DONE = ["완료", "취소", "visit_only", "정산완료"];
 const TABS = [
@@ -31,6 +33,15 @@ const STATUS_STYLE = {
   "진행중": { bg: "rgba(255,27,141,0.16)", fg: "#FF1B8D" },
   "완료":   { bg: "rgba(16,185,129,0.16)", fg: "#059669" },
 };
+
+function taskDay(t) {
+  const iso = DONE.includes(t.status) ? (t.completed_at || t.scheduled_at) : t.scheduled_at;
+  if (iso) {
+    const d = new Date(iso);
+    if (!Number.isNaN(d.getTime())) return new Date(d.getTime() + 9 * 3600 * 1000).toISOString().slice(0, 10);
+  }
+  return t.requested_date || "";
+}
 
 function bucketOf(t) {
   if (DONE.includes(t.status)) return "done";
@@ -83,7 +94,6 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const [view, setView] = useState("tasks");          // tasks(작업) | settle(정산)
   const [tab, setTab] = useState("todo");
   const [tasks, setTasks] = useState([]);
-  const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [busy, setBusy] = useState(false);
@@ -96,14 +106,18 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const [memos, setMemos] = useState([]);             // 상세 화면 메모 (RPC)
   const [memoOpen, setMemoOpen] = useState(false);
   const [memoText, setMemoText] = useState("");
+  // 2026-10-06 Mig 232 — 반려(사유 입력 → 올데이케어로 회수) + 목록 필터(날짜·기사)
+  const [rejecting, setRejecting] = useState(null);
+  const [rejectText, setRejectText] = useState("");
+  const [fDate, setFDate] = useState("");             // YYYY-MM-DD (비우면 전체)
+  const [fEng, setFEng] = useState("");               // 기사 id (비우면 전체)
 
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
-    const [tr, sr] = await Promise.all([subListTasks(), subListStaff()]);
+    const tr = await subListTasks();
     if (!tr.ok) setError(tr.error || "작업을 불러오지 못했습니다.");
     else setTasks(Array.isArray(tr.tasks) ? tr.tasks : []);
-    if (sr.ok) setStaff(Array.isArray(sr.staff) ? sr.staff : []);
     setLoading(false);
   }, []);
 
@@ -111,11 +125,22 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
 
   const groups = useMemo(() => {
     const g = { todo: [], assigned: [], fixed: [], doing: [], done: [] };
-    for (const t of tasks) g[bucketOf(t)].push(t);
+    for (const t of tasks) {
+      if (fEng && t.assigned_engineer_id !== fEng) continue;
+      if (fDate && taskDay(t) !== fDate) continue;
+      g[bucketOf(t)].push(t);
+    }
     const asc = (a, b) => String(a.sort_at || "").localeCompare(String(b.sort_at || ""));
     g.todo.sort(asc); g.assigned.sort(asc); g.fixed.sort(asc); g.doing.sort(asc);
     g.done.sort((a, b) => String(b.completed_at || "").localeCompare(String(a.completed_at || "")));
     return g;
+  }, [tasks, fDate, fEng]);
+
+  // 기사 필터 선택지 — 지금 목록에 담당으로 나온 기사만
+  const engOptions = useMemo(() => {
+    const m = new Map();
+    for (const t of tasks) if (t.assigned_engineer_id) m.set(t.assigned_engineer_id, t.engineer_name || "이름 없음");
+    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], "ko"));
   }, [tasks]);
 
   const list = groups[tab] || [];
@@ -169,14 +194,16 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
     }
   }, [load, detail, user]);
 
-  async function assign(target, engineerId) {
-    if (busy) return;
+  async function saveReject() {
+    if (busy || !rejecting) return;
+    if (!rejectText.trim()) { alert("반려 사유를 입력해 주세요."); return; }
     setBusy(true);
-    const res = await subAssignTask(target.id, engineerId);
+    const res = await subRejectTask(rejecting.id, rejectText.trim());
     setBusy(false);
-    if (!res.ok) { alert(res.error || "배정에 실패했습니다."); return; }
-    setPicking(null);
-    refreshAfterChange(target.id);
+    if (!res.ok) { alert(res.error || "반려하지 못했습니다."); return; }
+    setRejecting(null);
+    setDetail(null);
+    load();
   }
 
   function openSchedule(target) {
@@ -205,37 +232,29 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const sheets = (
     <>
       {picking && (
-        <Sheet onClose={() => { if (!busy) setPicking(null); }}>
-          <div style={sheetTitle}>담당 기사 지정</div>
-          <div style={sheetSub}>{picking.customer_name || picking.customer} · {fmtWhen(picking)}</div>
-          {staff.length === 0 && <div style={{ ...sheetSub, padding: "18px 0" }}>등록된 기사가 없습니다.</div>}
-          {staff.map(s => {
-            const zones = Array.isArray(s.zones) ? s.zones : [];
-            const zoneText = s.region || (zones.length > 4 ? `${zones.slice(0, 4).join("·")} 외 ${zones.length - 4}` : zones.join("·"));
-            const on = (picking.assigned_engineer_id || picking.assignedEngineerId) === s.id;
-            return (
-              <button key={s.id} disabled={busy} onClick={() => assign(picking, s.id)} style={{
-                display: "block", width: "100%", textAlign: "left",
-                background: on ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)",
-                border: on ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
-                borderRadius: 12, padding: "12px 14px", marginBottom: 8,
-                color: "var(--text-primary)", fontFamily: "inherit", cursor: "pointer",
-              }}>
-                <div style={{ fontSize: 15, fontWeight: 800 }}>
-                  {s.name}{s.sub_role === "manager" ? " (관리자)" : ""}
-                </div>
-                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
-                  오늘 일정 {s.today_tasks || 0}건 · 진행 {s.in_progress || 0}건{zoneText ? ` · ${zoneText}` : ""}
-                </div>
-              </button>
-            );
-          })}
-          {(picking.assigned_engineer_id || picking.assignedEngineerId) && (
-            <button disabled={busy} onClick={() => assign(picking, null)} style={{ ...btnGhost, width: "100%", color: "#E5484D" }}>
-              배정 해제 (미배정으로)
-            </button>
-          )}
-          <button disabled={busy} onClick={() => setPicking(null)} style={{ ...btnGhost, width: "100%", marginTop: 8 }}>닫기</button>
+        <SubAssignSheet
+          taskId={picking.id}
+          mode="sub"
+          subtitle={`${picking.customer_name || picking.customer || ""} · ${fmtWhen(picking)}`}
+          onClose={() => setPicking(null)}
+          onAssigned={() => { const id = picking.id; setPicking(null); refreshAfterChange(id); }}
+        />
+      )}
+      {rejecting && (
+        <Sheet onClose={() => { if (!busy) setRejecting(null); }}>
+          <div style={sheetTitle}>작업 반려</div>
+          <div style={sheetSub}>
+            {rejecting.customer_name || rejecting.customer} · 올데이케어로 되돌립니다. 담당 기사 배정도 해제됩니다.
+          </div>
+          <label style={fieldLabel}>반려 사유 (운영자에게 전달됩니다)</label>
+          <div style={fieldWrap}>
+            <textarea value={rejectText} onChange={e => setRejectText(e.target.value)} rows={3} maxLength={500}
+              placeholder="예: 해당 지역 일정 불가 / 작업 범위 밖" style={{ ...fieldInput, minHeight: 88, resize: "vertical" }}/>
+          </div>
+          <button disabled={busy} onClick={saveReject} style={{ ...btnMain, width: "100%", marginTop: 14, background: "#E5484D" }}>
+            {busy ? "처리 중…" : "반려하기"}
+          </button>
+          <button disabled={busy} onClick={() => setRejecting(null)} style={{ ...btnGhost, width: "100%", marginTop: 8 }}>닫기</button>
         </Sheet>
       )}
       {scheduling && (
@@ -324,14 +343,14 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
           <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
             <div style={{ flex: 1, minWidth: 0 }}>
               <div style={{ fontSize: 17, fontWeight: 800 }}>{subName}</div>
-              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{user?.name} 님 · {view === "settle" ? "수수료 정산" : "작업 관리"}</div>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{user?.name} 님 · {view === "settle" ? "수수료 정산" : view === "staff" ? "기사 관리" : "작업 관리"}</div>
             </div>
             {onSwitchRole && <RoleSwitcher user={user} onSwitch={onSwitchRole}/>}
             {view === "tasks" && <button onClick={load} disabled={loading} style={btnGhost}>{loading ? "…" : "새로고침"}</button>}
           </div>
           {/* 작업 / 정산 전환 */}
           <div style={{ display: "flex", gap: 6, marginTop: 10 }}>
-            {[["tasks", "작업"], ["settle", "정산"]].map(([k, label]) => (
+            {[["tasks", "작업"], ["settle", "정산"], ["staff", "기사"]].map(([k, label]) => (
               <button key={k} onClick={() => setView(k)} style={{
                 flex: 1, padding: "9px 0", borderRadius: 10, fontFamily: "inherit", cursor: "pointer",
                 border: "1px solid var(--border)", fontSize: 14, fontWeight: 800,
@@ -360,6 +379,14 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
         </div>
       </div>
 
+      {view === "staff" && (
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <SubStaffManage subName={subName}/>
+          <div style={{ padding: "0 12px" }}>
+            <button onClick={onLogout} style={{ ...btnGhost, width: "100%", padding: "12px 0" }}>로그아웃</button>
+          </div>
+        </div>
+      )}
       {view === "settle" && (
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
           <SubManagerSettleView/>
@@ -374,6 +401,18 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
             {error}
           </div>
         )}
+        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 10 }}>
+          <input type="date" value={fDate} onChange={e => setFDate(e.target.value)} aria-label="날짜 필터"
+            style={{ ...fieldInput, flex: 1, minHeight: 40, padding: "8px 10px", fontSize: 14 }}/>
+          <select value={fEng} onChange={e => setFEng(e.target.value)} aria-label="기사 필터"
+            style={{ ...fieldInput, flex: 1, minHeight: 40, padding: "8px 10px", fontSize: 14 }}>
+            <option value="">기사 전체</option>
+            {engOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
+          </select>
+          {(fDate || fEng) && (
+            <button onClick={() => { setFDate(""); setFEng(""); }} style={{ ...btnGhost, flexShrink: 0 }}>해제</button>
+          )}
+        </div>
         {!error && !loading && list.length === 0 && (
           <div style={{ textAlign: "center", color: "var(--text-secondary)", fontSize: 14, padding: "48px 0" }}>
             해당 상태의 작업이 없습니다.
@@ -421,6 +460,13 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
                 )}
                 <button onClick={() => openDetail(t.id)} disabled={detailLoading} style={btnLinkBtn}>상세</button>
               </div>
+              {!closed && t.status !== "진행중" && (
+                <button onClick={() => { setRejectText(""); setRejecting(t); }}
+                  style={{ background: "transparent", border: "none", padding: "10px 0 0", fontSize: 12, fontWeight: 700,
+                           color: "var(--text-secondary)", fontFamily: "inherit", cursor: "pointer", textDecoration: "underline" }}>
+                  올데이케어로 반려
+                </button>
+              )}
             </div>
           );
         })}
