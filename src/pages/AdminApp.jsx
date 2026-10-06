@@ -3849,6 +3849,8 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
           setScreen("engineerEdit");
         }}
         onClickRegions={() => setScreen("regionList")}
+        // 2026-10-06 — 기사 줄의 📅: 그 기사가 선택된 달력으로 (모바일 = EngineerCalendarScreen, PC = AdminPcEngineerCalendarScreen)
+        onCalendar={(eng) => { setCalEngineerId(eng.engineerId || eng.id); setScreen("engineerCalendar"); }}
       />
     </Shell>;
   }

@@ -12,7 +12,7 @@ import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
 import { EngineerBadge } from "./EngineerBadge.jsx";
 import { filterAndSortEngineers } from "../utils/engineerListFilter.js";
 
-export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
+export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions, onCalendar }) {
   // 매번 마운트 시 localStorage 다시 읽음 (편집 후 복귀 시 새 데이터 반영)
   const [engineers] = useState(() => loadEngineers());
   const [search, setSearch] = useState("");
@@ -144,6 +144,7 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
             engineer={e}
             skills={skillsMap ? (skillsMap.get(String(e.id||"").trim()) || []) : null}
             onClick={() => onEdit(e)}
+            onCalendar={onCalendar ? () => onCalendar(e) : null}
           />
         ))}
         {filtered.length === 0 && (
@@ -156,7 +157,7 @@ export function EngineerListScreen({ onEdit, onAdd, onBack, onClickRegions }) {
   );
 }
 
-function EngineerRow({ engineer: e, skills, onClick }) {
+function EngineerRow({ engineer: e, skills, onClick, onCalendar }) {
   const level = CAREER_LEVELS[e.careerLevel] || CAREER_LEVELS.career;
   const status = STATUS_OPTIONS[e.status] || STATUS_OPTIONS.active;
 
@@ -210,9 +211,26 @@ function EngineerRow({ engineer: e, skills, onClick }) {
           {e.note}
         </div>
       )}
+      {/* 2026-10-06 — 전화 · 문자 · 기사별 달력 (같은 크기·모양, 터치 40px). 누르면 줄의 편집 화면은 열리지 않는다. */}
+      <div style={{ display: "flex", gap: 8, marginTop: 8 }} onClick={ev => ev.stopPropagation()}>
+        {String(e.phone || "").replace(/[^0-9]/g, "") && (
+          <>
+            <a href={`tel:${String(e.phone).replace(/[^0-9]/g, "")}`} aria-label={`${e.name} 전화`} title="전화" style={rowIconStyle}>📞</a>
+            <a href={`sms:${String(e.phone).replace(/[^0-9]/g, "")}`} aria-label={`${e.name} 문자`} title="문자" style={rowIconStyle}>💬</a>
+          </>
+        )}
+        {onCalendar && (
+          <button type="button" onClick={onCalendar} aria-label={`${e.name} 달력`} title="이 기사의 달력" style={{ ...rowIconStyle, cursor: "pointer", fontFamily: "inherit" }}>📅</button>
+        )}
+      </div>
     </div>
   );
 }
+
+const rowIconStyle = {
+  width: 40, height: 40, borderRadius: 10, border: "1px solid var(--border)", background: "var(--bg-secondary)",
+  display: "inline-flex", alignItems: "center", justifyContent: "center", fontSize: 17, textDecoration: "none", padding: 0,
+};
 
 const headerStyle = {
   display: "flex", alignItems: "center", justifyContent: "space-between",
