@@ -152,6 +152,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const [found, setFound] = useState(null);            // null = 검색 중이 아님 / 배열 = 검색 결과
   const [searching, setSearching] = useState(false);
   const [searchErr, setSearchErr] = useState("");
+  const [filterSheet, setFilterSheet] = useState(false);     // ⚙︎ 필터 시트 (날짜 · 기사 · 보기 방식)
   const [dense, setDense] = useState(() => {
     try { return localStorage.getItem("ollit_sub_task_density") !== "normal"; } catch (_e) { return true; }   // 기본 = 촘촘
   });
@@ -505,12 +506,6 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const NAV = [["home", "🏠", "홈"], ["tasks", "📋", "작업"], ["settle", "💰", "정산"], ["staff", "👷", "기사"], ["me", "👤", "내 정보"]];
   const viewTitle = view === "home" ? "홈" : view === "settle" ? "정산" : view === "staff" ? "기사" : view === "me" ? "내 정보" : "작업";
   const fEngName = fEng ? ((engOptions.find(([id]) => id === fEng) || [])[1] || "기사") : "";
-  const smallChip = (on) => ({
-    display: "inline-flex", alignItems: "center", gap: 4, flexShrink: 0, height: 30, padding: "0 10px", borderRadius: 999,
-    fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap", boxSizing: "border-box",
-    border: on ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
-    background: on ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)", color: "var(--text-primary)",
-  });
 
   return (
     <div style={{
@@ -527,72 +522,70 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
       }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
           <div style={{ display: "flex", alignItems: "center", gap: 8, minHeight: 32 }}>
-            <div style={{ flex: 1, minWidth: 0, fontSize: 15, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-              {subName} <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)" }}>· {user?.name} 님 · {viewTitle}</span>
+            <div style={{ flex: 1, minWidth: 0, fontSize: 18, fontWeight: 800, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {subName}
+              {view === "home" && <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginLeft: 6 }}>{user?.name} 님</span>}
+              {view !== "home" && view !== "tasks" && <span style={{ fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginLeft: 6 }}>{viewTitle}</span>}
             </div>
             {onSwitchRole && <RoleSwitcher user={user} onSwitch={onSwitchRole}/>}
-            {(view === "tasks" || view === "home") && <button onClick={() => { load(); loadTodo(); }} disabled={loading} style={{ ...btnGhost, padding: "6px 10px" }}>{loading ? "…" : "새로고침"}</button>}
+            {(view === "tasks" || view === "home") && (
+              <button onClick={() => { load(); loadTodo(); }} disabled={loading} aria-label="새로고침" title="새로고침" style={iconBtn}>{loading ? "…" : "⟳"}</button>
+            )}
           </div>
           {view === "tasks" && (
             <>
-              {/* 검색 — 고객명 · 전화 뒷자리 · 주소 · 작업번호. 단계·기간과 상관없이 서버에서 찾는다. */}
-              <div style={{ position: "relative", marginTop: 8 }}>
-                <input
-                  value={query} onChange={e => setQuery(e.target.value)} placeholder="고객명 · 전화 뒷 4자리 · 주소 · 작업번호"
-                  aria-label="작업 검색" enterKeyHint="search"
-                  style={{ ...fieldInput, minHeight: 40, padding: "8px 36px 8px 12px" }}
-                />
-                {query && (
-                  <button type="button" onClick={() => setQuery("")} aria-label="검색어 지우기" style={{
-                    position: "absolute", right: 0, top: 0, width: 40, height: 40, background: "transparent", border: "none",
-                    fontSize: 16, color: "var(--text-secondary)", cursor: "pointer", fontFamily: "inherit",
-                  }}>✕</button>
-                )}
-              </div>
-              {/* 작은 필터 줄 — 날짜 · 기사 · (오른쪽) 보통 | 촘촘 */}
-              <div style={{ display: "flex", alignItems: "center", gap: 6, marginTop: 8 }}>
-                <label style={{ ...smallChip(!!fDate), position: "relative" }}>
-                  <span aria-hidden="true">📅</span>{fDate ? fmtFilterDate(fDate) : "날짜 전체"}
-                  <input type="date" value={fDate} onChange={e => setFDate(e.target.value)} aria-label="날짜 필터"
-                    style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, border: "none", padding: 0, margin: 0, cursor: "pointer" }}/>
-                </label>
-                <button type="button" onClick={() => { setEngQuery(""); setEngSheet(true); }} aria-label="기사 필터" style={smallChip(!!fEng)}>
-                  <span aria-hidden="true">👷</span>{fEng ? fEngName : "기사 전체"}
+              {/* 2줄: 검색창(회색 바탕 둥근 상자) + ⚙︎ 필터. 필터가 걸려 있으면 ⚙︎ 에 빨간 점. */}
+              <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                <div style={{ flex: 1, minWidth: 0, position: "relative" }}>
+                  <span aria-hidden="true" style={{ position: "absolute", left: 12, top: 0, height: 38, display: "flex", alignItems: "center", fontSize: 14, opacity: 0.6, pointerEvents: "none" }}>🔍</span>
+                  <input
+                    value={query} onChange={e => setQuery(e.target.value)} placeholder="고객명 · 전화 · 주소 · 작업번호"
+                    aria-label="작업 검색" enterKeyHint="search"
+                    style={{
+                      display: "block", width: "100%", boxSizing: "border-box", height: 38, borderRadius: 12, border: "none",
+                      background: "var(--bg-inset, var(--bg-primary))", color: "var(--text-primary)",
+                      padding: "0 36px 0 36px", fontSize: 16, fontFamily: "inherit", outline: "none",
+                    }}
+                  />
+                  {query && (
+                    <button type="button" onClick={() => setQuery("")} aria-label="검색어 지우기" style={{
+                      position: "absolute", right: 0, top: 0, width: 38, height: 38, background: "transparent", border: "none",
+                      fontSize: 15, color: "var(--text-secondary)", cursor: "pointer", fontFamily: "inherit",
+                    }}>✕</button>
+                  )}
+                </div>
+                <button type="button" onClick={() => setFilterSheet(true)} aria-label="필터" title="필터" style={{ ...iconBtn, width: 38, height: 38, position: "relative" }}>
+                  ⚙︎
+                  {(fDate || fEng) && <span style={{ position: "absolute", top: 5, right: 5, width: 7, height: 7, borderRadius: "50%", background: "#E5484D" }}/>}
                 </button>
-                {(fDate || fEng) && (
-                  <button type="button" onClick={() => { setFDate(""); setFEng(""); }} style={{ ...smallChip(false), border: "none", background: "transparent", color: "var(--text-secondary)", textDecoration: "underline", padding: "0 4px" }}>해제</button>
-                )}
-                <span style={{ flex: 1 }}/>
-                <span style={{ display: "inline-flex", border: "1px solid var(--border)", borderRadius: 999, overflow: "hidden", flexShrink: 0 }}>
-                  {[[false, "보통"], [true, "촘촘"]].map(([v, label]) => (
-                    <button key={label} type="button" onClick={() => changeDense(v)} style={{
-                      height: 28, padding: "0 10px", border: "none", fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
-                      background: dense === v ? "var(--text-primary)" : "transparent",
-                      color: dense === v ? "var(--bg-primary)" : "var(--text-secondary)",
-                    }}>{label}</button>
-                  ))}
-                </span>
               </div>
+              {/* 3줄: 밑줄형 단계 탭 (가로 스크롤). 숫자는 작은 원 배지, 미배정만 빨강. 0건 탭은 흐리게. */}
+              {found === null && (
+                <div style={{ display: "flex", gap: 16, marginTop: 10, overflowX: "auto", whiteSpace: "nowrap", marginBottom: -8 }}>
+                  {TABS.filter(tb => tb.key !== "cancel" || groups.cancel.length > 0 || tab === "cancel").map(tb => {
+                    const n = groups[tb.key].length;
+                    const on = tab === tb.key;
+                    const redBadge = tb.key === "todo" && n > 0;
+                    return (
+                      <button key={tb.key} onClick={() => setTab(tb.key)} style={{
+                        flex: "none", display: "inline-flex", alignItems: "center", gap: 4, padding: "0 0 7px", background: "transparent",
+                        border: "none", borderBottom: on ? "2.5px solid var(--text-primary)" : "2.5px solid transparent",
+                        fontFamily: "inherit", cursor: "pointer", fontSize: 14, fontWeight: 700,
+                        color: on ? "var(--text-primary)" : "var(--text-secondary)", opacity: n === 0 && !on ? 0.4 : 1,
+                      }}>
+                        {tb.label}
+                        <em style={{
+                          fontStyle: "normal", fontSize: 11, minWidth: 18, height: 18, borderRadius: 99, padding: "0 5px", boxSizing: "border-box",
+                          display: "inline-grid", placeItems: "center",
+                          background: redBadge ? "#E5484D" : "var(--bg-inset, var(--bg-primary))", color: redBadge ? "#fff" : "var(--text-secondary)",
+                        }}>{n}</em>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </>
           )}
-          <div style={{ display: view === "tasks" && found === null ? "flex" : "none", gap: 6, marginTop: 8, overflowX: "auto" }}>
-            {TABS.filter(tb => tb.key !== "cancel" || groups.cancel.length > 0 || tab === "cancel").map(tb => {
-              const n = groups[tb.key].length;
-              const on = tab === tb.key;
-              return (
-                <button key={tb.key} onClick={() => setTab(tb.key)} style={{
-                  flex: "1 0 auto", padding: "5px 10px", borderRadius: 999, fontFamily: "inherit", cursor: "pointer",
-                  border: on ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
-                  background: on ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)",
-                  color: "var(--text-primary)", fontSize: 12, fontWeight: 800, whiteSpace: "nowrap",
-                  opacity: n === 0 && !on ? 0.45 : 1,           // 0건인 칩은 흐리게
-                }}>
-                  {tb.label}{" "}
-                  <span style={{ color: tb.key === "todo" && n > 0 ? "#E5484D" : "var(--text-secondary)" }}>{n}</span>
-                </button>
-              );
-            })}
-          </div>
         </div>
       </div>
 
@@ -651,6 +644,12 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
           </div>
         )}
 
+        {(fDate || fEng) && found === null && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 10 }}>
+            {fDate && <button type="button" onClick={() => setFDate("")} style={filterChip}>{fmtFilterDate(fDate)} ✕</button>}
+            {fEng && <button type="button" onClick={() => setFEng("")} style={filterChip}>{fEngName} ✕</button>}
+          </div>
+        )}
         {found !== null && (
           <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", margin: "0 2px 8px" }}>
             {searching ? "찾는 중…" : `검색 결과 ${list.length}건${list.length >= 50 ? " (최근 50건까지)" : ""} · 단계·기간과 상관없이 찾았습니다`}
@@ -675,26 +674,33 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
           // 촘촘 보기 — 한두 줄: 시각 · 종목 아이콘 · 고객 · 동네 / 담당 · 상태. 버튼 줄 없음(카드를 누르면 상세).
           if (dense) {
             const cat = getCategoryMeta(catTask(t));
+            const unassigned = !hasEng && !closed;
             return (
               <div key={t.id}>
-                {showHead && <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-secondary)", margin: idx === 0 ? "2px 2px 6px" : "12px 2px 6px" }}>{dayHead(day)}</div>}
+                {showHead && <div style={{ fontSize: 12, fontWeight: 800, color: "var(--text-secondary)", margin: idx === 0 ? "2px 4px 6px" : "10px 4px 6px" }}>{dayHead(day)}</div>}
                 <div onClick={() => openDetail(t.id)} style={{
-                  background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 10,
-                  padding: "9px 10px", marginBottom: 6, cursor: "pointer",
-                  display: "flex", alignItems: "center", gap: 8, minHeight: 44, boxSizing: "border-box",
-                  ...categoryBar(catTask(t)),
+                  background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 12,
+                  display: "flex", alignItems: "center", gap: 8, padding: "11px 12px 11px 0", marginBottom: 6, overflow: "hidden",
+                  cursor: "pointer", minHeight: 44, boxSizing: "border-box",
                   ...(cancelled ? { opacity: 0.6, filter: "grayscale(1)" } : {}),
                 }}>
-                  <span style={{ width: 44, flexShrink: 0, fontSize: 13, fontWeight: 800, color: "var(--accent, #FF1B8D)" }}>{timeShort(t)}</span>
-                  <span aria-hidden="true" title={cat.label} style={{ flexShrink: 0, fontSize: 14 }}>{cat.icon}</span>
-                  <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 14, fontWeight: 700 }}>
-                    {t.customer_name}
-                    <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>{townOf(t) ? ` · ${townOf(t)}` : ""}</span>
+                  <span style={{ width: 4, alignSelf: "stretch", borderRadius: "0 3px 3px 0", background: cat.color, flex: "none" }}/>
+                  <span style={{ width: 44, flex: "none", fontSize: 14, fontWeight: 800, color: "var(--accent, #FF1B8D)" }}>{timeShort(t)}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                    <span aria-hidden="true" title={cat.label}>{cat.icon}</span> {t.customer_name}
+                    {townOf(t) && <small style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}> · {townOf(t)}</small>}
                   </span>
-                  <span style={{ flexShrink: 0, maxWidth: 72, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, fontWeight: 700, color: hasEng ? "var(--text-secondary)" : "#E5484D" }}>
-                    {hasEng ? (t.engineer_name || "") : "미배정"}
-                  </span>
-                  <span style={{ flexShrink: 0, fontSize: 10, fontWeight: 800, padding: "2px 6px", borderRadius: 6, background: ss.bg, color: ss.fg, whiteSpace: "nowrap" }}>{stLabel}</span>
+                  {!unassigned && hasEng && (
+                    <span style={{ flex: "none", maxWidth: 64, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>{t.engineer_name || ""}</span>
+                  )}
+                  <span style={{ flex: "none", fontSize: 11, fontWeight: 800, padding: "3px 7px", borderRadius: 6, background: ss.bg, color: ss.fg, whiteSpace: "nowrap" }}>{stLabel}</span>
+                  {/* 미배정 카드만 [배정] — 누르면 기존 배정 시트 (카드 상세는 열리지 않는다) */}
+                  {unassigned && t.status !== "진행중" && (
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setPicking(t); }} style={{
+                      flex: "none", fontSize: 12, fontWeight: 800, border: "1px solid var(--accent, #FF1B8D)", color: "var(--accent, #FF1B8D)",
+                      background: "transparent", borderRadius: 8, padding: "5px 9px", fontFamily: "inherit", cursor: "pointer", minHeight: 30,
+                    }}>배정</button>
+                  )}
                 </div>
               </div>
             );
@@ -764,6 +770,35 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
         })}
       </div>
 
+      {/* ⚙︎ 필터 시트 — 날짜 · 기사 · 보기 방식 */}
+      {filterSheet && (
+        <BottomSheet
+          onClose={() => setFilterSheet(false)}
+          title="필터"
+          footer={<SheetButtons onCancel={() => { setFDate(""); setFEng(""); }} cancelLabel="필터 지우기" onOk={() => setFilterSheet(false)} okLabel="닫기"/>}
+        >
+          <label style={fieldLabel}>날짜</label>
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 8 }}>
+            {[["", "전체"], [kstToday(0), "오늘"], [kstToday(1), "내일"]].map(([v, label]) => (
+              <button key={label} type="button" onClick={() => setFDate(v)} style={sheetChip(fDate === v)}>{label}</button>
+            ))}
+          </div>
+          <div style={fieldWrap}>
+            <input type="date" value={fDate} onChange={e => setFDate(e.target.value)} aria-label="날짜 직접 선택" style={fieldInput}/>
+          </div>
+          <label style={fieldLabel}>기사</label>
+          <button type="button" onClick={() => { setFilterSheet(false); setEngQuery(""); setEngSheet(true); }} style={{ ...fieldInput, textAlign: "left", cursor: "pointer" }}>
+            {fEng ? fEngName : "기사 전체"} <span style={{ color: "var(--text-secondary)" }}>›</span>
+          </button>
+          <label style={fieldLabel}>보기 방식</label>
+          <div style={{ display: "flex", gap: 6 }}>
+            {[[true, "촘촘 (한 줄)"], [false, "보통 (버튼 포함)"]].map(([v, label]) => (
+              <button key={label} type="button" onClick={() => changeDense(v)} style={{ ...sheetChip(dense === v), flex: 1 }}>{label}</button>
+            ))}
+          </div>
+        </BottomSheet>
+      )}
+
       {/* 기사 필터 — 검색 시트 (기사가 많아도 찾기 쉽게) */}
       {engSheet && (
         <BottomSheet
@@ -810,6 +845,22 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
     </div>
   );
 }
+
+// 머리의 네모 아이콘 버튼 (⟳ · ⚙︎)
+const iconBtn = {
+  width: 34, height: 34, flex: "none", border: "1px solid var(--border)", borderRadius: 10, background: "var(--bg-elevated)",
+  display: "grid", placeItems: "center", fontSize: 16, color: "var(--text-primary)", fontFamily: "inherit", cursor: "pointer", padding: 0,
+};
+const filterChip = {
+  fontSize: 12, fontWeight: 700, background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 99,
+  padding: "5px 10px", color: "var(--text-primary)", fontFamily: "inherit", cursor: "pointer",
+};
+const sheetChip = (on) => ({
+  padding: "10px 14px", borderRadius: 10, fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+  border: on ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
+  background: on ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)", color: "var(--text-primary)",
+});
+const kstToday = (plus) => new Date(Date.now() + plus * 86400000).toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
 
 const meCard = {
   background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14, padding: 14, marginBottom: 10,
