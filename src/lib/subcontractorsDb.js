@@ -122,6 +122,12 @@ export async function adminSetUserSubcontractor(userId, subcontractorId, subRole
 export const adminAssignTaskToSubcontractor = (taskId, subcontractorId) =>
   _call("admin_assign_task_to_subcontractor", { p_task_id: taskId, p_subcontractor_id: subcontractorId || null });
 
+// ── 협력사 직원 (기사 앱) ─────────────────────────────────────
+// 완료 직전 공급가액(부가세 제외) 저장. 부가세·합계는 서버가 계산해 돌려준다.
+// 합계가 접수 견적보다 적으면 reason(사유) 필수 — 서버가 다시 확인한다.
+export const subStaffSetSupply = (taskId, supply, reason = null) =>
+  _call("sub_staff_set_supply", { p_task_id: taskId, p_supply: Math.round(Number(supply) || 0), p_reason: reason || null });
+
 // ── 협력사 관리자 ────────────────────────────────────────────
 export const subListStaff = () => _call("sub_list_staff", {});
 export const subListTasks = (from = null, to = null) => _call("sub_list_tasks", { p_from: from, p_to: to });

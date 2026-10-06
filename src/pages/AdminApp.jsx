@@ -624,6 +624,9 @@ function _v14NormalizeTask(t) {
     principalId: t.principalId || t.principal_id || null,
     // 2026-10-06 Mig 212 — 작업 수행 협력사 (NULL = 직영). 3곳 매핑.
     subcontractorId: t.subcontractorId || t.subcontractor_id || null,
+    // Mig 215 — 협력사 작업 공급가액(부가세 제외). 3곳 매핑.
+    supplyAmount: t.supplyAmount ?? t.supply_amount ?? null,
+    supplyShortfallReason: t.supplyShortfallReason ?? t.supply_shortfall_reason ?? null,
     // 2026-05-21 Phase 5 Step 0.G-6-C — task 레벨 boolean (유솔N 본작업 + 냉매)
     hasUsolNMainRefrigerant: !!t.hasUsolNMainRefrigerant,
     paymentMethod,

@@ -373,6 +373,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       />
       {/* 2026-10-06 Mig 212~214 — 협력사로 넘기기 / 직영으로 회수 */}
       <SubcontractorCard task={task} onChanged={reloadTask}/>
+      {/* 2026-10-06 Mig 215~217 — 협력사 작업 분배: 공급가 / 수수료 / 협력사 몫 */}
+      <SubFeeSplitCard task={task}/>
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
       <SettlementInfoCard task={task}/>
       {/* 2026-05-31 — Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 (신규 흐름 측만 input 노출).
@@ -1093,6 +1095,61 @@ function SubcontractorCard({ task, onChanged }) {
           </div>
         ))}
       </div>
+    </div>
+  );
+}
+
+// 2026-10-06 Mig 215~217 — 협력사 작업 분배 내역.
+//   공급가액 = 직원 입력값. 수수료 = payments.owner_amount (서버 계산, 규칙표 기준).
+//   협력사 몫 = 공급가액 − 수수료. 부가세는 합계에 포함돼 협력사가 보유.
+function SubFeeSplitCard({ task }) {
+  const idx = useSubcontractorIndex();
+  const subId = task?.subcontractorId || null;
+  if (!subId) return null;
+  const name = (idx.names.get(subId) || {}).name || "협력사";
+  const supply = Number(task.supplyAmount) || 0;
+  const total = Number(task.receivedTotal) || 0;
+  // 견적(부가세 제외)은 보존된다 — 실제 공급가액이 견적보다 적으면 차액을 빨간색으로 표시.
+  const quote = Number(task.productPrice ?? task.estimateTotal ?? 0) || 0;
+  const hasPay = !!task.payment && task.payment.track === "S";
+  const fee = hasPay ? (Number(task.owner_amount) || 0) : null;
+  const won = (n) => `₩${Number(n || 0).toLocaleString("ko-KR")}`;
+  const row = (label, value, strong, color) => (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "5px 0" }}>
+      <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>{label}</span>
+      <span style={{ fontSize: strong ? 15 : 13, fontWeight: strong ? 800 : 700, color: color || "var(--text-primary)" }}>{value}</span>
+    </div>
+  );
+  return (
+    <div style={{
+      background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14,
+      padding: "12px 14px", margin: "0 0 12px",
+    }}>
+      <div style={{ fontSize: 12, fontWeight: 800, color: "#8B5CF6", marginBottom: 6 }}>협력사 분배 · {name}</div>
+      {supply <= 0 ? (
+        <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6 }}>
+          아직 공급가액이 입력되지 않았습니다. 직원이 완료 처리할 때 입력합니다.
+        </div>
+      ) : (
+        <>
+          {row("공급가액 (부가세 제외)", won(supply))}
+          {row("부가세", won(Math.max(0, total - supply)))}
+          {row("합계 (고객 결제)", won(total))}
+          {quote > 0 && row("접수 견적 (부가세 제외)", won(quote))}
+          {quote > 0 && supply < quote && row("견적 대비 공급가 차액", `− ${won(quote - supply)}`, true, "#E5484D")}
+          {quote > 0 && supply < quote && (
+            <div style={{ fontSize: 12, color: "#E5484D", lineHeight: 1.5, padding: "2px 0 4px" }}>
+              사유: {task.supplyShortfallReason || "입력 없음"}
+            </div>
+          )}
+          <div style={{ borderTop: "1px solid var(--border)", margin: "6px 0" }}/>
+          {row("올데이케어 수수료", fee == null ? "완료 후 계산" : won(fee), true, "#FF1B8D")}
+          {row(`${name} 몫 (공급가 − 수수료)`, fee == null ? "—" : won(Math.max(0, supply - fee)), true)}
+        </>
+      )}
+      {task.computeError && (
+        <div style={{ marginTop: 8, fontSize: 12, color: "#E5484D", lineHeight: 1.5 }}>정산 계산 오류: {task.computeError}</div>
+      )}
     </div>
   );
 }

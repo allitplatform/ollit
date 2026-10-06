@@ -14,6 +14,7 @@ import { supabase } from "../lib/supabase.js";
 import { setMaterialCostAdapter } from "../data/tasksDb.js";
 // 2026-07-29 — 완료 파업 가드 (총액 0원 차단). 기종 검사는 앞 화면(완료 버튼)에서 이미 끝남.
 import { amountBlockReason } from "../utils/completeGuard.js";
+import { subStaffSetSupply } from "../lib/subcontractorsDb.js";
 
 // 2026-05-17 — 진행중 상태는 trigger_compute_payment가 발화하지 않아 payments가 stale.
 // 완료 확인 화면 mount 시 RPC를 직접 호출해서 재계산 후 payments를 다시 읽어옴.
@@ -911,7 +912,112 @@ function MaterialCostCard({ value, onChange, onSave, saving, saved }) {
 
 // 1. 작업 완료 (핑크)
 // ═══════════════════════════════════════════════════════
-export function TaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
+// 2026-10-06 Mig 215~217 — 협력사 작업 완료 화면.
+//   · "공급가액 (부가세 제외)" 입력 필수. 입력 즉시 부가세·합계 표시 (직원 확인용).
+//   · [완료 처리] → 서버에 공급가액 저장(sub_staff_set_supply) 성공 후에만 완료로 넘어간다.
+//   · 본인 수익·수수료는 보여 주지 않는다 (정산은 협력사가 함).
+function SubTaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
+  const [memo, setMemo] = useState("");
+  const [supply, setSupply] = useState(task.supplyAmount ? String(task.supplyAmount) : "");
+  const [busy, setBusy] = useState(false);
+  const supplyNum = Math.max(0, Math.floor(Number(String(supply).replace(/[^0-9]/g, "")) || 0));
+  const vat = Math.round(supplyNum * 0.1);
+  const total = supplyNum + vat;
+  const fmt = (n) => `₩${Number(n || 0).toLocaleString("ko-KR")}`;
+  // 견적 보존 (2026-10-06 사장님 결정): 견적은 고치지 않는다.
+  //   접수 견적은 부가세 제외 금액 → 공급가액과 비교 (합계 아님). 공급가액이 적으면 사유 필수.
+  const quote = Number(task.estimateTotal || task.productPrice || 0) || 0;
+  const shortfall = supplyNum > 0 ? Math.max(0, quote - supplyNum) : 0;
+  const [reason, setReason] = useState(task.supplyShortfallReason || "");
+
+  async function handleConfirm() {
+    if (busy) return;
+    if (supplyNum <= 0) { alert("공급가액(부가세 제외)을 입력해 주세요."); return; }
+    if (shortfall > 0 && !String(reason).trim()) { alert("공급가액이 견적(부가세 제외)보다 적습니다. 사유를 입력해 주세요."); return; }
+    if (!confirm(`공급가액 ${fmt(supplyNum)}\n부가세 ${fmt(vat)}\n합계 ${fmt(total)}\n\n이 금액으로 완료할까요?`)) return;
+    setBusy(true);
+    const res = await subStaffSetSupply(task.id, supplyNum, shortfall > 0 ? String(reason).trim() : null);
+    setBusy(false);
+    if (!res.ok) { alert(res.error || "금액을 저장하지 못했습니다."); return; }
+    onConfirm && onConfirm({
+      type: "complete",
+      memo,
+      total, commission: 0, earning: 0,
+      photos: photos.length,
+      refrigerantAddon: null,
+    });
+  }
+
+  return (
+    <Container>
+      <ScreenHeader title="✓ 작업 완료" onBack={onBack}/>
+      <CustomerCard task={task} accentColor="#FF1B8D"/>
+      <div style={{
+        background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 16,
+        padding: 16, margin: "12px 16px",
+      }}>
+        <div style={{ fontSize: 14, fontWeight: 800, color: "var(--text-primary)", marginBottom: 10 }}>
+          공급가액 (부가세 제외)
+        </div>
+        <input
+          type="text" inputMode="numeric" autoComplete="off"
+          value={supplyNum ? supplyNum.toLocaleString("ko-KR") : ""}
+          onChange={e => setSupply(e.target.value.replace(/[^0-9]/g, ""))}
+          placeholder="받은 공급가액을 입력"
+          style={{
+            width: "100%", boxSizing: "border-box", padding: "14px 14px", borderRadius: 12,
+            border: "2px solid #FF1B8D", background: "var(--bg-card)", color: "var(--text-primary)",
+            fontSize: 22, fontWeight: 800, textAlign: "right", fontFamily: "inherit",
+          }}
+        />
+        <div style={{ marginTop: 14, fontSize: 15, color: "var(--text-secondary)", lineHeight: 1.9 }}>
+          <div style={{ display: "flex", justifyContent: "space-between" }}>
+            <span>부가세 (10%)</span><span>{fmt(vat)}</span>
+          </div>
+          <div style={{ display: "flex", justifyContent: "space-between", fontSize: 18, fontWeight: 800, color: "var(--text-primary)" }}>
+            <span>합계 (고객 결제)</span><span style={{ color: "#FF1B8D" }}>{fmt(total)}</span>
+          </div>
+        </div>
+        {quote > 0 && (
+          <div style={{ marginTop: 10, fontSize: 13, color: "var(--text-secondary)", display: "flex", justifyContent: "space-between" }}>
+            <span>견적 (부가세 제외)</span><span>{fmt(quote)}</span>
+          </div>
+        )}
+        {shortfall > 0 && (
+          <div style={{ marginTop: 10 }}>
+            <div style={{ fontSize: 13, fontWeight: 800, color: "#E5484D", marginBottom: 6 }}>
+              견적(부가세 제외) 대비 공급가 {fmt(shortfall)} 적음 — 사유를 입력해 주세요
+            </div>
+            <textarea
+              value={reason} onChange={e => setReason(e.target.value)} rows={2}
+              placeholder="예: 현장 확인 결과 작업 범위 축소"
+              style={{
+                width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 12,
+                border: "2px solid #E5484D", background: "var(--bg-card)", color: "var(--text-primary)",
+                fontSize: 15, fontFamily: "inherit", resize: "vertical",
+              }}
+            />
+          </div>
+        )}
+        <div style={{ marginTop: 10, fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+          고객에게 공급가액과 합계가 문자로 안내됩니다. 출장비만 받은 경우에도 받은 공급가액을 입력해 주세요.
+        </div>
+      </div>
+      <MemoBox label="📝 마무리 메모 (선택)" value={memo} onChange={setMemo}/>
+      <MainAction label={busy ? "저장 중…" : "✓ 완료 처리"} color="#FF1B8D" onClick={handleConfirm} disabled={busy}/>
+    </Container>
+  );
+}
+
+// 협력사 작업이면 공급가액 화면, 아니면 기존 완료 화면.
+export function TaskCompleteScreen(props) {
+  if (props.task && (props.task.subcontractorId || props.task.subcontractor_id)) {
+    return <SubTaskCompleteScreen {...props}/>;
+  }
+  return <TaskCompleteScreenDirect {...props}/>;
+}
+
+function TaskCompleteScreenDirect({ task, photos = [], onBack, onConfirm }) {
   const [memo, setMemo] = useState("");
   // 2026-06-03 — Phase 1: 세척+냉매충전 2-task. 현장에서 냉매충전(현금) 측측 측측 측측.
   //   ⚠️ "냉매충전"(메인 본작업, 현금, track A 일정산) — usol_n "냉매점검"(추가선택, 네이버 월정산) 아님.

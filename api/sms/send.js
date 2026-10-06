@@ -171,6 +171,27 @@ ${vars.engineerName} 기사님이 배정되었습니다.
 문의: 1866-2003`
     );
   }
+  // 2026-10-06 Mig 218 — 협력사 작업 완료: 공급가액·부가세·합계 안내 (발신명 올데이케어).
+  //   vars.supplyAmount 가 있을 때만. 없으면 아래 기존 문구 그대로.
+  const supply = Number(vars.supplyAmount);
+  if (vars.supplyAmount != null && Number.isFinite(supply) && supply > 0) {
+    const total = Number(vars.amount);
+    const vat = Math.max(0, total - supply);
+    return (
+`[올데이케어] 서비스 완료 안내
+
+신청하신 서비스가
+정상적으로 완료되었습니다.
+
+▶ 공급가액: ${formatAmount(supply)}원
+▶ 부가세: ${formatAmount(vat)}원
+▶ 합계: ${formatAmount(total)}원
+
+이용해 주셔서 감사합니다.
+
+문의: 1866-2003`
+    );
+  }
   return (
 `${prefix}서비스 완료 안내
 

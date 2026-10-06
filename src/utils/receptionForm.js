@@ -59,6 +59,10 @@ export const WORK_TYPES_CONFIG = {
   // 2026-07-28 — 사장님 확정: 누수(물 떨어짐) 신설 — 누설(냉매)과 별개 종목.
   //   풀·분배 = 냉매 계열 (workTypeKind '누수'→leak 매핑 기존재 / DB Mig 195·196).
   "누수":     { enabled: true,  workflow: "manual_with_recommendation", needsAppliance: true,  priority: 4  },
+  // 2026-10-06 Mig 215 — 주방후드 3종 (협력사 수행). 이름은 service_types.name 과 정확히 같아야 한다.
+  "주방후드(업소용)": { enabled: true, workflow: "manual_with_recommendation", needsAppliance: true, priority: 6 },
+  "주방후드(가정용)": { enabled: true, workflow: "manual_with_recommendation", needsAppliance: true, priority: 6 },
+  "후드설치":         { enabled: true, workflow: "manual_with_recommendation", needsAppliance: true, priority: 6 },
   "수리":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 5  },
   "점검":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 5  },
 };
@@ -87,6 +91,10 @@ export const APPLIANCE_POOL = {
   "누수":           ["벽걸이", "스탠드", "1way", "투인원", "4way"],
   "설치":           ["신규설치", "이전설치", "철거", "실외기중고교체", "기계중고교체"],
   "출장비":         ["(공통)"],
+  // 2026-10-06 Mig 215 — 주방후드는 기종 구분 없음 (work_types 이름 "…_(공통)" 과 대조)
+  "주방후드(업소용)": ["(공통)"],
+  "주방후드(가정용)": ["(공통)"],
+  "후드설치":         ["(공통)"],
   "추가선택(YS-N)": ["송풍팬분해", "실외기", "피톤치드"],
   "냉매점검(YS-N)": ["기본", "추가발생", "출장비"],
 };
@@ -104,7 +112,9 @@ export const REFRIGERANT_APPLIANCE_POOL = ["벽걸이", "스탠드", "4way", "�
 //   2026-06-25 누설/설치 활성화 — 누설은 냉매와 동일 정산, 설치는 75/25.
 //   ⚠️ WORK_TYPES 원소 값은 저장/매칭 키 (파서 output, category_data.workItems.workType,
 //     service_types.name 매칭 대상). UI 노출 텍스트는 formatWorkTypeLabel() 로 감쌀 것.
-export const WORK_TYPES = ["세척", "냉매충전", "누설", "누수", "설치", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
+export const WORK_TYPES = ["세척", "냉매충전", "누설", "누수", "설치", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)",
+  // 2026-10-06 Mig 215 — 주방후드 (협력사 수행)
+  "주방후드(업소용)", "주방후드(가정용)", "후드설치"];
 
 // 2026-07-08 — 표시 라벨 매핑 (저장값/매칭키와 표시값 분리).
 //   저장/매칭 (파서 output, category_data.workItems.workType, service_types.name,
