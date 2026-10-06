@@ -92,6 +92,7 @@ import { getUsolnAdjustment as ovGetUsolnAdjustment } from "../lib/bookkeepingUs
 import { useIsPc } from "../utils/useIsPc.js";
 // 2026-06-17 — PC 새 접수 폼 (Stage 2). 모바일은 기존 NewReceptionFormScreen 유지.
 import { usePerformer, PerformerChips, SubFeePreview, handOverToPerformer, friendlyFeeError, applianceLabel } from "../components/PerformerPicker.jsx";
+import { getCategoryMeta } from "../lib/serviceCatalog.js";
 import { NewReceptionPcForm } from "../components/admin/NewReceptionPcForm.jsx";
 import { AdminPcShell } from "./AdminPcShell.jsx";
 import { AdminPcDashboard } from "./AdminPcDashboard.jsx";
@@ -6685,7 +6686,9 @@ function NewReceptionScreen({
 }
 
 function ReceptionGroup({ t, workType, title, subtitle, subtitleColor, count, children }) {
-  const IconComp = WORK_TYPE_ICONS[workType] || Hash;
+  // 2026-10-06 — 아이콘은 종목 기준표에서. (WORK_TYPE_ICONS 는 더 이상 쓰지 않는다)
+  const _catIcon = getCategoryMeta(workType).icon;
+  const IconComp = ({ size = 14, style }) => <span aria-hidden="true" style={{ fontSize: size, lineHeight: 1, ...style }}>{_catIcon}</span>;
   return (
     <div style={{ marginBottom: 18 }}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>

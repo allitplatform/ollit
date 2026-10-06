@@ -8,6 +8,7 @@
 //   · 잠금: 진행중 / 완료 / 취소 / visit_only / 정산완료.
 //   · 드래그 중 막대 자체 이동 + 새 시각 라벨 미리보기.
 
+import { getCategoryMeta } from "../lib/serviceCatalog.js";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 
@@ -970,8 +971,9 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   //   → 노랑 오표시. 판정 함수 하나로 통일: isPureVisitOnly OR isAllItemsVisit.
   const isVisitOnly = isPureVisitOnly(task) || isAllItemsVisit(task);
   const kind = isVisitOnly ? 'visit' : getServiceKind(task);
-  const kindColor = KIND_COLOR[kind] || KIND_COLOR_FALLBACK;
-  const textCol   = TEXT_ON_KIND[kind] || TEXT_ON_KIND_FALLBACK;
+  // 2026-10-06 — 막대 색은 종목 기준표에서 (출장만 한 건은 기존 출장 색 유지)
+  const kindColor = isVisitOnly ? (KIND_COLOR[kind] || KIND_COLOR_FALLBACK) : getCategoryMeta(task).color;
+  const textCol   = isVisitOnly ? (TEXT_ON_KIND[kind] || TEXT_ON_KIND_FALLBACK) : "#fff";
 
   // 2026-07-09 — status 별 시각 분기.
   //   · 취소 : todayTasks 필터에서 이미 제외 (아래 스타일 dead code).

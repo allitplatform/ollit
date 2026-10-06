@@ -1,3 +1,4 @@
+import { getCategoryMeta } from "../lib/serviceCatalog.js";
 // workType 종류 판정 공용 헬퍼 (2026-05-26)
 //
 // 배경: DB work_types.name 은 "세척_1way", "세척_벽걸이", "냉매점검(서울 경기북부만 가능)" 등
@@ -118,15 +119,14 @@ export function isHoodWork(input) {
 // task / workItem / 문자열 → META 하나.
 export function getServiceKindMeta(input) {
   const meta = SERVICE_KIND_META[getServiceKind(input)] || SERVICE_KIND_META.other;
-  // 2026-10-06 — 주방후드: 5종 분류로는 "기타" 지만 표시는 "주방후드" 로.
-  if (meta.key === "other" && isHoodWork(input)) {
-    return { ...meta, label: "주방후드", color: "#14B8A6", icon: "🍳" };
-  }
-  // 2026-10-06 — 누설/누수 묶음 라벨을 실제 종류로 나눠 표시 (냉매 누설 / 물 누수).
-  if (meta.key === "leak") {
-    return { ...meta, label: leakDisplayLabel(input) };
-  }
-  return meta;
+  // 2026-10-06 — 이름은 작업 종류 그대로, 색·아이콘은 종목 기준표(serviceCatalog)에서.
+  //   (SERVICE_KIND_META 의 색은 매출 통계의 "작업 종류별" 구분에만 쓴다.)
+  const cat = getCategoryMeta(input);
+  const paint = { color: cat.color, icon: cat.icon };
+  if (meta.key === "other" && isHoodWork(input)) return { ...meta, label: "주방후드", ...paint };
+  if (meta.key === "other" && cat.key !== "etc") return { ...meta, label: cat.label, ...paint };
+  if (meta.key === "leak") return { ...meta, label: leakDisplayLabel(input), ...paint };
+  return { ...meta, ...paint };
 }
 
 // 2026-10-06 — 카드의 "· 기종 ×수량" 글자. 기종이 없는 종목(주방후드·출장비 등)은 기종이 "(공통)" 으로

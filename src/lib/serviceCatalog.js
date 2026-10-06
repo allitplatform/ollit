@@ -31,6 +31,7 @@ async function _load() {
       supabase.from("categories").select("id, code, name"),
     ]);
     if (e1 || e2 || !Array.isArray(sts)) return _catalog;          // 219 이전(칸 없음) 포함 → 기본 목록 유지
+    _buildCategoryIndex(sts, cats || []);
     const rows = sts.filter(s => s.selectable === true);
     if (rows.length === 0) return _catalog;
     const catById = new Map((cats || []).map(c => [c.id, c]));
@@ -109,4 +110,132 @@ export function shortServiceLabel(name, groupLabel) {
   const m = s.match(/^(.+)\((.+)\)$/);
   if (m && groupLabel && m[1] === groupLabel) return m[2];
   return s;
+}
+
+
+// ============================================================================
+// 2026-10-06 — 종목(카테고리) 기준표: 색 · 아이콘 · 짧은 이름.
+//   화면의 색·아이콘은 "작업 종류(세척·냉매)" 가 아니라 "종목" 으로 정한다.
+//   달력 점·범례, 작업 카드의 칩/색 띠, 작업 상세 상단 칩이 전부 이 표 한 곳을 쓴다.
+//   · 에어컨 안의 세척/냉매 구분은 색이 아니라 카드의 작업 이름으로 본다.
+//   · 표에 없는 종목 code 가 DB 에 생기면 "그 밖" 색으로 나오되 이름은 DB 의 종목 이름을 쓴다.
+//   · codes: DB categories.code 로 올 수 있는 값들. 아직 DB 에 없는 종목(로봇청소기 등)은 미리 등록만 해 둔다.
+// ============================================================================
+export const CATEGORY_META = [
+  { key: "aircon", codes: ["aircon"],                               label: "에어컨",     short: "에어컨", icon: "❄", color: "#0EA5E9" },
+  { key: "hood",   codes: ["hood"],                                 label: "주방후드",   short: "후드",   icon: "🔥", color: "#F97316" },
+  { key: "robot",  codes: ["robot", "robot_vacuum", "robotvac"],    label: "로봇청소기", short: "로봇",   icon: "🤖", color: "#8B5CF6" },
+  { key: "leak",   codes: ["leak", "water_leak", "leakage"],        label: "누수",       short: "누수",   icon: "💧", color: "#14B8A6" },
+  { key: "movein", codes: ["movein", "move_in", "move_in_cleaning"], label: "입주청소",  short: "입주",   icon: "🧹", color: "#22C55E" },
+];
+export const CATEGORY_OTHER = { key: "etc", codes: [], label: "그 밖", short: "그 밖", icon: "🔧", color: "#9CA3AF" };
+
+// 종목 code → 표의 한 줄 (없으면 "그 밖")
+export function categoryMetaByCode(code, name) {
+  const c = String(code || "").trim();
+  if (!c) return CATEGORY_OTHER;
+  const hit = CATEGORY_META.find(m => m.codes.includes(c));
+  if (hit) return hit;
+  // 표에 없는 새 종목: 색·아이콘은 "그 밖", 이름은 DB 의 종목 이름
+  const label = name || _catName.get(c) || CATEGORY_OTHER.label;
+  return { ...CATEGORY_OTHER, key: c, label, short: label };
+}
+
+// 색인 — 서비스 이름 / 서비스 code / 종목 id → 종목 code.  공통 서비스(출장비 등)는 종목 판단에서 뺀다.
+//   DB 를 읽기 전에는 아래 기본값(에어컨·주방후드)으로 동작한다.
+let _byName = new Map([
+  ["세척", "aircon"], ["냉매충전", "aircon"], ["누설", "aircon"], ["누수", "aircon"], ["설치", "aircon"],
+  ["피톤치드", "aircon"], ["실외기 청소", "aircon"], ["송풍팬분해", "aircon"],
+  ["추가선택(YS-N)", "aircon"], ["냉매점검(YS-N)", "aircon"],
+  ["주방후드(업소용)", "hood"], ["주방후드(가정용)", "hood"], ["후드설치", "hood"],
+]);
+let _byCode = new Map([
+  ["cleaning", "aircon"], ["refrigerant", "aircon"], ["leak", "aircon"], ["water_leak", "aircon"], ["install", "aircon"],
+  ["phytoncide", "aircon"], ["outdoor_unit", "aircon"], ["fan_disassembly", "aircon"],
+  ["hood_commercial", "hood"], ["hood_home", "hood"], ["hood_install", "hood"],
+]);
+let _commonNames = new Set(["출장비"]);
+let _commonCodes = new Set(["visit_fee"]);
+let _catById = new Map();     // categories.id → code
+const _catName = new Map([["aircon", "에어컨"], ["hood", "주방후드"]]);
+
+function _buildCategoryIndex(sts, cats) {
+  const byId = new Map(cats.map(c => [c.id, c]));
+  const byName = new Map(), byCode = new Map(), commonN = new Set(), commonC = new Set();
+  for (const st of sts) {
+    const cat = byId.get(st.category_id);
+    if (st.is_common) { if (st.name) commonN.add(st.name); if (st.code) commonC.add(st.code); continue; }
+    if (!cat) continue;
+    if (st.name) byName.set(st.name, cat.code);
+    if (st.code) byCode.set(st.code, cat.code);
+  }
+  if (byName.size === 0 && byCode.size === 0) return;      // 못 읽었으면 기본값 유지
+  // YS-N 전용 이름은 DB 에 행이 없다 → 기본값에서 이어받는다
+  for (const [k, v] of _byName) if (!byName.has(k) && !commonN.has(k)) byName.set(k, v);
+  _byName = byName; _byCode = byCode; _commonNames = commonN; _commonCodes = commonC;
+  _catById = new Map(cats.map(c => [c.id, c.code]));
+  for (const c of cats) if (c.code && c.name) _catName.set(c.code, c.name);
+}
+
+// 저장된 작업 이름은 "서비스_기종" 꼴일 수 있다 (예: "세척_1way", "주방후드(업소용)_(공통)").
+//   구분자 "_" 앞부분이 서비스 이름이다. (글자 포함 검사는 하지 않는다 — 색인에 있는 이름과 정확히 같을 때만 인정)
+function _serviceName(workType) {
+  const s = String(workType || "").trim();
+  if (!s) return "";
+  if (_byName.has(s) || _commonNames.has(s)) return s;
+  const i = s.indexOf("_");
+  return i > 0 ? s.slice(0, i) : s;
+}
+
+// 항목 하나(문자열 또는 workItem) → 종목 code. 공통 서비스면 "common", 모르면 "".
+function _categoryCodeOfItem(item) {
+  if (!item) return "";
+  if (typeof item === "string") {
+    const n = _serviceName(item);
+    if (_commonNames.has(n)) return "common";
+    return _byName.get(n) || "";
+  }
+  const code = String(item.serviceCode || item.service_code || "").trim();
+  if (code) {
+    if (_commonCodes.has(code)) return "common";
+    if (_byCode.has(code)) return _byCode.get(code);
+  }
+  return _categoryCodeOfItem(String(item.workType || item.work_type || item.name || ""));
+}
+
+// 작업(task) · workItem · 작업 이름 문자열 → 종목 표의 한 줄 { key, label, short, icon, color }.
+//   · 항목이 여러 개면 "공통(출장비 등)" 을 뺀 첫 항목의 종목.
+//   · 항목으로 못 정하면 작업의 종목(category) 값, 그래도 없으면 "그 밖".
+export function getCategoryMeta(input) {
+  if (!input) return CATEGORY_OTHER;
+  if (typeof input === "string") {
+    const c = _categoryCodeOfItem(input);
+    return c && c !== "common" ? categoryMetaByCode(c) : CATEGORY_OTHER;
+  }
+  const items = Array.isArray(input.workItems) ? input.workItems.filter(w => w && !(w.isCanceled || w.is_canceled)) : [];
+  for (const it of items) {
+    const c = _categoryCodeOfItem(it);
+    if (c && c !== "common") return categoryMetaByCode(c);
+  }
+  const self = _categoryCodeOfItem({ serviceCode: input.serviceCode || input.service_code, workType: input.workType || input.work_type });
+  if (self && self !== "common") return categoryMetaByCode(self);
+  const direct = String(input.categoryCode || input.category_code || "").trim() || _catById.get(input.categoryId || input.category_id) || "";
+  // 항목이 공통(출장비)뿐인 작업은 작업 자체의 종목 값을 따른다 (DB 를 읽은 뒤에만 알 수 있다)
+  return direct ? categoryMetaByCode(direct) : CATEGORY_OTHER;
+}
+
+// 색 띠·칩 배경용 옅은 색 (#RRGGBB → rgba)
+export function categoryTint(color, alpha = 0.14) {
+  const m = /^#([0-9a-f]{6})$/i.exec(String(color || ""));
+  if (!m) return "transparent";
+  const n = parseInt(m[1], 16);
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`;
+}
+
+// 목록에 실제로 있는 종목만 (달력 범례용) — 표의 순서대로, "그 밖" 은 맨 뒤.
+export function categoriesInTasks(tasks) {
+  const seen = new Map();
+  for (const t of (tasks || [])) { const m = getCategoryMeta(t); if (!seen.has(m.key)) seen.set(m.key, m); }
+  const order = (m) => { const i = CATEGORY_META.findIndex(x => x.key === m.key); return i < 0 ? (m.key === "etc" ? 999 : 500) : i; };
+  return [...seen.values()].sort((a, b) => order(a) - order(b));
 }

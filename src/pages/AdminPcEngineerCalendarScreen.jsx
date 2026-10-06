@@ -7,6 +7,7 @@
 //   ⚠️ 진입: 사이드바 "기사 달력" / 그리드 카드 📅 (그 기사 행 스크롤+강조).
 //   ⚠️ 모바일 옛 EngineerCalendarScreen 별개로 유지 (AdminApp.jsx PC 분기).
 
+import { getCategoryMeta } from "../lib/serviceCatalog.js";
 import { useState, useMemo, useEffect, useRef } from "react";
 import { ChevronLeft, ChevronRight, Search } from "lucide-react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
@@ -505,7 +506,7 @@ function OffChip({ off }) {
 
 function TaskChip({ task, onClick }) {
   const kind  = getServiceKind(task);
-  const color = KIND_COLOR[kind] || KIND_COLOR_FALLBACK;
+  const color = getCategoryMeta(task).color;   // 2026-10-06 — 색은 종목 기준표에서
   const time  = formatHm(task.scheduledAt || task.scheduled_at);
   const region   = task.region || task.district || task.지역 || "";
   const customer = task.customer || task.고객명 || "";

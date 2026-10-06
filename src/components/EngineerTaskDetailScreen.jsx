@@ -6,6 +6,7 @@ import { subStaffSetReceived } from "../lib/subcontractorsDb.js";
 // 한 화면 흐름 (별도 완료보고 화면 X)
 
 import CancelBanner from "./CancelBanner.jsx";
+import CategoryChip from "./CategoryChip.jsx";
 import { useRef, useState, useEffect } from "react";
 import { ArrowLeft, Camera, X } from "lucide-react";
 // 2026-06-16 — 주소 표시 + 복사 공통 컴포넌트 (구 내부 정의 → src/components/common/AddressLine.jsx).
@@ -955,6 +956,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         <div style={{ width: 56 }} aria-hidden="true"/>
       </div>
 
+      {/* 2026-10-06 — 종목 칩 (아이콘 + 짧은 이름) */}
+      <div style={{ padding: "10px 16px 0" }}><CategoryChip task={task}/></div>
       {/* 2026-10-06 — 취소된 작업: 맨 위 배너 (사유 · 취소자 · 시각) */}
       <CancelBanner task={task} style={{ margin: "12px 16px 0" }}/>
 

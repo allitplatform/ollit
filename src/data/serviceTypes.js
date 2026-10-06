@@ -99,8 +99,19 @@ function _isPlaceholderWorkType(s) {
 // 2026-05-26 C-1 — workType 정확일치 → isRefrigerant (DB "냉매점검(...)" 측 catch).
 // 2026-06-28 — getServiceKind 사용 (설치/누설 5종 work_types.name 직접 매칭 포함).
 import { getServiceKind } from "../utils/workTypeKind.js";
+import { getCategoryMeta } from "../lib/serviceCatalog.js";
 
+// 2026-10-06 — 배지의 색·아이콘은 종목 기준표에서 (이름은 작업 종류 그대로).
+//   출장·추가·미정 배지는 종목이 아니라 "상황" 을 뜻하므로 그대로 둔다.
+const _KIND_IDS = new Set(["cleaning", "refrigerant", "install", "leak", "hood"]);
 export function detectServiceType(task) {
+  const base = _detectServiceTypeRaw(task);
+  if (!base || !_KIND_IDS.has(base.id)) return base;
+  const cat = getCategoryMeta(task);
+  return { ...base, icon: cat.icon, color: cat.color, textColor: cat.color, borderColor: cat.color };
+}
+
+function _detectServiceTypeRaw(task) {
   if (!task) return SERVICE_TYPES.cleaning;
   if (task.status === "visit_only") return SERVICE_TYPES.visit;
   if (task.orderType === "extra")   return SERVICE_TYPES.extra;

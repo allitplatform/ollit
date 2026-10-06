@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { EngineerBottomNav } from "./EngineerBottomNav.jsx";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { applianceQtyText } from "../utils/workTypeKind.js";
+import { categoriesInTasks } from "../lib/serviceCatalog.js";
 import { isCompletedStatus, statusLabel } from "../utils/taskStatus.js";
 import {
   CalendarGrid, Legend,
@@ -342,9 +343,9 @@ function MonthView({
           justifyContent: "center", flexWrap: "wrap",
           borderTop: "1px solid var(--border)",
         }}>
-          <Legend color="#0EA5E9" label="❄ 세척"/>
-          <Legend color="#FFB800" label="⚡ 냉매"/>
-          <Legend color="#FF1B8D" label="🔧 기타"/>
+          {/* 2026-10-06 — 범례는 종목 기준, 그 달에 실제 있는 종목만 */}
+          {categoriesInTasks(Object.values(monthData.byDate || {}).flatMap(d => (d && d.tasks) || []))
+            .map(m => <Legend key={m.key} color={m.color} label={`${m.icon} ${m.label}`}/>)}
         </div>
       </div>
 

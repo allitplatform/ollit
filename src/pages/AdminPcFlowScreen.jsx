@@ -10,6 +10,7 @@
 //
 // 데이터/로직 변경 0줄. 행 클릭 → 우 aside (🅐 패턴 재사용).
 
+import { getCategoryMeta } from "../lib/serviceCatalog.js";
 import { useState, useMemo, Fragment } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 import { getServiceKind } from "../utils/workTypeKind.js";
@@ -239,8 +240,8 @@ function TaskFlowRow({ task, apiEngineers, onClick }) {
         }}>
           <span style={{
             fontSize: 14,
-            color: KIND_ICON_COLOR[kind] || "var(--text-secondary)",
-          }}>{KIND_ICON[kind] || "•"}</span>
+            color: getCategoryMeta(task).color,
+          }}>{getCategoryMeta(task).icon}</span>
           <span style={{
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             textDecoration: isCanceled && !isVisitFeeCanceled ? "line-through" : "none",

@@ -6,6 +6,7 @@
 //   ⚠️ 진입: 사이드바 "기사 달력 (월간)". 기사 드롭다운으로 다른 기사 변경.
 //   ⚠️ 모바일 옛 EngineerCalendarScreen 그대로 (AdminApp.jsx PC 분기).
 
+import { getCategoryMeta } from "../lib/serviceCatalog.js";
 import { useState, useMemo, useEffect } from "react";
 import { ChevronLeft, ChevronRight, Download } from "lucide-react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
@@ -441,7 +442,7 @@ function OffChip({ off }) {
 
 function TaskChip({ task, onClick }) {
   const kind  = getServiceKind(task);
-  const color = KIND_COLOR[kind] || KIND_COLOR_FALLBACK;
+  const color = getCategoryMeta(task).color;   // 2026-10-06 — 색은 종목 기준표에서
   const time  = formatHm(task.scheduledAt || task.scheduled_at);
   const region   = task.region || task.district || task.지역 || "";
   const customer = task.customer || task.고객명 || "";
@@ -572,12 +573,12 @@ function SelectedDayAside({ ymd, tasks, offs = [], onTaskClick }) {
 // 시간 · 종류 · 상태 (첫 줄) / 고객 (둘째 줄) / 지역 (셋째 줄). 좁은 aside 에 맞는 세로 카드.
 function DayTaskRow({ task, onClick }) {
   const kind  = getServiceKind(task);
-  const color = KIND_COLOR[kind] || KIND_COLOR_FALLBACK;
+  const color = getCategoryMeta(task).color;   // 2026-10-06 — 색은 종목 기준표에서
   const time  = formatHm(task.scheduledAt || task.scheduled_at);
   const region   = task.region || task.district || task.지역 || "";
   const customer = task.customer || task.고객명 || "";
   const isCanceled = task.status === "취소";
-  const kindLabel = kind === "refrigerant" ? "⚡" : kind === "cleaning" ? "❄" : "•";
+  const kindLabel = getCategoryMeta(task).icon;
 
   return (
     <button onClick={onClick}

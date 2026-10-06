@@ -4,6 +4,7 @@
 // buttonText = 채우기 버튼 위 글자 색 (냉매 노랑 위는 검정)
 
 import { getServiceKind, leakDisplayLabel, isHoodWork } from "./workTypeKind.js";
+import { getCategoryMeta, categoryTint } from "../lib/serviceCatalog.js";
 
 const COLORS_CLEANING = {
   main:  "#0EA5E9",
@@ -61,16 +62,32 @@ const COLORS_DEFAULT = {
 // 2026-06-28 — getServiceKind 사용 (workType 문자열 + workItem 객체 모두 catch).
 //   서비스 kind 기반 분기 — 5종 (신규설치/이전설치/철거/실외기중고교체/기계중고교체) 도
 //   _kindFromWorkType 직접 매칭으로 install kind 반환 → COLORS_INSTALL.
-export function getWorkTypeColors(workType) {
-  if (!workType) return COLORS_DEFAULT;
+// 2026-10-06 — 색·아이콘 기준을 "작업 종류(세척·냉매)" 에서 "종목(카테고리)" 으로 바꿨다.
+//   색·아이콘 = src/lib/serviceCatalog.js 의 종목 기준표.  name = 작업 이름(세척·냉매·설치 등) 그대로.
+//   위의 COLORS_* 상수는 더 이상 화면 색을 정하지 않는다 (이름표 참고용으로만 남김).
+function _paletteOf(meta) {
+  const c = meta.color;
+  return {
+    main:  c,
+    box:   { light: categoryTint(c, 0.20), dark: categoryTint(c, 0.22) },
+    sub:   { light: c, dark: c },
+    label: { light: c, dark: c },
+    icon:  meta.icon,
+    buttonText: "#fff",
+  };
+}
+function _nameOf(workType, meta) {
   const kind = getServiceKind(workType);
-  if (kind === "cleaning")    return COLORS_CLEANING;
-  if (kind === "refrigerant") return COLORS_REFRIGERANT;
-  if (kind === "install")     return COLORS_INSTALL;
-  if (kind === "leak")        return { ...COLORS_LEAK, name: leakDisplayLabel(workType) };
-  // 2026-10-06 — 주방후드: "기타" 대신 종목 이름으로
-  if (isHoodWork(workType))   return { ...COLORS_DEFAULT, name: "주방후드", icon: "🍳" };
-  return COLORS_DEFAULT;
+  if (kind === "cleaning")    return COLORS_CLEANING.name;
+  if (kind === "refrigerant") return COLORS_REFRIGERANT.name;
+  if (kind === "install")     return COLORS_INSTALL.name;
+  if (kind === "leak")        return leakDisplayLabel(workType);
+  if (isHoodWork(workType))   return "주방후드";
+  return meta.key === "etc" ? COLORS_DEFAULT.name : meta.label;
+}
+export function getWorkTypeColors(workType) {
+  const meta = getCategoryMeta(workType);
+  return { ..._paletteOf(meta), name: workType ? _nameOf(workType, meta) : COLORS_DEFAULT.name };
 }
 
 // 다크 모드 감지 (DOM 직접 읽음)

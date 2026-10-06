@@ -1,3 +1,4 @@
+import { getCategoryMeta } from "../lib/serviceCatalog.js";
 // V13-FINAL2 — 공유 캘린더 그리드 + date 헬퍼
 // 캘린더 탭 + 유솔N 둘 다 사용 / 점·히트맵·휴무·오늘 보더 분기
 
@@ -90,12 +91,9 @@ export function generateMonthDays(month) {
 }
 
 // V14 — 점 색 = 작업 종류 (헌법: 정보/분류)
-function getWorkTypeDotColor(workType) {
-  if (!workType) return "#FF1B8D";
-  const t = String(workType).toLowerCase();
-  if (t.includes("세척"))                          return "#0EA5E9";
-  if (t.includes("냉매") || t.includes("충전"))    return "#FFB800";
-  return "#FF1B8D"; // 기타 (설치/점검/수리)
+// 2026-10-06 — 점 색은 종목 기준표에서 (작업 이름 글자 검사 폐기).
+function getWorkTypeDotColor(task) {
+  return getCategoryMeta(task).color;
 }
 
 // ──────────────── CalendarGrid ────────────────
@@ -259,7 +257,7 @@ function DayCell({
           {showDots && tasks.slice(0, 5).map((t, i) => (
             <span key={i} style={{
               width: 4, height: 4, borderRadius: "50%",
-              background: getWorkTypeDotColor(t.workType),
+              background: getWorkTypeDotColor(t),
             }}/>
           ))}
           {hasHourlyOff && (

@@ -1,4 +1,5 @@
 import { SubStaffSettleTab } from "../components/SubSettlement.jsx";
+import { getCategoryMeta } from "../lib/serviceCatalog.js";
 import { applianceQtyText, isCommonAppliance } from "../utils/workTypeKind.js";
 import { subStaffGetContacts } from "../lib/subcontractorsDb.js";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
@@ -1696,13 +1697,12 @@ function ActionAlert({ t, alert, delay, onClick }) {
   );
 }
 
+// 2026-10-06 — 아이콘은 종목 기준표에서 (작업 이름 글자 검사 폐기). 기존 호출부가 <Icon size style/> 로 쓰므로 같은 꼴로 돌려준다.
 function getIconForTask(workType) {
-  if (!workType) return Wrench;
-  if (workType.includes("세척") || workType.includes("분해세척")) return Snowflake;
-  if (workType.includes("냉매") || workType.includes("가스")) return Zap;
-  if (workType.includes("설치") || workType.includes("이전설치")) return Settings;
-  if (workType.includes("점검") || workType.includes("수리")) return Wrench;
-  return Wrench;
+  const icon = getCategoryMeta(workType).icon;
+  return function CategoryIcon({ size = 12, style }) {
+    return <span aria-hidden="true" style={{ fontSize: size, lineHeight: 1, ...style }}>{icon}</span>;
+  };
 }
 
 function CompactTaskCard({ task, t, index, onClick }) {
@@ -5339,7 +5339,13 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
         {/* 2026-10-06 Mig 225 — 협력사 소속 기사: 날짜별 받은 금액 / 내 수익 / 수수료 (보기 전용).
             송금 보고 버튼은 없다 — 수수료는 협력사 관리자가 날짜별로 한 번 보고한다. */}
         {screen === "settlement" && !!user?.subcontractor && (
-          <SubStaffSettleTab user={user} onBack={() => handleTabChange("today")}/>
+          <>
+            {/* 2026-10-06 — 다른 탭과 같은 하단 탭. 내용이 탭에 가려지지 않게 아래 여백을 둔다. */}
+            <div style={{ paddingBottom: 96 }}>
+              <SubStaffSettleTab user={user} onBack={() => handleTabChange("today")}/>
+            </div>
+            <EngineerBottomNav active="settle" onChange={handleTabChange} unreadCount={unreadCount}/>
+          </>
         )}
         {screen === "settlement" && !user?.subcontractor && (
           <EngineerSettleTab

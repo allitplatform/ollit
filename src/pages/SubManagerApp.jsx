@@ -16,6 +16,7 @@ import { v14NormalizeTask } from "../utils/v14Task.js";
 import { AdminTaskDetailScreen } from "../components/AdminTaskDetailScreen.jsx";
 import { RoleSwitcher } from "../components/RoleSwitcher.jsx";
 import SubAssignSheet from "../components/SubAssignSheet.jsx";
+import CategoryChip, { categoryBar } from "../components/CategoryChip.jsx";
 import BottomSheet, { SheetButtons } from "../components/BottomSheet.jsx";
 import SubStaffManage from "../components/SubStaffManage.jsx";
 
@@ -73,6 +74,11 @@ function fmtWhen(t) {
   }
   const parts = [t.requested_date || t.requestedDate, t.requested_time || t.requestedTime].filter(Boolean);
   return parts.length ? `희망 ${parts.join(" ")}` : "일정 미정";
+}
+
+// 목록 RPC 의 줄(work_items / work_type)을 종목 판정이 읽는 꼴로
+function catTask(t) {
+  return { workItems: Array.isArray(t.work_items) ? t.work_items : [], workType: t.work_type, categoryId: t.category_id };
 }
 
 function workLabel(t) {
@@ -444,6 +450,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
             <div key={t.id} style={{
               background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14,
               padding: 14, marginBottom: 10,
+              ...categoryBar(catTask(t)),          // 종목 색 띠 (상태 배지와 겹치지 않게 띠·칩으로만)
             }}>
               <div onClick={() => openDetail(t.id)} style={{ cursor: "pointer" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
@@ -457,8 +464,9 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
                 </div>
                 <div style={{ fontSize: 13, fontWeight: 700, color: "var(--accent, #FF1B8D)", marginTop: 8 }}>{fmtWhen(t)}</div>
                 <div style={{ fontSize: 13, marginTop: 4, lineHeight: 1.45 }}>{t.address || t.district || "주소 없음"}</div>
-                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
-                  {workLabel(t)}{hasEng ? ` · 담당 ${t.engineer_name || ""}` : ""}
+                <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 6, display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
+                  <CategoryChip task={catTask(t)} size="sm"/>
+                  <span>{workLabel(t)}{hasEng ? ` · 담당 ${t.engineer_name || ""}` : ""}</span>
                 </div>
               </div>
 

@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getCategoryMeta } from "../lib/serviceCatalog.js";
 import {
   loadTasksForRole as getTasks,
   updateTaskAdapter as apiUpdateTask,
@@ -541,13 +542,12 @@ function TabButton({ t, label, count, active, onClick }) {
 // ============================================
 // 작업 카드 (해피콜용)
 // ============================================
+// 2026-10-06 — 아이콘은 종목 기준표에서 (작업 이름 글자 검사 폐기). 기존 호출부가 <Icon size style/> 로 쓰므로 같은 꼴로 돌려준다.
 function getIconForTask(workType) {
-  if (!workType) return Wrench;
-  if (workType.includes("세척") || workType.includes("분해세척")) return Snowflake;
-  if (workType.includes("냉매") || workType.includes("가스")) return Zap;
-  if (workType.includes("설치") || workType.includes("이전설치")) return Settings;
-  if (workType.includes("점검") || workType.includes("수리")) return Wrench;
-  return Wrench;
+  const icon = getCategoryMeta(workType).icon;
+  return function CategoryIcon({ size = 12, style }) {
+    return <span aria-hidden="true" style={{ fontSize: size, lineHeight: 1, ...style }}>{icon}</span>;
+  };
 }
 
 function HappycallTaskCard({ task, t, index, onAction }) {
