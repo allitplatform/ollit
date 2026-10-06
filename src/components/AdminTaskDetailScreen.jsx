@@ -385,7 +385,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       {/* 2026-10-06 Mig 215~217 — 협력사 작업 분배: 공급가 / 수수료 / 협력사 몫 */}
       <SubFeeSplitCard task={task}/>
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
-      {!subMode && <SettlementInfoCard task={task}/>}
+      {/* 협력사 작업: 직영 계산식 기반 "정산 정보" 카드 대신 위의 협력사 분배 카드만 보여 준다 */}
+      {!subMode && !task.subcontractorId && <SettlementInfoCard task={task}/>}
       {/* 2026-05-31 — Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 (신규 흐름 측만 input 노출).
             2026-06-02 — usol_n 측 측 — 정산 사이클 측 대체 (사장님 spec). */}
       {!subMode && task.principalCode !== "usol_n" && <TaskItemsCard task={task} user={user} onReload={reloadTask}/>}
@@ -1111,17 +1112,19 @@ function SubcontractorCard({ task, onChanged }) {
   );
 }
 
-// 2026-10-06 Mig 215~217 — 협력사 작업 분배 내역.
-//   공급가액 = 직원 입력값. 수수료 = payments.owner_amount (서버 계산, 규칙표 기준).
-//   협력사 몫 = 공급가액 − 수수료. 부가세는 합계에 포함돼 협력사가 보유.
+// 2026-10-06 Mig 215~217, 223 — 협력사 작업 분배 내역.
+//   받은 금액 = 직원이 완료 때 입력한 실제 금액 (tasks.received_total)
+//   부가세 포함 여부 = tasks.vat_included → 공급가 = 포함이면 받은 금액 ÷ 1.1, 아니면 받은 금액
+//   수수료 = payments.owner_amount (서버 계산, 규칙표 기준 = 공급가 × 율)
+//   협력사 몫 = 공급가 − 수수료. 부가세는 협력사가 보유.
+//   접수 견적은 부가세 제외 금액 → 공급가와 비교해 차액·사유 표시.
 function SubFeeSplitCard({ task }) {
   const idx = useSubcontractorIndex();
   const subId = task?.subcontractorId || null;
   if (!subId) return null;
   const name = (idx.names.get(subId) || {}).name || "협력사";
   const supply = Number(task.supplyAmount) || 0;
-  const total = Number(task.receivedTotal) || 0;
-  // 견적(부가세 제외)은 보존된다 — 실제 공급가액이 견적보다 적으면 차액을 빨간색으로 표시.
+  const received = Number(task.receivedTotal) || 0;
   const quote = Number(task.productPrice ?? task.estimateTotal ?? 0) || 0;
   const hasPay = !!task.payment && task.payment.track === "S";
   const fee = hasPay ? (Number(task.owner_amount) || 0) : null;
@@ -1138,16 +1141,16 @@ function SubFeeSplitCard({ task }) {
       padding: "12px 14px", margin: "0 0 12px",
     }}>
       <div style={{ fontSize: 12, fontWeight: 800, color: "#8B5CF6", marginBottom: 6 }}>협력사 분배 · {name}</div>
+      {quote > 0 && row("접수 견적 (부가세 제외)", won(quote))}
       {supply <= 0 ? (
-        <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6 }}>
-          아직 공급가액이 입력되지 않았습니다. 직원이 완료 처리할 때 입력합니다.
+        <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6, paddingTop: 4 }}>
+          아직 받은 금액이 입력되지 않았습니다. 기사가 완료 처리할 때 입력합니다.
         </div>
       ) : (
         <>
-          {row("공급가액 (부가세 제외)", won(supply))}
-          {row("부가세", won(Math.max(0, total - supply)))}
-          {row("합계 (고객 결제)", won(total))}
-          {quote > 0 && row("접수 견적 (부가세 제외)", won(quote))}
+          {row("받은 금액", won(received))}
+          {row("부가세 포함 여부", task.vatIncluded ? `포함 (부가세 ${won(Math.max(0, received - supply))})` : "미포함")}
+          {row("공급가", won(supply))}
           {quote > 0 && supply < quote && row("견적 대비 공급가 차액", `− ${won(quote - supply)}`, true, "#E5484D")}
           {quote > 0 && supply < quote && (
             <div style={{ fontSize: 12, color: "#E5484D", lineHeight: 1.5, padding: "2px 0 4px" }}>
@@ -2398,6 +2401,17 @@ function ChangeEntry({ entry }) {
 // 옛 InfoCard 측 요청사항 + 메모 영역 분리.
 // 2026-05-27 — requestNote (DB request_note) + 기사 협의 메모 (callMemo) + 기사 일정변경 사유 (rescheduleReason).
 //   세 값 모두 3곳 매핑 트랩으로 평탄화 — task.callMemo / task.rescheduleReason / task.rescheduledAt 직접 사용.
+// 메모 시각 — 한국 시간 "MM-DD HH:MM" (DB 값은 UTC).
+function _fmtMemoTimeKst(v) {
+  if (!v) return "";
+  const d = new Date(v);
+  if (isNaN(d.getTime())) return String(v).slice(0, 16).replace("T", " ");
+  const p = new Intl.DateTimeFormat("ko-KR", {
+    timeZone: "Asia/Seoul", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false,
+  }).formatToParts(d).reduce((o, x) => { o[x.type] = x.value; return o; }, {});
+  return `${p.month}-${p.day} ${p.hour}:${p.minute}`;
+}
+
 function RequestMemoCard({ task, memos, onMemoAdd }) {
   // 요청사항 본문 — task.requestNote (DB request_note 매핑) 우선, 옛 task.memo fallback.
   const requestText      = task.requestNote      || task.memo || "";
@@ -2462,7 +2476,7 @@ function RequestMemoCard({ task, memos, onMemoAdd }) {
                     <span>·</span>
                     <span>{getAuthorRoleEmoji(m.author_role)} {m.author_name || "—"}</span>
                     <span style={{ marginLeft: "auto" }}>
-                      {m.created_at ? String(m.created_at).slice(0, 16).replace("T", " ") : ""}
+                      {_fmtMemoTimeKst(m.created_at)}
                     </span>
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-primary)", lineHeight: 1.5 }}>

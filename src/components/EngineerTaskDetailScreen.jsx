@@ -1,3 +1,4 @@
+import { subStaffSetReceived } from "../lib/subcontractorsDb.js";
 // V13-FINAL — 기사 PWA 작업 상세 (3 상태 + 부분 취소 + 일정 변경 + 출장비만)
 // V14 — 사진 분류 X / 완료 분기 3가지 (완료 / 부분 / 출장비만)
 // 진입: 오늘 화면 / 새 배정 리스트 / 다음 일정
@@ -164,11 +165,15 @@ function getTaskItems(task, itemEngineerAmounts = {}) {
       // 1순위 — RPC 결과 (task_item.id 매칭)
       const itemId = wi.id || wi.task_item_id;
       const rpcAmount = (itemEngineerAmounts && itemId != null) ? itemEngineerAmounts[itemId] : undefined;
-      const engPrice = isCanceled
-        ? 0
-        : (rpcAmount != null
-            ? rpcAmount
-            : Math.floor(subtotal * distRatio));
+      // 2026-10-06 — 협력사 작업에는 직영 기사 몫 계산식(분배식·60% 추정)을 쓰지 않는다 → 금액 숨김.
+      const _isSub = !!(task.subcontractorId || task.subcontractor_id);
+      const engPrice = _isSub
+        ? null
+        : isCanceled
+          ? 0
+          : (rpcAmount != null
+              ? rpcAmount
+              : Math.floor(subtotal * distRatio));
       return {
         id: `${task.id}-${i}`,
         name: wi.appliance || wi.workType || "",
@@ -187,7 +192,7 @@ function getTaskItems(task, itemEngineerAmounts = {}) {
     id: `${task.id}-1`,
     name: task.appliance || task.workType,
     qty: task.qty || 1,
-    price: engineerAmount,
+    price: (task.subcontractorId || task.subcontractor_id) ? null : engineerAmount,
     serviceType: task,
   }];
 }
@@ -262,7 +267,9 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   //   메인 1개 케이스 → Phase B UX (ReceivedTotalInput) 유지, backend 측 row.receivedAmount write.
   const allMainItems = (task.workItems || []).filter(it => (it.orderType || it.order_type) !== '추가선택');
   const mainItems = allMainItems.filter(it => !it.isCanceled);
-  const usesPerItemFlow = mainItems.length >= 2 && usesReceivedTotalFlow;
+  // 2026-10-06 Mig 223 — 협력사 작업: 받은 금액은 1칸만 (품목별 입력 X).
+  const isSubTask = !!(task.subcontractorId || task.subcontractor_id);
+  const usesPerItemFlow = mainItems.length >= 2 && usesReceivedTotalFlow && !isSubTask;
   const singleMainItemId = mainItems.length === 1 ? mainItems[0].id : null;
 
   // 정규화된 파싱 값 (네비게이션 spread 측 측 X 측 재사용)
@@ -371,8 +378,39 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
     setSubScreen(target);
   }
 
-  // 흐름에 따라 어느 persist 함수를 쓸지 통합 — 3-way
-  const persistAndNavigate = usesPerItemFlow
+  // 2026-10-06 Mig 223 — 협력사 작업: 받은 금액 + 부가세 포함 여부 (+ 사유) 를 RPC 로 저장.
+  //   공급가 = 부가세 포함이면 받은 금액 ÷ 1.1 (원 단위 반올림), 아니면 받은 금액.
+  //   접수 견적은 부가세 제외 금액 → 공급가와 비교. 공급가가 적으면 사유 필수.
+  //   저장에 실패하면 다음 화면으로 넘어가지 않는다 (금액 없이 완료되는 것 방지).
+  const [vatIncluded, setVatIncluded] = useState(task.vatIncluded === true);
+  const [shortReason, setShortReason] = useState(task.supplyShortfallReason || "");
+  const subSupply    = vatIncluded ? Math.round(parsedReceived / 1.1) : parsedReceived;
+  const subQuote     = Number(task.estimateTotal || task.productPrice || 0) || 0;
+  const subShortfall = parsedReceived > 0 ? Math.max(0, subQuote - subSupply) : 0;
+  async function persistSubReceivedAndNavigate(target) {
+    if (saving) return;
+    if (!(parsedReceived > 0)) { alert("받은 금액을 입력해 주세요."); return; }
+    if (subShortfall > 0 && !String(shortReason).trim()) {
+      alert("공급가가 견적(부가세 제외)보다 적습니다. 사유를 입력해 주세요.");
+      return;
+    }
+    setSaving(true);
+    let res = null;
+    try {
+      res = await subStaffSetReceived(task.id, parsedReceived, vatIncluded, subShortfall > 0 ? String(shortReason).trim() : null);
+    } catch (e) {
+      res = { ok: false, error: e?.message || "저장 실패" };
+    } finally {
+      setSaving(false);
+    }
+    if (!res || !res.ok) { alert((res && res.error) || "받은 금액을 저장하지 못했습니다."); return; }
+    setSubScreen(target);
+  }
+
+  // 흐름에 따라 어느 persist 함수를 쓸지 통합 — 3-way (+ 협력사)
+  const persistAndNavigate = isSubTask
+    ? persistSubReceivedAndNavigate
+    : usesPerItemFlow
     ? persistPerItemReceivedAndNavigate
     : usesReceivedTotalFlow
       ? persistReceivedTotalAndNavigate
@@ -1045,12 +1083,51 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
               onAddToItem={addReceivedToItem}
             />
           ) : usesReceivedTotalFlow ? (
-            <ReceivedTotalInput
-              value={receivedTotal}
-              onChange={setReceivedTotal}
-              onAdd={addReceived}
-              baseAmount={task.estimateTotal || 0}
-            />
+            <>
+              <ReceivedTotalInput
+                value={receivedTotal}
+                onChange={setReceivedTotal}
+                onAdd={addReceived}
+                baseAmount={task.estimateTotal || 0}
+              />
+              {/* 2026-10-06 Mig 223 — 협력사 작업: 부가세 포함 여부 (기본 꺼짐) + 견적 미달 사유 */}
+              {isSubTask && (
+                <div style={{
+                  margin: "0 16px 12px", padding: "12px 14px", borderRadius: 12,
+                  background: "var(--bg-elevated)", border: "1px solid var(--border)",
+                }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, fontWeight: 700, color: "var(--text-primary)", cursor: "pointer" }}>
+                    <input
+                      type="checkbox" checked={vatIncluded}
+                      onChange={e => setVatIncluded(e.target.checked)}
+                      style={{ width: 20, height: 20 }}
+                    />
+                    부가세 포함해서 받음
+                  </label>
+                  {vatIncluded && parsedReceived > 0 && (
+                    <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-secondary)" }}>
+                      공급가 ₩{subSupply.toLocaleString("ko-KR")} / 부가세 ₩{(parsedReceived - subSupply).toLocaleString("ko-KR")}
+                    </div>
+                  )}
+                  {subShortfall > 0 && (
+                    <div style={{ marginTop: 12 }}>
+                      <div style={{ fontSize: 13, fontWeight: 800, color: "#E5484D", marginBottom: 6 }}>
+                        견적(부가세 제외) ₩{subQuote.toLocaleString("ko-KR")} 대비 공급가 ₩{subShortfall.toLocaleString("ko-KR")} 적음 — 사유 입력
+                      </div>
+                      <textarea
+                        value={shortReason} onChange={e => setShortReason(e.target.value)} rows={2}
+                        placeholder="예: 현장 확인 결과 작업 범위 축소"
+                        style={{
+                          width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10,
+                          border: "2px solid #E5484D", background: "var(--bg-secondary)", color: "var(--text-primary)",
+                          fontSize: 15, fontFamily: "inherit", resize: "vertical",
+                        }}
+                      />
+                    </div>
+                  )}
+                </div>
+              )}
+            </>
           ) : (
             <ExtraFeeInput
               value={extraFee}
@@ -1096,7 +1173,15 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
         <>
           <CompletedPhotos task={task}/>
           {task.workMemo && <CompletedMemo memo={task.workMemo}/>}
-          <SettlementInfo task={task}/>
+          {/* 협력사 작업: 수익·수수료 카드 숨김 (정산은 협력사가 함) — 받은 금액만 보여 준다 */}
+          {!(task.subcontractorId || task.subcontractor_id)
+            ? <SettlementInfo task={task}/>
+            : (
+              <div style={{ margin: "0 16px 12px", padding: "12px 14px", borderRadius: 12, background: "var(--bg-elevated)", border: "1px solid var(--border)", display: "flex", justifyContent: "space-between", fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
+                <span>받은 금액{task.vatIncluded ? " (부가세 포함)" : ""}</span>
+                <span>₩{Number(task.receivedTotal || 0).toLocaleString("ko-KR")}</span>
+              </div>
+            )}
           {/* 2026-06-19 Step 2b — 영수증/거래명세서 발행 (완료 + !usol_n 한정)
               usol_n 은 네이버 결제라 영수증이 네이버 쪽에서 나감 → 제외.
               2026-08-04 — 사장님: 출장비(visit_only) 건도 영수증 발행 허용.

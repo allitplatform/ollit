@@ -95,11 +95,13 @@ function pickSmsType(text) {
 
 function buildText(type, principal, vars) {
   const prefix = principal === "allday" ? "[올데이케어] " : "";
+  // 2026-10-06 Mig 224 — 종목 이름. 트리거가 serviceName 을 보내면 그 이름, 없으면 기존대로 "에어컨".
+  const svc = (vars && typeof vars.serviceName === "string" && vars.serviceName.trim()) || "에어컨";
   if (type === "assign") {
     return (
 `${prefix}기사 배정 안내
 
-안녕하세요, 신청하신 에어컨 서비스에
+안녕하세요, 신청하신 ${svc} 서비스에
 ${vars.engineerName} 기사님이 배정되었습니다.
 
 ▶ 기사 연락처: ${vars.engineerPhone}
@@ -120,7 +122,7 @@ ${vars.engineerName} 기사님이 배정되었습니다.
     return (
 `${prefix}담당 기사 변경 안내
 
-신청하신 에어컨 서비스의
+신청하신 ${svc} 서비스의
 담당 기사님이 변경되었습니다.
 
 ▶ 변경된 기사: ${vars.engineerName} 기사님
@@ -171,21 +173,19 @@ ${vars.engineerName} 기사님이 배정되었습니다.
 문의: 1866-2003`
     );
   }
-  // 2026-10-06 Mig 218 — 협력사 작업 완료: 공급가액·부가세·합계 안내 (발신명 올데이케어).
+  // 2026-10-06 Mig 218/224 — 협력사 작업 완료: "받은 금액" 만 안내 (발신명 올데이케어).
+  //   부가세 포함해서 받은 경우(vars.vatIncluded)에만 "(부가세 포함)" 표기.
   //   vars.supplyAmount 가 있을 때만. 없으면 아래 기존 문구 그대로.
   const supply = Number(vars.supplyAmount);
   if (vars.supplyAmount != null && Number.isFinite(supply) && supply > 0) {
     const total = Number(vars.amount);
-    const vat = Math.max(0, total - supply);
     return (
 `[올데이케어] 서비스 완료 안내
 
-신청하신 서비스가
+신청하신 ${svc} 서비스가
 정상적으로 완료되었습니다.
 
-▶ 공급가액: ${formatAmount(supply)}원
-▶ 부가세: ${formatAmount(vat)}원
-▶ 합계: ${formatAmount(total)}원
+▶ 받은 금액: ${formatAmount(total)}원${vars.vatIncluded === true ? " (부가세 포함)" : ""}
 
 이용해 주셔서 감사합니다.
 
@@ -195,7 +195,7 @@ ${vars.engineerName} 기사님이 배정되었습니다.
   return (
 `${prefix}서비스 완료 안내
 
-신청하신 에어컨 서비스가
+신청하신 ${svc} 서비스가
 정상적으로 완료되었습니다.
 
 ▶ 결제금액: ${formatAmount(vars.amount)}원

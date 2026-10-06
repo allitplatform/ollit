@@ -480,16 +480,21 @@ export default function InvoiceTemplate({
           <col style={{ width: 40 }}/>
         </colgroup>
         <tbody>
-          <tr>
-            <td style={s.totalLabel}>공 급 가 액</td>
-            <td style={s.totalValue}>{fmt(vat.supply)}</td>
-            <td style={s.totalUnit}>원</td>
-          </tr>
-          <tr>
-            <td style={s.totalLabel}>부 가 세 (10%)</td>
-            <td style={s.totalValue}>{fmt(vat.vat)}</td>
-            <td style={s.totalUnit}>원</td>
-          </tr>
+          {/* 2026-10-06 — vatMode "none": 공급가·부가세를 나눠 적지 않고 합계만 */}
+          {vatMode !== "none" && (
+            <tr>
+              <td style={s.totalLabel}>공 급 가 액</td>
+              <td style={s.totalValue}>{fmt(vat.supply)}</td>
+              <td style={s.totalUnit}>원</td>
+            </tr>
+          )}
+          {vatMode !== "none" && (
+            <tr>
+              <td style={s.totalLabel}>부 가 세 (10%)</td>
+              <td style={s.totalValue}>{fmt(vat.vat)}</td>
+              <td style={s.totalUnit}>원</td>
+            </tr>
+          )}
           <tr>
             <td style={s.totalLabelGrand}>합 &nbsp; 계</td>
             <td style={s.totalValueGrand}>{fmt(vat.total)}</td>

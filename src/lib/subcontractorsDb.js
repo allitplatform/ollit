@@ -129,6 +129,14 @@ export const adminAssignTaskToSubcontractor = (taskId, subcontractorId) =>
 export const subStaffSetSupply = (taskId, supply, reason = null) =>
   _call("sub_staff_set_supply", { p_task_id: taskId, p_supply: Math.round(Number(supply) || 0), p_reason: reason || null });
 
+// 완료 직전 "받은 금액" 저장 (Mig 223). 부가세 포함 여부에 따라 공급가는 서버가 계산한다.
+//   공급가가 접수 견적(부가세 제외)보다 적으면 reason(사유) 필수 — 서버가 다시 확인.
+export const subStaffSetReceived = (taskId, received, vatIncluded = false, reason = null) =>
+  _call("sub_staff_set_received", {
+    p_task_id: taskId, p_received: Math.round(Number(received) || 0),
+    p_vat_included: !!vatIncluded, p_reason: reason || null,
+  });
+
 // ── 협력사 관리자 ────────────────────────────────────────────
 export const subListStaff = () => _call("sub_list_staff", {});
 export const subListTasks = (from = null, to = null) => _call("sub_list_tasks", { p_from: from, p_to: to });

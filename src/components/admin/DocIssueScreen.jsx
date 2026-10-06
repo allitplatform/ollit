@@ -344,6 +344,8 @@ const DOC_OPTS = [
 const VAT_OPTS = [
   { v: "exclusive", label: "부가세 별도" },
   { v: "inclusive", label: "부가세 포함" },
+  // 2026-10-06 — 부가세를 나누지 않음 (공급가·부가세 분리 표기 없이 받은 금액만)
+  { v: "none",      label: "부가세 없음" },
 ];
 
 const fmtKRW = (n) => `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
@@ -534,13 +536,21 @@ export default function DocIssueScreen({
     setItems(nextItems);
 
     // 금액 자동 — 상품금액 + 현장추가금 (사장님 spec)
+    // 2026-10-06 — 협력사 작업은 받은 금액 기준 (견적이 더 커도 실제 받은 금액으로 발행).
+    const _subReceived = (task.subcontractorId || task.subcontractor_id)
+      ? Number(task.receivedTotal || task.received_total || 0) : 0;
     const total =
-      Number(task.totalAmount || task.total_amount || 0)
+      _subReceived
+      || Number(task.totalAmount || task.total_amount || 0)
       || (Number(task.productPrice || task.product_price || 0)
         + Number(task.extraFee || task.extra_fee || 0)
         + Number(task.travelFee || task.travel_fee || 0));
     if (total > 0) {
       setAmountRaw(total.toLocaleString("ko-KR"));
+    }
+    // 협력사 작업: "부가세 포함해서 받음" 체크 시에만 공급가·부가세를 나눠 표기.
+    if (task.subcontractorId || task.subcontractor_id) {
+      setVatMode((task.vatIncluded ?? task.vat_included) === true ? "inclusive" : "none");
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [engineerMode, task?.id]);
@@ -874,9 +884,9 @@ export default function DocIssueScreen({
       { icon: "🧰", label: `품목 ${items.length}건`, value: itemSummary || null },
       { icon: "💰", label: "금액",
         value: amountNum > 0
-          ? `합계 ₩${vatBreak.total.toLocaleString("ko-KR")} (${vatMode === "exclusive" ? "부가세 별도" : "부가세 포함"}${docType === "receipt" && !showVat ? " · 미표기" : ""})`
+          ? `합계 ₩${vatBreak.total.toLocaleString("ko-KR")} (${vatMode === "exclusive" ? "부가세 별도" : vatMode === "none" ? "부가세 없음" : "부가세 포함"}${docType === "receipt" && !showVat ? " · 미표기" : ""})`
           : null,
-        hint: amountNum > 0
+        hint: amountNum > 0 && vatMode !== "none"
           ? `공급가 ${vatBreak.supply.toLocaleString("ko-KR")} · 부가세 ${vatBreak.vat.toLocaleString("ko-KR")}`
           : null },
     ];
@@ -1329,7 +1339,7 @@ export default function DocIssueScreen({
           </div>
 
           <LabeledInput
-            label={vatMode === "exclusive" ? "공급가 (부가세 별도)" : "합계 금액 (부가세 포함)"}
+            label={vatMode === "exclusive" ? "공급가 (부가세 별도)" : vatMode === "none" ? "받은 금액 (부가세 없음)" : "합계 금액 (부가세 포함)"}
             value={amountRaw}
             onChange={handleAmountChange}
             placeholder="예: 350,000"
@@ -1345,8 +1355,8 @@ export default function DocIssueScreen({
             color: "var(--text-secondary)",
             lineHeight: 1.6,
           }}>
-            <div>공급가 <span style={{ float: "right", color: "var(--text-primary)", fontFamily: "monospace" }}>{fmtKRW(vatBreak.supply)}</span></div>
-            <div>부가세 <span style={{ float: "right", color: "var(--text-primary)", fontFamily: "monospace" }}>{fmtKRW(vatBreak.vat)}</span></div>
+            {vatMode !== "none" && <div>공급가 <span style={{ float: "right", color: "var(--text-primary)", fontFamily: "monospace" }}>{fmtKRW(vatBreak.supply)}</span></div>}
+            {vatMode !== "none" && <div>부가세 <span style={{ float: "right", color: "var(--text-primary)", fontFamily: "monospace" }}>{fmtKRW(vatBreak.vat)}</span></div>}
             <div style={{ borderTop: "1px dashed var(--border)", marginTop: 6, paddingTop: 6, fontWeight: 700 }}>
               합계 <span style={{ float: "right", color: "var(--text-primary)", fontFamily: "monospace" }}>{fmtKRW(vatBreak.total)}</span>
             </div>

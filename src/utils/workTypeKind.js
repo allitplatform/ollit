@@ -105,9 +105,23 @@ export function leakDisplayLabel(input) {
   return "냉매 누설·물 누수";
 }
 
+// 2026-10-06 — 주방후드 작업인지 (업소용 / 가정용 / 후드설치). 문자열·workItem·task 모두 가능.
+export function isHoodWork(input) {
+  const main = typeof input === "string"
+    ? { workType: input }
+    : (Array.isArray(input?.workItems) && input.workItems.length > 0 ? input.workItems[0] : (input || {}));
+  const code = String(main.serviceCode || main.service_code || "");
+  const wt = String(main.workType || main.work_type || "");
+  return code.startsWith("hood") || wt.startsWith("주방후드") || wt.startsWith("후드설치");
+}
+
 // task / workItem / 문자열 → META 하나.
 export function getServiceKindMeta(input) {
   const meta = SERVICE_KIND_META[getServiceKind(input)] || SERVICE_KIND_META.other;
+  // 2026-10-06 — 주방후드: 5종 분류로는 "기타" 지만 표시는 "주방후드" 로.
+  if (meta.key === "other" && isHoodWork(input)) {
+    return { ...meta, label: "주방후드", color: "#14B8A6", icon: "🍳" };
+  }
   // 2026-10-06 — 누설/누수 묶음 라벨을 실제 종류로 나눠 표시 (냉매 누설 / 물 누수).
   if (meta.key === "leak") {
     return { ...meta, label: leakDisplayLabel(input) };

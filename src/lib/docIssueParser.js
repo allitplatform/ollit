@@ -286,6 +286,9 @@ export function computeVatBreakdown(amount, vatMode) {
   const n = Math.max(0, Math.round(Number(amount) || 0));
   if (!n) return { supply: 0, vat: 0, total: 0 };
 
+  // 2026-10-06 — "none": 부가세를 나누지 않는다 (받은 금액 그대로, 공급가·부가세 분리 표기 없음).
+  if (vatMode === "none") return { supply: n, vat: 0, total: n };
+
   if (vatMode === "exclusive") {
     const supply = n;
     const vat    = Math.round(supply * 0.1);

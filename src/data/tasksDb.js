@@ -124,6 +124,8 @@ export function rowToTask(row) {
     // Mig 215 — 협력사 작업 공급가액(부가세 제외). 3곳 매핑.
     supplyAmount: row.supply_amount ?? null,
     supplyShortfallReason: row.supply_shortfall_reason || null,
+    // Mig 223 — 받은 금액에 부가세 포함 여부
+    vatIncluded: row.vat_included === true,
 
     // 고객
     customer:     row.customer_name,

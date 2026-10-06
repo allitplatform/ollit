@@ -245,8 +245,9 @@ function convertSheetTask(s) {
     materialCost: Number(s.materialCost ?? s.material_cost ?? 0) || 0,
     extraReason: s.extraReason || "",
     commissionRate: 40,
-    commission: Math.floor((s.estimateTotal || 0) * 0.4),
-    engineerNet: Math.floor((s.estimateTotal || 0) * 0.6),
+    // 2026-10-06 — 협력사 작업에는 직영 60/40 추정식을 쓰지 않는다 (0 → 화면 미표시).
+    commission: (s.subcontractorId || s.subcontractor_id) ? 0 : Math.floor((s.estimateTotal || 0) * 0.4),
+    engineerNet: (s.subcontractorId || s.subcontractor_id) ? 0 : Math.floor((s.estimateTotal || 0) * 0.6),
     requestNote: s.requestNote || "",
     happycallMemo: "",
     receivedAt: toDate(s.receivedAt) || "",

@@ -3,7 +3,7 @@
 // label = 텍스트 라벨 색 (다크 라이트 분리) / box = 옅은 박스 / sub = 부가 글자
 // buttonText = 채우기 버튼 위 글자 색 (냉매 노랑 위는 검정)
 
-import { getServiceKind, leakDisplayLabel } from "./workTypeKind.js";
+import { getServiceKind, leakDisplayLabel, isHoodWork } from "./workTypeKind.js";
 
 const COLORS_CLEANING = {
   main:  "#0EA5E9",
@@ -68,6 +68,8 @@ export function getWorkTypeColors(workType) {
   if (kind === "refrigerant") return COLORS_REFRIGERANT;
   if (kind === "install")     return COLORS_INSTALL;
   if (kind === "leak")        return { ...COLORS_LEAK, name: leakDisplayLabel(workType) };
+  // 2026-10-06 — 주방후드: "기타" 대신 종목 이름으로
+  if (isHoodWork(workType))   return { ...COLORS_DEFAULT, name: "주방후드", icon: "🍳" };
   return COLORS_DEFAULT;
 }
 
