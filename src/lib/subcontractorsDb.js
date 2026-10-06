@@ -131,6 +131,9 @@ export const subStaffSetSupply = (taskId, supply, reason = null) =>
 // ── 협력사 관리자 ────────────────────────────────────────────
 export const subListStaff = () => _call("sub_list_staff", {});
 export const subListTasks = (from = null, to = null) => _call("sub_list_tasks", { p_from: from, p_to: to });
+// 일정 확정·변경 — scheduledAt: ISO 문자열. 배정 상태면 '확정' 으로 바뀐다.
+export const subSetSchedule = (taskId, scheduledAt) =>
+  _call("sub_set_schedule", { p_task_id: taskId, p_scheduled_at: scheduledAt });
 // engineerId = null 이면 배정 해제.
 export const subAssignTask = (taskId, engineerId) =>
   _call("sub_assign_task", { p_task_id: taskId, p_engineer_id: engineerId || null });

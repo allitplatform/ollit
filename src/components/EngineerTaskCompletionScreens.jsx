@@ -966,7 +966,7 @@ function SubTaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
           placeholder="받은 공급가액을 입력"
           style={{
             width: "100%", boxSizing: "border-box", padding: "14px 14px", borderRadius: 12,
-            border: "2px solid #FF1B8D", background: "var(--bg-card)", color: "var(--text-primary)",
+            border: "2px solid #FF1B8D", background: "var(--bg-elevated)", color: "var(--text-primary)",
             fontSize: 22, fontWeight: 800, textAlign: "right", fontFamily: "inherit",
           }}
         />
@@ -993,7 +993,7 @@ function SubTaskCompleteScreen({ task, photos = [], onBack, onConfirm }) {
               placeholder="예: 현장 확인 결과 작업 범위 축소"
               style={{
                 width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 12,
-                border: "2px solid #E5484D", background: "var(--bg-card)", color: "var(--text-primary)",
+                border: "2px solid #E5484D", background: "var(--bg-elevated)", color: "var(--text-primary)",
                 fontSize: 15, fontFamily: "inherit", resize: "vertical",
               }}
             />

@@ -29,13 +29,18 @@ import { getAppliancePool, PRINCIPAL_NAME_TO_CODE } from "../utils/receptionForm
 //   팝업이 종목명을 정확 일치로만 비교해서, 이미 종목이 확정된 건을 열면
 //   "종목 미정" 이라며 종목부터 다시 묻던 문제 (A-260728-041 일현로 5731).
 import { getServiceKind } from "../utils/workTypeKind.js";
+import { getServiceCatalog, flattenServiceNames } from "../lib/serviceCatalog.js";
 
 // 2026-07-28 — 팝업에서 고를 수 있는 종목을 전 종목으로 확장 (사장님 요청).
 //   기존: 세척·냉매충전만 → 홈페이지 "에어컨 설치" 접수가 '기타/기타' 로 갇혀
 //   어디서도 종목을 못 고치던 사고 (팝업은 "관리자 화면에서" 라 안내하고,
 //   관리자 화면 견적 수정은 수량·단가만 바꿔서 서로 떠넘기는 구조였음).
 //   설치는 allday(올데이케어) 정책만 존재 → 다른 원청이면 pool 이 비어 선택 불가.
-const POPUP_WORK_TYPES = ["세척", "냉매충전", "누설", "누수", "설치"];
+// 2026-10-06 Mig 219 — 고정 목록 대신 공통 목록(serviceCatalog)을 읽는다.
+//   종목 변경 팝업이므로 [공통](출장비)과 YS-N 전용은 제외 — 종목 묶음의 서비스만.
+function _popupWorkTypes() {
+  return flattenServiceNames(getServiceCatalog(null).filter(g => g.key !== "common"));
+}
 
 const _CODE_TO_PRINCIPAL_NAME = Object.fromEntries(
   Object.entries(PRINCIPAL_NAME_TO_CODE).map(([name, code]) => [code, name])
@@ -54,7 +59,7 @@ function _appliancePool(workType, principalCode) {
 function _canonWorkType(raw, principalCode) {
   const s0 = String(raw || "").trim();
   if (!s0 || _isPlaceholderAppliance(s0)) return "";
-  if (POPUP_WORK_TYPES.includes(s0) && _appliancePool(s0, principalCode)) return s0;
+  if (_popupWorkTypes().includes(s0) && _appliancePool(s0, principalCode)) return s0;
   const kind = getServiceKind(s0);
   let c = "";
   if (kind === "cleaning")    c = "세척";
@@ -266,7 +271,7 @@ export function ApplianceSelectModal({ task, principalCode: pcOverride, onClose,
               marginBottom: 6, letterSpacing: 0.3, textTransform: "uppercase",
             }}>종목 <span style={{ color: "#DC2626" }}>*</span></div>
             <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-              {POPUP_WORK_TYPES.filter(wt => !!_appliancePool(wt, principalCode)).map(wt => {
+              {_popupWorkTypes().filter(wt => !!_appliancePool(wt, principalCode)).map(wt => {
                 const on = workType === wt;
                 return (
                   <button

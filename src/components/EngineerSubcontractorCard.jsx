@@ -45,7 +45,7 @@ export function EngineerSubcontractorCard({ userId, cardStyle }) {
 
   const selectStyle = {
     width: "100%", padding: "10px 12px", borderRadius: 10,
-    border: "1px solid var(--border)", background: "var(--bg-card)",
+    border: "1px solid var(--border)", background: "var(--bg-elevated)",
     color: "var(--text-primary)", fontSize: 14, fontFamily: "inherit",
   };
   const labelStyle = { fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", marginBottom: 6, display: "block" };

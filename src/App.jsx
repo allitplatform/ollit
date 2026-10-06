@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { reportAppVersion } from "./lib/appVersion.js";
 import { loadSubcontractorIndex } from "./lib/subcontractorsDb.js";
+import { loadServiceCatalog } from "./lib/serviceCatalog.js";
 import { LoginScreen } from "./components/LoginScreen.jsx";
 import EngineerApp from "./pages/EngineerApp.jsx";
 import HappycallApp from "./pages/HappycallApp.jsx";
@@ -103,7 +104,7 @@ export default function App() {
 
   // 2026-10-06 Mig 211a — 앱 버전 보고 (로그인 상태가 되면 1회). 211b 실행 조건 확인용.
   useEffect(() => {
-    if (currentUser) { reportAppVersion(); loadSubcontractorIndex(); }
+    if (currentUser) { reportAppVersion(); loadSubcontractorIndex(); loadServiceCatalog(); }
   }, [currentUser]);
 
   // 앱 시작 시 저장된 테마 적용 (CSS 변수 세팅)

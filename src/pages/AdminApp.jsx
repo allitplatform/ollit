@@ -80,6 +80,7 @@ import { computeDashboardStats, TASK_FILTERS, _getEffectiveStatus } from "../uti
 // 2026-07-14 — Stage 3: 기간 집계 RPC 날짜 계산용 (매출 카드와 동일 규칙).
 import { getMonthStart, getPrevMonthSameDay, getPrevMonthStart, getMonthRange, computeRevenueByYmRange } from "../utils/revenueStats.js";
 import { engineerDisplayName } from "../lib/subcontractorsDb.js";
+import { useServiceCatalog, shortServiceLabel } from "../lib/serviceCatalog.js";
 import { SubcontractorAdminScreen } from "../components/admin/SubcontractorAdminScreen.jsx";
 // 2026-07-24 — 개요 탭 돈 스트립 미리보기 (통장 잔고 · 이번 달 순이익 — 손익 화면과 동일 산식)
 import { getCashflowSummary as ovGetCashflowSummary, getCashflowDayClose as ovGetCashflowDayClose } from "../lib/bookkeepingCashflowDb.js";
@@ -10492,7 +10493,9 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
   const [applianceUndecided, setApplianceUndecided] = useState(init.applianceUndecided === true);
 
   // V14 헌법 v6 — 작업유형 5가지 / 기종 7가지
-  const workTypes = ["세척", "냉매충전", "누설", "누수", "설치", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)"];
+  // 2026-10-06 Mig 219 — 작업 종류는 공통 목록(serviceCatalog: service_types + categories)에서 읽는다.
+  //   종목별 묶음 [에어컨] [주방후드] [공통]. YS-N 전용은 유솔N 접수일 때만.
+  const workTypeGroups = useServiceCatalog(form.principal === "유솔홈케어 N" ? "usol_n" : null);
   const appliances = ["벽걸이", "1way", "스탠드", "4way", "원형", "투인원", "시스템멀티"];
   // 작업유형별 기종 풀 (V14 헌법 / 정책 시트와 일치)
   // 2026-06-28 — 로컬 APPLIANCE_POOL + getAppliancePool 사본 제거.
@@ -11323,12 +11326,19 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
             }}>
               <div>
                 <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 6 }}>종류</div>
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {workTypes.map(w => (
-                    <FormChip t={t} key={w} active={editItem.workType === w}
-                      onClick={() => setEditItem(prev => ({ ...prev, workType: w }))}>{formatWorkTypeLabel(w)}</FormChip>
-                  ))}
-                </div>
+                {workTypeGroups.map(g => (
+                  <div key={g.key} style={{ marginBottom: 8 }}>
+                    <div style={{ fontSize: 10, fontWeight: 700, color: t.textMuted, marginBottom: 4 }}>{g.label}</div>
+                    <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                      {g.items.map(it => (
+                        <FormChip t={t} key={it.name} active={editItem.workType === it.name}
+                          onClick={() => setEditItem(prev => ({ ...prev, workType: it.name }))}>
+                          {shortServiceLabel(formatWorkTypeLabel(it.name), g.label)}
+                        </FormChip>
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </div>
               {/* V14 헌법 — 작업유형별 기종 풀 (정책 시트와 일치) */}
               {editItem.workType && (() => {

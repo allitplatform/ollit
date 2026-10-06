@@ -86,7 +86,10 @@ function getStateInfo(task) {
   return STATE_MAP[task.state] || { label: task.status || "예정", color: "var(--text-primary)" };
 }
 
-export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTask, onPartialCancel, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user, apiEngineers = [], toast }) {
+export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTask, onPartialCancel, onVisitOnly, onMemoAdd, onEdit, onHistory, onAssign, onScheduleChange, onStatusChange, onMemoUpdate, user, apiEngineers = [], toast, subMode = false }) {
+  // 2026-10-06 — subMode: 협력사 관리자 화면에서 이 상세 화면을 그대로 재사용할 때.
+  //   운영자 전용 기능(정산 카드, 견적·항목 수정, 취소·복구 메뉴, 협력사 넘기기, 기본 정보 수정,
+  //   기사 메시지)은 숨기고, 배정·일정 변경은 부모가 넘긴 핸들러(협력사 RPC)를 쓴다.
   // ════════════════════════════════════════════════════════════
   // 모든 hooks 측 측 측 (early return 측 측 측 측 측 — React #310 spec).
   // 2026-06-02 — early return 측 useTaskMemos 측 측 측 측 측 → hooks 순서 위반 발생 → fix.
@@ -281,10 +284,10 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
         </div>
       ) : (
         <>
-      <DetailHeader task={task} onBack={onBack} onMenuAction={handleMenuAction}/>
+      <DetailHeader task={task} onBack={onBack} onMenuAction={handleMenuAction} hideMenu={subMode}/>
       {/* 2026-06-06 — 기본 정보 수정 버튼 (5 필드: 연락처/주소/고객명/희망일정/요청사항).
           정산/배정/상태 등은 별도 RPC 통해서만 — 본 버튼은 update_task_basic (Mig 099) 호출. */}
-      <div style={{ padding: "12px 20px 0", display: "flex", justifyContent: "flex-end", gap: 8 }}>
+      <div style={{ padding: "12px 20px 0", display: subMode ? "none" : "flex", justifyContent: "flex-end", gap: 8 }}>
         {(() => {
           const wiCount = Array.isArray(task?.workItems) ? task.workItems.length : 0;
           const locked = ["완료", "취소", "취소요청", "visit_only"].includes(String(task?.status || ""));
@@ -360,7 +363,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
         </div>
       )}
       {/* 카드 1 — 상태 + 작업 종류 측 catch (변경 X) */}
-      <MainCard task={task} onStatusChange={onStatusChange}/>
+      <MainCard task={task} onStatusChange={subMode ? undefined : onStatusChange}/>
       {/* 카드 2 — 2026-05-26 D-2: 작업 정보 통합 (연락처/주소/일정 + 배정 프로 + 측 측 측 측)
             옛 QuickActions(3 버튼) + EngineerCard 측 WorkInfoCard 측 catch 합침.
             핸들러 측 catch (onAssign/onEdit/onScheduleChange/callCustomer). */}
@@ -369,17 +372,17 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
         apiEngineers={apiEngineers}
         onAssign={onAssign}
         onScheduleChange={onScheduleChange}
-        onSendMessage={() => setShowMessageModal(true)}
+        onSendMessage={subMode ? undefined : () => setShowMessageModal(true)}
       />
       {/* 2026-10-06 Mig 212~214 — 협력사로 넘기기 / 직영으로 회수 */}
-      <SubcontractorCard task={task} onChanged={reloadTask}/>
+      {!subMode && <SubcontractorCard task={task} onChanged={reloadTask}/>}
       {/* 2026-10-06 Mig 215~217 — 협력사 작업 분배: 공급가 / 수수료 / 협력사 몫 */}
       <SubFeeSplitCard task={task}/>
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
-      <SettlementInfoCard task={task}/>
+      {!subMode && <SettlementInfoCard task={task}/>}
       {/* 2026-05-31 — Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 (신규 흐름 측만 input 노출).
             2026-06-02 — usol_n 측 측 — 정산 사이클 측 대체 (사장님 spec). */}
-      {task.principalCode !== "usol_n" && <TaskItemsCard task={task} user={user} onReload={reloadTask}/>}
+      {!subMode && task.principalCode !== "usol_n" && <TaskItemsCard task={task} user={user} onReload={reloadTask}/>}
       {task.principalCode === "usol_n" && (
         <UsolNSettlementCycleCard
           taskId={task.id}
@@ -387,7 +390,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
         />
       )}
       {/* 카드 5 — 작업 시간 · 이력 통합 */}
-      <WorkTimeHistoryCard task={task} onTaskRefresh={refetchTaskBasic}/>
+      {!subMode && <WorkTimeHistoryCard task={task} onTaskRefresh={refetchTaskBasic}/>}
       {/* 카드 6 — 요청사항 · 메모 */}
       <RequestMemoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
       {/* 2026-05-29 v2 (D6) — CancelInfoCard 폐기. 변경 이력 카드 측 cancel 이벤트 빨강 강조로 대체. */}
@@ -457,7 +460,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       <PhotoSection taskId={task.id} taskType={task.type}/>
       <CompletionNotice task={task}/>
       {/* 2026-06-17 — visit_only → 정상 작업 되돌리기 (운영자 전용 — RPC 가드 동일). */}
-      {task && task.status === "visit_only" && (
+      {!subMode && task && task.status === "visit_only" && (
         <div style={{
           margin: "0 16px 12px",
           padding: "12px 14px",
@@ -622,7 +625,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
 }
 
 // ──────────────── 1. Header ────────────────
-function DetailHeader({ task, onBack, onMenuAction }) {
+function DetailHeader({ task, onBack, onMenuAction, hideMenu = false }) {
   return (
     <header style={{
       display: "flex", alignItems: "center", gap: 8,
@@ -641,7 +644,7 @@ function DetailHeader({ task, onBack, onMenuAction }) {
           </div>
         )}
       </div>
-      <TaskCardMenu task={task} onAction={onMenuAction}/>
+      {!hideMenu && <TaskCardMenu task={task} onAction={onMenuAction}/>}
     </header>
   );
 }
@@ -1047,7 +1050,7 @@ function SubcontractorCard({ task, onChanged }) {
 
   return (
     <div style={{
-      background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14,
+      background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14,
       padding: "12px 14px", margin: "0 0 12px",
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
@@ -1074,7 +1077,7 @@ function SubcontractorCard({ task, onChanged }) {
                 value={chosen} onChange={e => setPick(e.target.value)} disabled={busy}
                 style={{
                   padding: "7px 8px", borderRadius: 10, border: "1px solid var(--border)",
-                  background: "var(--bg-card)", color: "var(--text-primary)", fontSize: 12, fontFamily: "inherit",
+                  background: "var(--bg-elevated)", color: "var(--text-primary)", fontSize: 12, fontFamily: "inherit",
                 }}
               >
                 {subs.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -1122,7 +1125,7 @@ function SubFeeSplitCard({ task }) {
   );
   return (
     <div style={{
-      background: "var(--bg-card)", border: "1px solid var(--border)", borderRadius: 14,
+      background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14,
       padding: "12px 14px", margin: "0 0 12px",
     }}>
       <div style={{ fontSize: 12, fontWeight: 800, color: "#8B5CF6", marginBottom: 6 }}>협력사 분배 · {name}</div>

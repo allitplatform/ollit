@@ -83,7 +83,7 @@ export function SubcontractorAdminScreen({ onBack }) {
   };
   const input = {
     width: "100%", boxSizing: "border-box", padding: "10px 12px", borderRadius: 10,
-    border: "1px solid var(--border)", background: "var(--bg-card)", color: "var(--text-primary)",
+    border: "1px solid var(--border)", background: "var(--bg-elevated)", color: "var(--text-primary)",
     fontSize: 14, fontFamily: "inherit",
   };
   const label = { fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", margin: "12px 0 6px", display: "block" };

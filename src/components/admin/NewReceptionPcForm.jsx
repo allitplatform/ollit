@@ -39,6 +39,7 @@ import { parseRegion } from "../../utils/regionParser.js";
 // 2026-07-15 — 정부 주소 API fallback (사전으로 못 뽑는 도로명 → 시군구)
 import { resolveAddressDistrict } from "../../lib/jusoApi.js";
 import { ALL_REGIONS } from "../../data/engineers.js";
+import { useServiceCatalog, shortServiceLabel } from "../../lib/serviceCatalog.js";
 
 // formatPhone 은 receptionForm.js 에서 import (DRY).
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
@@ -78,6 +79,8 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
     //   workItems 비어있어도 root 에 남겨 taskData 저장 시 categoryData.workType 로 저장.
     workType:      init.workType      || "",
   });
+  // 2026-10-06 Mig 219 — 작업 종류 공통 목록 (종목별 묶음). YS-N 전용은 유솔N 접수일 때만.
+  const workTypeGroups = useServiceCatalog(form.principal === "유솔홈케어 N" ? "usol_n" : null);
   const [scheduleMode, setScheduleMode] = useState(null);    // null | 'tbd' | 'input'
   const [priceTBD, setPriceTBD] = useState(false);
   // 2026-07-11 — 사장님 spec: 기종 미정 체크 (홈페이지 전환 등 workItems 비어있는 상황).
@@ -646,7 +649,14 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
                   onChange={(e) => setEditItem({ workType: e.target.value, appliance: "", qty: editItem.qty })}
                   style={inputStyle(t)}>
                   <option value="">— 작업유형 —</option>
-                  {WORK_TYPES.map(wt => <option key={wt} value={wt}>{formatWorkTypeLabel(wt)}</option>)}
+                  {/* 2026-10-06 Mig 219 — 공통 목록 (종목별 묶음). YS-N 전용은 유솔N 접수일 때만. */}
+                  {workTypeGroups.map(g => (
+                    <optgroup key={g.key} label={g.label}>
+                      {g.items.map(it => (
+                        <option key={it.name} value={it.name}>{shortServiceLabel(formatWorkTypeLabel(it.name), g.label)}</option>
+                      ))}
+                    </optgroup>
+                  ))}
                 </select>
                 <select value={editItem.appliance}
                   onChange={(e) => setEditItem(prev => ({ ...prev, appliance: e.target.value }))}
