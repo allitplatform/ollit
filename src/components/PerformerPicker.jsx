@@ -5,7 +5,7 @@
 //   · 저장: 접수 저장 뒤 handOverToPerformer 로 협력사 넘기기 (운영자 상세의 [협력사로 넘기기] 와 같은 RPC)
 import { useEffect, useMemo, useState } from "react";
 import {
-  useSubcontractorIndex, adminAssignTaskToSubcontractor, listSubcontractorFeeRules,
+  useSubcontractorIndex, adminAssignTaskToSubcontractor, listSubcontractorFeeRules, listSubcontractorCategories,
 } from "../lib/subcontractorsDb.js";
 import { isHoodWork } from "../utils/workTypeKind.js";
 import { fmtWon } from "../utils/money.js";
@@ -33,20 +33,31 @@ export function usePerformer(workType) {
     .sort((a, b) => String(a.name).localeCompare(String(b.name), "ko")), [idx]);
   const [performer, setPerformer] = useState("");     // "" = 직영, 아니면 협력사 id
   const [rules, setRules] = useState([]);
+  const [subCats, setSubCats] = useState(null);       // 협력사별 맡는 종목 (Mig 235). null = 아직 없음/못 읽음
 
   useEffect(() => {
     let alive = true;
     listSubcontractorFeeRules().then(res => { if (alive && res.ok) setRules(Array.isArray(res.rules) ? res.rules : []); });
+    listSubcontractorCategories().then(res => { if (alive && res.ok) setSubCats(Array.isArray(res.by_sub) ? res.by_sub : []); });
     return () => { alive = false; };
   }, []);
 
   const group = serviceGroupOf(workType);
   const recommended = useMemo(() => {
     if (!group) return "";
-    const ids = [...new Set(rules.filter(r => ruleCovers(r, group)).map(r => r.subcontractor_id))]
-      .filter(id => subs.some(s => s.id === id));
+    // 1순위: 협력사가 맡는 종목 (운영자가 협력사 관리에서 설정). 종목 code 는 묶음 이름과 같다 (hood).
+    //   그 종목을 맡고, 수수료 규칙도 있는 협력사가 1곳이면 추천.
+    const withRule = (id) => rules.some(r => r.subcontractor_id === id && ruleCovers(r, group));
+    let ids;
+    if (subCats && subCats.length > 0) {
+      ids = [...new Set(subCats.filter(x => String(x.code || "") === group).map(x => x.subcontractor_id))].filter(withRule);
+    } else {
+      // 맡는 종목을 아직 못 읽으면 수수료 규칙만으로 판단
+      ids = [...new Set(rules.filter(r => ruleCovers(r, group)).map(r => r.subcontractor_id))];
+    }
+    ids = ids.filter(id => subs.some(s => s.id === id));
     return ids.length === 1 ? ids[0] : "";
-  }, [rules, group, subs]);
+  }, [rules, group, subs, subCats]);
 
   const rule = performer ? ruleFor(rules, performer, group) : null;
   const name = performer ? (subs.find(s => s.id === performer)?.name || "협력사") : "";

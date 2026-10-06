@@ -316,7 +316,8 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   // ── 작업 상세: 운영자 화면 재사용 (subMode) ──
   if (detail) {
     return (
-      <div style={{ minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-primary)", fontFamily: "'Pretendard', sans-serif" }}>
+      // 상단 여백: 휴대폰 상태표시줄(시계) 아래로 뒤로가기 줄이 깔리지 않게 (운영자·기사 앱은 바깥 틀이 같은 여백을 준다)
+      <div style={{ minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-primary)", fontFamily: "'Pretendard', sans-serif", paddingTop: "env(safe-area-inset-top, 0px)", boxSizing: "border-box" }}>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
           <AdminTaskDetailScreen
             subMode

@@ -58,9 +58,9 @@ import { formatWorkTypeLabel } from "../utils/receptionForm.js";
 import { fmtWon } from "../utils/money.js";
 import SubAssignSheet from "./SubAssignSheet.jsx";
 
-// 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (사장님 결정: 화면 폭에 꽉 찬 카드).
+// 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (0 이면 테두리 선이 화면 끝에서 잘려 12 로 — 2026-10-06 실화면 확인).
 //   여백을 다시 주고 싶으면 이 숫자 하나만 바꾸면 된다 (운영자·협력사 모드 공통).
-const DETAIL_GUTTER = 0;
+const DETAIL_GUTTER = 12;
 import { useSubcontractorIndex, subcontractorAssigneeLabel, adminAssignTaskToSubcontractor } from "../lib/subcontractorsDb.js";
 // 2026-06-17 — visit_only 되돌리기 다이얼로그 (Mig 138 unmark_visit_only RPC).
 import { UnmarkVisitOnlyDialog } from "./admin/UnmarkVisitOnlyDialog.jsx";

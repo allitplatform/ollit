@@ -4,7 +4,55 @@
 //   · 직원 소속 지정은 기사 편집 화면의 "소속 협력사" 카드에서.
 //   · 전부 RPC — 운영자 확인 + 세션 값은 서버에서 검사.
 import { useCallback, useEffect, useState } from "react";
-import { adminListSubcontractors, adminUpsertSubcontractor, loadSubcontractorIndex, subGetCutRates } from "../../lib/subcontractorsDb.js";
+import {
+  adminListSubcontractors, adminUpsertSubcontractor, loadSubcontractorIndex, subGetCutRates,
+  listSubcontractorCategories, adminSetSubcontractorCategories,
+} from "../../lib/subcontractorsDb.js";
+import { SubStaffReadOnlyList } from "../SubStaffManage.jsx";
+
+// 2026-10-06 Mig 235 — 협력사가 맡는 종목 (운영자만 설정) + 소속 기사 보기.
+//   맡는 종목은 새 작업의 수행 추천과 기사별 "가능 종목" 의 범위로 쓰인다.
+function SubExtras({ sub, cats, onSaved }) {
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const mine = (cats.by_sub || []).filter(x => x.subcontractor_id === sub.id).map(x => x.code);
+  async function toggle(code) {
+    if (busy) return;
+    const next = mine.includes(code) ? mine.filter(c => c !== code) : [...mine, code];
+    setBusy(true);
+    const res = await adminSetSubcontractorCategories(sub.id, next);
+    setBusy(false);
+    if (!res.ok) { window.alert(res.error || "저장하지 못했습니다."); return; }
+    onSaved();
+  }
+  const all = cats.all || [];
+  return (
+    <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid var(--border)" }}>
+      {all.length > 0 && (
+        <>
+          <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 6 }}>맡는 종목</div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+            {all.map(c => {
+              const on = mine.includes(c.code);
+              return (
+                <button key={c.code} type="button" disabled={busy} onClick={() => toggle(c.code)} style={{
+                  padding: "6px 10px", borderRadius: 999, fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+                  border: on ? "1.5px solid #8B5CF6" : "1px solid var(--border)",
+                  background: on ? "rgba(139,92,246,0.12)" : "transparent", color: "var(--text-primary)",
+                }}>{c.name}</button>
+              );
+            })}
+          </div>
+        </>
+      )}
+      <button type="button" onClick={() => setOpen(v => !v)} style={{
+        background: "transparent", border: "none", padding: "10px 0 0", fontSize: 12, fontWeight: 700,
+        color: "var(--text-secondary)", fontFamily: "inherit", cursor: "pointer", textDecoration: "underline",
+      }}>소속 기사 {open ? "접기" : "보기"}</button>
+      {open && <SubStaffReadOnlyList subId={sub.id}/>}
+    </div>
+  );
+}
 
 // 2026-10-06 Mig 231 — 회사 몫 %(협력사가 소속 기사에게서 떼는 비율). 운영자는 보기만 한다.
 function CutRateLine({ subId }) {
@@ -45,6 +93,13 @@ function formatBizNo(v) {
 
 export function SubcontractorAdminScreen({ onBack }) {
   const [rows, setRows] = useState([]);
+  // 종목 목록 · 협력사별 맡는 종목 (Mig 235). 읽지 못하면 그 부분만 빠진다.
+  const [cats, setCats] = useState({ all: [], by_sub: [] });
+  const loadCats = useCallback(async () => {
+    const res = await listSubcontractorCategories();
+    if (res.ok) setCats({ all: res.all || [], by_sub: res.by_sub || [] });
+  }, []);
+  useEffect(() => { loadCats(); }, [loadCats]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(null);     // { id|null, form }
@@ -149,6 +204,7 @@ export function SubcontractorAdminScreen({ onBack }) {
                   : "사업자 정보 미입력"}
               </div>
               <CutRateLine subId={r.id}/>
+              <SubExtras sub={r} cats={cats} onSaved={loadCats}/>
             </div>
           ))}
         </>

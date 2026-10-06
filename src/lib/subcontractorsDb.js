@@ -189,6 +189,25 @@ export const subUpdateStaffZones = (userId, region, zones) =>
   _call("sub_update_staff_zones", { p_user_id: userId, p_region: region || null, p_zones: Array.isArray(zones) ? zones : [] });
 export const subSetStaffActive = (userId, active) =>
   _call("sub_set_staff_active", { p_user_id: userId, p_active: !!active });
+// ── 기사 정보 수정 · 상세 · 가능 종목 (Mig 235) ─────────────
+//   목록·상세: 협력사 관리자(자기 협력사) 또는 운영자(subcontractorId 지정). 수정: 협력사 관리자만.
+export const subStaffDirectory = (subcontractorId = null) => _call("sub_staff_directory", { p_subcontractor_id: subcontractorId });
+export const subGetStaffDetail = (userId) => _call("sub_get_staff_detail", { p_user_id: userId });
+// 계좌번호 전체 보기 — 서버가 조회 기록을 남긴 뒤 번호를 준다.
+export const subRevealStaffAccount = (userId) => _call("sub_reveal_staff_account", { p_user_id: userId });
+// categories: 종목 code 배열. null 이면 가능 종목은 건드리지 않는다.
+export const subUpdateStaff = (userId, { name, region, zones, categories, memo }) =>
+  _call("sub_update_staff", {
+    p_user_id: userId, p_name: name, p_region: region || null,
+    p_zones: Array.isArray(zones) ? zones : [],
+    p_category_codes: Array.isArray(categories) ? categories : null,
+    p_memo: memo || null,
+  });
+// 운영자: 협력사가 맡는 종목 / 종목 목록
+export const listSubcontractorCategories = () => _call("list_subcontractor_categories", {});
+export const adminSetSubcontractorCategories = (subcontractorId, codes) =>
+  _call("admin_set_subcontractor_categories", { p_subcontractor_id: subcontractorId, p_category_codes: Array.isArray(codes) ? codes : [] });
+
 // 회사 몫: 조회는 협력사 관리자(자기 것) 또는 운영자(subcontractorId 지정, 보기만). 변경은 협력사 관리자만.
 export const subGetCutRates = (subcontractorId = null) => _call("sub_get_cut_rates", { p_subcontractor_id: subcontractorId });
 export const subSetCutRate = (pct, effectiveFrom) =>

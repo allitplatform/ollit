@@ -1,7 +1,8 @@
 // 2026-10-06 Mig 230 — 협력사 작업 담당 기사 지정 시트 (기사 50명 대응).
 //   협력사 관리자 화면과 운영자 상세 화면이 같이 쓴다.
 //   · 목록은 서버(sub_list_staff_for_task)가 "그 작업의 협력사 소속"만 돌려준다.
-//   · 추천 3명: 작업 지역 담당 + 작업일 휴무 아님 + 작업일 일정 적은 순.
+//   · 추천 3명: 작업 지역 담당 + 작업일 휴무 아님 + 이 종목 가능 + 작업일 일정 적은 순.
+//   · 이 종목을 못 하는 기사(Mig 235 can_do = false)는 회색으로 맨 아래, 배정은 확인 후 가능.
 //   · 검색(이름·전화 뒷자리), 지역 칩, 휴무는 회색으로 맨 아래.
 //   mode: "sub"(협력사 관리자) | "admin"(운영자)
 import { useEffect, useMemo, useState } from "react";
@@ -62,7 +63,7 @@ export default function SubAssignSheet({ taskId, title, subtitle, mode = "sub", 
   }, [staff, info]);
 
   const recommended = useMemo(() => (
-    staff.filter(s => s.zone_match && !s.off)
+    staff.filter(s => s.zone_match && !s.off && s.can_do !== false)
       .sort((a, b) => (a.day_tasks || 0) - (b.day_tasks || 0) || String(a.name).localeCompare(String(b.name), "ko"))
       .slice(0, 3)
   ), [staff]);
@@ -79,7 +80,8 @@ export default function SubAssignSheet({ taskId, title, subtitle, mode = "sub", 
       if (String(s.name || "").includes(kw)) return true;
       return !!digits && String(s.phone || "").replace(/\D/g, "").endsWith(digits);
     }).sort((a, b) =>
-      (a.off ? 1 : 0) - (b.off ? 1 : 0)
+      (a.can_do === false ? 1 : 0) - (b.can_do === false ? 1 : 0)     // 이 종목 불가는 맨 아래
+      || (a.off ? 1 : 0) - (b.off ? 1 : 0)
       || (b.zone_match ? 1 : 0) - (a.zone_match ? 1 : 0)
       || (a.day_tasks || 0) - (b.day_tasks || 0)
       || String(a.name).localeCompare(String(b.name), "ko"));
@@ -87,6 +89,10 @@ export default function SubAssignSheet({ taskId, title, subtitle, mode = "sub", 
 
   async function assign(engineerId) {
     if (busy) return;
+    // 이 종목을 못 하는 기사 — 막지는 않고 한 번 확인한다 (Mig 235)
+    const target = engineerId ? staff.find(s => s.id === engineerId) : null;
+    if (target && target.can_do === false
+        && !window.confirm(`${target.name} 기사는 이 종목이 "가능 종목"에 없습니다.\n그래도 배정할까요?`)) return;
     setBusy(true);
     const res = mode === "admin" ? await adminAssignSubTask(taskId, engineerId) : await subAssignTask(taskId, engineerId);
     setBusy(false);
@@ -110,13 +116,14 @@ export default function SubAssignSheet({ taskId, title, subtitle, mode = "sub", 
         border: on ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
         borderRadius: 12, padding: "11px 14px", marginBottom: 8, minHeight: 56,
         color: "var(--text-primary)", fontFamily: "inherit", cursor: busy ? "default" : "pointer",
-        opacity: s.off ? 0.5 : 1,
+        opacity: (s.off || s.can_do === false) ? 0.5 : 1,
       }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap" }}>
           <span style={{ fontSize: 15, fontWeight: 800 }}>{s.name}{s.sub_role === "manager" ? " (관리자)" : ""}</span>
           {rec && <span style={tag("var(--accent, #FF1B8D)")}>추천</span>}
           {!rec && s.zone_match && <span style={tag("var(--success, #16A34A)")}>지역 담당</span>}
           {on && <span style={tag("var(--text-secondary)")}>현재 담당</span>}
+          {s.can_do === false && <span style={tag("var(--text-secondary)")}>이 종목 불가</span>}
           {s.off && <span style={tag("var(--text-secondary)")}>휴무</span>}
           {!s.off && s.off_part && <span style={tag("var(--text-secondary)")}>휴무 {s.off_part}</span>}
         </div>
