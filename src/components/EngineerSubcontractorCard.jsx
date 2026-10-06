@@ -72,8 +72,8 @@ export function EngineerSubcontractorCard({ userId, cardStyle }) {
         <div style={{ marginTop: 12 }}>
           <label style={labelStyle}>구분</label>
           <select value={role} onChange={e => setRole(e.target.value)} disabled={busy} style={selectStyle}>
-            <option value="staff">직원</option>
-            <option value="manager">관리자 (협력사 화면에서 직원 배정)</option>
+            <option value="staff">기사</option>
+            <option value="manager">관리자 (협력사 화면에서 기사 배정)</option>
           </select>
         </div>
       )}

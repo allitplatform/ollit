@@ -34,6 +34,13 @@ const STATUS_STYLE = {
   "완료":   { bg: "rgba(16,185,129,0.16)", fg: "#059669" },
 };
 
+function fmtFilterDate(ymd) {
+  const d = new Date(`${ymd}T00:00:00+09:00`);
+  if (Number.isNaN(d.getTime())) return ymd;
+  const wd = d.toLocaleDateString("ko-KR", { timeZone: "Asia/Seoul", weekday: "short" });
+  return `${Number(ymd.slice(5, 7))}/${Number(ymd.slice(8, 10))} (${wd})`;
+}
+
 function taskDay(t) {
   const iso = DONE.includes(t.status) ? (t.completed_at || t.scheduled_at) : t.scheduled_at;
   if (iso) {
@@ -401,18 +408,30 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
             {error}
           </div>
         )}
-        <div style={{ display: "flex", gap: 6, alignItems: "center", marginBottom: 10 }}>
-          <input type="date" value={fDate} onChange={e => setFDate(e.target.value)} aria-label="날짜 필터"
-            style={{ ...fieldInput, flex: 1, minHeight: 40, padding: "8px 10px", fontSize: 14 }}/>
+        {/* 필터 줄 — 한 줄 2칸 같은 폭. 날짜 칸은 글자("날짜 전체" / "10/8 (수)")를 보여 주고, 누르면 달력이 뜬다. */}
+        <div style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 8, marginBottom: (fDate || fEng) ? 4 : 10 }}>
+          <label style={{ ...filterBox, position: "relative", borderColor: fDate ? "var(--accent, #FF1B8D)" : "var(--border)" }}>
+            <span aria-hidden="true">📅</span>
+            <span style={{ flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+              {fDate ? fmtFilterDate(fDate) : "날짜 전체"}
+            </span>
+            <input type="date" value={fDate} onChange={e => setFDate(e.target.value)} aria-label="날짜 필터"
+              style={{ position: "absolute", inset: 0, width: "100%", height: "100%", opacity: 0, border: "none", padding: 0, margin: 0, cursor: "pointer" }}/>
+          </label>
           <select value={fEng} onChange={e => setFEng(e.target.value)} aria-label="기사 필터"
-            style={{ ...fieldInput, flex: 1, minHeight: 40, padding: "8px 10px", fontSize: 14 }}>
+            style={{ ...filterBox, width: "100%", WebkitAppearance: "none", appearance: "none", borderColor: fEng ? "var(--accent, #FF1B8D)" : "var(--border)" }}>
             <option value="">기사 전체</option>
             {engOptions.map(([id, name]) => <option key={id} value={id}>{name}</option>)}
           </select>
-          {(fDate || fEng) && (
-            <button onClick={() => { setFDate(""); setFEng(""); }} style={{ ...btnGhost, flexShrink: 0 }}>해제</button>
-          )}
         </div>
+        {(fDate || fEng) && (
+          <div style={{ textAlign: "right", marginBottom: 8 }}>
+            <button onClick={() => { setFDate(""); setFEng(""); }}
+              style={{ background: "transparent", border: "none", padding: "4px 2px", fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", fontFamily: "inherit", cursor: "pointer", textDecoration: "underline" }}>
+              필터 해제
+            </button>
+          </div>
+        )}
         {!error && !loading && list.length === 0 && (
           <div style={{ textAlign: "center", color: "var(--text-secondary)", fontSize: 14, padding: "48px 0" }}>
             해당 상태의 작업이 없습니다.
@@ -492,6 +511,12 @@ function Sheet({ children, onClose }) {
   );
 }
 
+const filterBox = {
+  display: "flex", alignItems: "center", gap: 6, boxSizing: "border-box", minWidth: 0, height: 44,
+  padding: "0 12px", borderRadius: 10, border: "1px solid var(--border)",
+  background: "var(--bg-elevated)", color: "var(--text-primary)",
+  fontSize: 14, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
+};
 const sheetTitle = { fontSize: 17, fontWeight: 800 };
 const sheetSub   = { fontSize: 13, color: "var(--text-secondary)", margin: "4px 0 14px" };
 const fieldLabel = { display: "block", fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", margin: "10px 0 6px" };

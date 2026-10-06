@@ -1,4 +1,5 @@
 import { SubStaffSettleTab } from "../components/SubSettlement.jsx";
+import { subStaffGetContacts } from "../lib/subcontractorsDb.js";
 import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
   loadTasksForRole as getTasks,
@@ -5110,6 +5111,15 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
   // 2026-06-07 — tenants.ops_phone 사용. 숫자만 추출, 값 없으면 호출 안 함.
   //   ★ 더미("01012345678") 하드코딩 폐기. opsPhone null 이면 EngineerMeTab 측
   //     onContactOps={null} 받아 버튼 자체 숨김 (=호출 함수 자체가 미연결).
+  // 2026-10-06 Mig 234 — 협력사 소속 기사: 문의 대상은 소속 협력사 관리자
+  const [subContacts, setSubContacts] = useState([]);
+  useEffect(() => {
+    if (!user?.subcontractor) return undefined;
+    let alive = true;
+    subStaffGetContacts().then(res => { if (alive && res.ok) setSubContacts(Array.isArray(res.managers) ? res.managers : []); });
+    return () => { alive = false; };
+  }, [user?.subcontractor?.id]);
+
   function handleCallOps() {
     if (!opsPhone) return;
     const digits = String(opsPhone).replace(/[^0-9]/g, "");
@@ -5326,7 +5336,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
         {/* 2026-10-06 Mig 225 — 협력사 소속 기사: 날짜별 받은 금액 / 내 수익 / 수수료 (보기 전용).
             송금 보고 버튼은 없다 — 수수료는 협력사 관리자가 날짜별로 한 번 보고한다. */}
         {screen === "settlement" && !!user?.subcontractor && (
-          <SubStaffSettleTab user={user}/>
+          <SubStaffSettleTab user={user} onBack={() => handleTabChange("today")}/>
         )}
         {screen === "settlement" && !user?.subcontractor && (
           <EngineerSettleTab
@@ -5455,6 +5465,8 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
             theme={mode}
             onChangeTheme={(value) => setMode(value)}
             onContactOps={opsPhone ? handleCallOps : null}
+            subcontractor={user?.subcontractor || null}
+            subContacts={subContacts}
             onChangeAccount={() => setScreen("accountEdit")}
             onRegions={() => setScreen("regionChange")}
             onLogout={onLogout}

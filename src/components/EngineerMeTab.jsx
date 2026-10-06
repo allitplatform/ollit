@@ -47,9 +47,15 @@ export function EngineerMeTab({
   unreadCount = 0,
   // 2026-06-26 — 공지 3단계 탭 재배치: 공지 메뉴를 내정보 안으로.
   onAnnouncements,
+  // 2026-10-06 — 협력사 소속 기사: { id, code, name, role }. 있으면 소속·문의·계좌 카드가 협력사 기준으로 바뀐다.
+  subcontractor = null,
+  // 소속 협력사 관리자 연락처 [{ name, phone }] (Mig 234). 비어 있으면 전화·문자 버튼을 숨긴다.
+  subContacts = [],
 }) {
   const isDark = useIsDark();
   const eng = engineer || {};
+  const isSub = !!subcontractor;
+  const subName = (subcontractor && subcontractor.name) || "협력사";
 
   // 사장님 spec 다크 토글 = 이진 (light/dark). 'auto'는 토글에서 제외.
   const darkOn = theme === "dark" || (theme === "auto" && isDark);
@@ -237,8 +243,9 @@ export function EngineerMeTab({
   };
 
   const initial = (eng.name || "?").charAt(0);
-  const role = eng.role || "프로";
-  const company = eng.companyName || eng.company || "올데이케어";
+  // 협력사 소속은 "기사 · 협력사 이름" (올데이케어 직영 표기 "프로 · 올데이케어" 를 쓰지 않는다)
+  const role = isSub ? (subcontractor.role === "manager" ? "관리자" : "기사") : (eng.role || "프로");
+  const company = isSub ? subName : (eng.companyName || eng.company || "올데이케어");
 
   return (
     <div style={{
@@ -338,6 +345,58 @@ export function EngineerMeTab({
           </div>
         </div>
 
+        {/* 2026-10-06 — 협력사 소속: 문의는 소속 협력사 관리자에게, 정산 계좌 카드는 안내로 대체 */}
+        {isSub && (
+          <>
+            <div style={{ ...cardStyle, padding: "16px 18px" }}>
+              <div style={{
+                fontSize: 14, fontWeight: 700,
+                color: isDark ? "#FAF8F5" : "#1A1A1A",
+                marginBottom: 14,
+                display: "flex", alignItems: "center", gap: 6,
+              }}>
+                💬 {subName} 관리자 문의
+              </div>
+              {subContacts.length === 0 && (
+                <div style={{ fontSize: 13, color: isDark ? "#BBB" : "#6B6359", lineHeight: 1.5 }}>
+                  {subName} 관리자에게 직접 문의해 주세요.
+                </div>
+              )}
+              {subContacts.map((m, i) => {
+                const digits = String(m.phone || "").replace(/[^0-9]/g, "");
+                return (
+                  <div key={i} style={{ marginTop: i === 0 ? 0 : 12 }}>
+                    <div style={{ fontSize: 13, fontWeight: 600, color: isDark ? "#C8C8C8" : "#555", marginBottom: 8 }}>
+                      {m.name} · {m.phone}
+                    </div>
+                    <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+                      <a href={`tel:${digits}`} style={{
+                        background: "#34C759", color: "#fff", padding: 14, borderRadius: 12,
+                        fontSize: 14, fontWeight: 700, textDecoration: "none",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      }}>📞 전화</a>
+                      <a href={`sms:${digits}`} style={{
+                        background: "#FF1B8D", color: "#fff", padding: 14, borderRadius: 12,
+                        fontSize: 14, fontWeight: 700, textDecoration: "none",
+                        display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                      }}>💬 문자</a>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={{ ...cardStyle, padding: 18 }}>
+              <div style={{ fontSize: 14, fontWeight: 700, color: isDark ? "#FAF8F5" : "#1A1A1A", marginBottom: 8 }}>
+                💳 정산
+              </div>
+              <div style={{ fontSize: 13, color: isDark ? "#BBB" : "#6B6359", lineHeight: 1.6 }}>
+                정산은 {subName}에서 진행합니다. 날짜별 금액은 정산 탭에서 확인해 주세요.
+              </div>
+            </div>
+          </>
+        )}
+
+        {!isSub && (<>
         {/* 운영팀 문의 카드 */}
         <div style={{ ...cardStyle, padding: "16px 18px" }}>
           <div style={{
@@ -380,7 +439,9 @@ export function EngineerMeTab({
             </button>
           </div>
         </div>
+        </>)}
 
+        {!isSub && (<>
         {/* Step 5-8 design 🅓 — 정산 계좌 카드 (정산 탭 회사 송금 카드와 통일 디자인) */}
         <div style={{ ...cardStyle, padding: 18 }}>
           {/* 헤더 */}
@@ -471,6 +532,7 @@ export function EngineerMeTab({
             ✏️ 변경 신청
           </button>
         </div>
+        </>)}
 
         {/* 설정 카드 */}
         <div style={{ ...cardStyle, padding: "6px 0" }}>

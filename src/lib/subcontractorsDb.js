@@ -83,7 +83,7 @@ export function subcontractorAssigneeLabel(task, idx = _index) {
   const subId = task?.subcontractorId || task?.subcontractor_id;
   if (!subId) return "";
   const eng = String(task.assignedEngineer || task.engineer || "").trim();
-  return `${subcontractorName(subId, idx)} · ${eng || "직원 미정"}`;
+  return `${subcontractorName(subId, idx)} · ${eng || "미배정"}`;
 }
 
 // 목록 카드용 담당 이름 — 협력사 작업이면 "화이트코어 · 직원명"(직원 없으면 "직원 미정"),
@@ -136,6 +136,23 @@ export const subStaffSetReceived = (taskId, received, vatIncluded = false, reaso
     p_task_id: taskId, p_received: Math.round(Number(received) || 0),
     p_vat_included: !!vatIncluded, p_reason: reason || null,
   });
+
+// 활성 협력사의 수수료 규칙 요약 (Mig 234) — 접수 폼의 수행 추천·분배 미리보기용. 운영자만.
+export const listSubcontractorFeeRules = () => _call("list_subcontractor_fee_rules", {});
+
+// 협력사 소속 기사: 소속 협력사 관리자 연락처 (Mig 234) — "내 정보" 문의 카드용
+export const subStaffGetContacts = () => _call("sub_staff_get_contacts", {});
+
+// ── 기사 → 협력사 송금 보고 (Mig 234, 2단계 보고) ────────────
+//   기사: 날짜별 보낼 금액·상태 / [협력사에 보냄].  관리자: 기사별 상태 / [받음 확인].
+export const subStaffListRemits = () => _call("sub_staff_list_remits", {});
+export const subStaffReportRemit = (date) => _call("sub_staff_report_remit", { p_date: date });
+export const subManagerListStaffRemits = () => _call("sub_manager_list_staff_remits", {});
+export const subManagerConfirmStaffRemit = (engineerId, date, confirm = true) =>
+  _call("sub_manager_confirm_staff_remit", { p_engineer_id: engineerId, p_date: date, p_confirm: !!confirm });
+// 관리자: 기사의 [보냄] 취소 — 사유 필수. 받음 확인된 줄은 받음 취소 먼저.
+export const subManagerCancelStaffRemit = (engineerId, date, reason) =>
+  _call("sub_manager_cancel_staff_remit", { p_engineer_id: engineerId, p_date: date, p_reason: String(reason || "") });
 
 // ── 일일 정산 (Mig 225) ──────────────────────────────────────
 //   기사: 내 정산(보기 전용) / 관리자: 날짜별 송금 보고 / 운영자: 입금 확인

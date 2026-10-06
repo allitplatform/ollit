@@ -1167,10 +1167,11 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
       }
     }
 
-    const _subRows = [...subIdx.names.values()].map(s => ({ code: `sub:${s.id}`, name: `${s.name} (협력사)` }));
+    const _subRows = [...subIdx.names.values()].map(s => ({ code: `sub:${s.id}`, name: `${s.name} · 협력사`, isSub: true }));
     const rowsAll = [...PRINCIPAL_ORDER, ..._subRows].map(p => ({
       code:     p.code,
       name:     p.name,
+      isSub:    !!p.isSub,
       received: received.get(p.code) || 0,
       canceled: canceled.get(p.code) || 0,
       cxTasks:  cxList.get(p.code)   || [],
@@ -1287,12 +1288,15 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
                 <Fragment key={r.code}>
                 <tr style={{ borderBottom: "1px solid var(--border)" }}>
                   <Td align="left">
-                    <span style={{ fontWeight: 700, color: "var(--text-primary)" }}>{r.name}</span>
-                    <span style={{
-                      marginLeft: 6,
-                      fontSize: 10, fontWeight: 600,
-                      color: "var(--text-tertiary)",
-                    }}>{r.code}</span>
+                    {/* 협력사 줄은 내부 id(sub:…)를 보여 주지 않는다 — 마우스를 올릴 때만 */}
+                    <span title={r.isSub ? r.code : undefined} style={{ fontWeight: 700, color: "var(--text-primary)" }}>{r.name}</span>
+                    {!r.isSub && (
+                      <span style={{
+                        marginLeft: 6,
+                        fontSize: 10, fontWeight: 600,
+                        color: "var(--text-tertiary)",
+                      }}>{r.code}</span>
+                    )}
                   </Td>
                   <Td align="right"><NumCell n={r.received} unit="건" muted={r.received === 0}/></Td>
                   <Td align="right">
@@ -1391,7 +1395,7 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
                   <span style={{ color: "var(--text-primary)" }}>합계</span>
                   <span style={{
                     marginLeft: 6, fontSize: 10, color: "var(--text-tertiary)", fontWeight: 600,
-                  }}>(회사 몫은 트랙 A만)</span>
+                  }}>(회사 몫 = 트랙 A + 협력사 수수료)</span>
                 </Td>
                 <Td align="right"><NumCell n={totals.received} unit="건"/></Td>
                 {/* 2026-07-28 — 합계 줄에 취소 칸이 없어서 완료·회사몫이 한 칸씩 왼쪽으로 밀려 있었음. */}

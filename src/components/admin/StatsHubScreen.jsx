@@ -160,7 +160,7 @@ function PrincipalStatsTab({ t, apiTasks = [] }) {
         }
       }
     }
-    const _subRows = [...subIdx.names.values()].map(s => ({ code: `sub:${s.id}`, name: `${s.name} (협력사)`, color: "#8B5CF6" }));
+    const _subRows = [...subIdx.names.values()].map(s => ({ code: `sub:${s.id}`, name: `${s.name} · 협력사`, color: "#8B5CF6" }));
     const all = [...PRINCIPAL_ORDER, ..._subRows].map(p => ({
       ...p,
       received: received.get(p.code) || 0,

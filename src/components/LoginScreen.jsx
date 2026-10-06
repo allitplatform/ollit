@@ -326,7 +326,10 @@ function RoleSelectModal({ user, onSelect, onCancel }) {
                   )}
                 </div>
                 <div style={{ fontSize: 13, color: "#888", marginTop: 2 }}>
-                  {ROLE_LABELS[appRole] || appRole}
+                  {/* 협력사 소속은 "프로" 대신 "기사" / "협력사 관리자" */}
+                  {user.subcontractor && appRole === "engineer" ? `기사 · ${user.subcontractor.name || "협력사"}`
+                    : appRole === "sub_manager" ? `${user.subcontractor?.name || "협력사"} 관리자`
+                    : (ROLE_LABELS[appRole] || appRole)}
                 </div>
               </div>
             </button>

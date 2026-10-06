@@ -3084,7 +3084,7 @@ function SettlementInfo({ task }) {
           display: "flex", justifyContent: "space-between",
           alignItems: "center",
         }}>
-          <span style={{ fontSize: 11, color: "#FF1B8D", fontWeight: 700 }}>프로 수익</span>
+          <span style={{ fontSize: 11, color: "#FF1B8D", fontWeight: 700 }}>{(task.subcontractorId || task.subcontractor_id) ? "기사 수익" : "프로 수익"}</span>
           <span style={{ fontSize: 16, color: "#FF1B8D", fontWeight: 700, fontFamily: "inherit" }}>
             ₩{engineerNet.toLocaleString("ko-KR")}
           </span>

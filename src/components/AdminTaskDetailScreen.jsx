@@ -57,6 +57,10 @@ import { v14NormalizeTask } from "../utils/v14Task.js";
 import { formatWorkTypeLabel } from "../utils/receptionForm.js";
 import { fmtWon } from "../utils/money.js";
 import SubAssignSheet from "./SubAssignSheet.jsx";
+
+// 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (사장님 결정: 화면 폭에 꽉 찬 카드).
+//   여백을 다시 주고 싶으면 이 숫자 하나만 바꾸면 된다 (운영자·협력사 모드 공통).
+const DETAIL_GUTTER = 0;
 import { useSubcontractorIndex, subcontractorAssigneeLabel, adminAssignTaskToSubcontractor } from "../lib/subcontractorsDb.js";
 // 2026-06-17 — visit_only 되돌리기 다이얼로그 (Mig 138 unmark_visit_only RPC).
 import { UnmarkVisitOnlyDialog } from "./admin/UnmarkVisitOnlyDialog.jsx";
@@ -696,7 +700,7 @@ function MainCard({ task, onStatusChange }) {
   }
 
   return (
-    <div style={{ padding: "20px 20px 0" }}>
+    <div style={{ padding: `20px ${DETAIL_GUTTER}px 0` }}>
       <div style={{
         ...D1_CARD_STYLE,
         borderLeft: `4px solid ${sideColor}`,
@@ -1064,7 +1068,7 @@ function SubcontractorCard({ task, onChanged }) {
   return (
     <div style={{
       background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14,
-      padding: "12px 14px", margin: "0 0 12px",
+      padding: "12px 14px", margin: `0 ${DETAIL_GUTTER}px 12px`,
     }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
         <div style={{ minWidth: 0 }}>
@@ -1088,7 +1092,7 @@ function SubcontractorCard({ task, onChanged }) {
           )}
           <button
             type="button" disabled={busy}
-            onClick={() => run(null, "이 작업을 직영으로 되돌릴까요?\n협력사 직원 배정은 해제됩니다.")}
+            onClick={() => run(null, "이 작업을 직영으로 되돌릴까요?\n협력사 기사 배정은 해제됩니다.")}
             style={{
               padding: "8px 12px", borderRadius: 10, border: "1px solid var(--border)",
               background: "transparent", color: "var(--text-primary)", fontSize: 12, fontWeight: 700,
@@ -1163,7 +1167,7 @@ function SubFeeSplitCard({ task }) {
   return (
     <div style={{
       background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14,
-      padding: "12px 14px", margin: "0 0 12px",
+      padding: "12px 14px", margin: `0 ${DETAIL_GUTTER}px 12px`,
     }}>
       <div style={{ fontSize: 12, fontWeight: 800, color: "#8B5CF6", marginBottom: 6 }}>협력사 분배 · {name}</div>
       {quote > 0 && row("접수 견적 (부가세 제외)", won(quote))}
@@ -3047,7 +3051,7 @@ function PhotoSectionLabel({ count }) {
 }
 
 const photoCardStyle = {
-  margin: "0 20px 12px",
+  margin: `0 ${DETAIL_GUTTER}px 12px`,
   padding: 16,
   background: "var(--bg-elevated)",
   border: "1px solid var(--border)",
@@ -3083,7 +3087,7 @@ function CompletionNotice({ task, subMode = false }) {
 // 2026-06-03 — 품목별(부분) 취소 측측 추가 (onPartialCancel).
 function ExceptionActions({ expanded, onToggle, onVisitOnly, onCancel, onPartialCancel }) {
   return (
-    <div style={{ padding: "0 20px 24px" }}>
+    <div style={{ padding: `0 ${DETAIL_GUTTER}px 24px` }}>
       <div style={{
         ...D1_CARD_STYLE,
         padding: "10px 14px",
@@ -3266,7 +3270,7 @@ const iconBtnStyle = {
 //   · 측 카드 외부 wrapper: padding "0 20px" (측 catch 측 catch), marginBottom 측 catch 측 catch
 //   · 측 카드 내부: var(--bg-elevated), borderRadius 14, padding 16, marginBottom 12
 //   · 측 라벨: fontSize 12, fontWeight 700, color var(--text-secondary)
-const D1_OUTER_PAD = "0 20px";
+const D1_OUTER_PAD = `0 ${DETAIL_GUTTER}px`;
 const D1_CARD_STYLE = {
   background: "var(--bg-elevated)",
   border: "1px solid var(--border)",

@@ -91,6 +91,7 @@ import { getUsolnAdjustment as ovGetUsolnAdjustment } from "../lib/bookkeepingUs
 // 2026-06-12 — PC 셸 (1024px+). isPc true 일 때 Shell 함수가 AdminPcShell 로 wrap.
 import { useIsPc } from "../utils/useIsPc.js";
 // 2026-06-17 — PC 새 접수 폼 (Stage 2). 모바일은 기존 NewReceptionFormScreen 유지.
+import { usePerformer, PerformerChips, SubFeePreview, handOverToPerformer, friendlyFeeError, applianceLabel } from "../components/PerformerPicker.jsx";
 import { NewReceptionPcForm } from "../components/admin/NewReceptionPcForm.jsx";
 import { AdminPcShell } from "./AdminPcShell.jsx";
 import { AdminPcDashboard } from "./AdminPcDashboard.jsx";
@@ -10818,6 +10819,9 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
     if (errors.addItem) setErrors(prev => ({ ...prev, addItem: null }));
   }
 
+  // 2026-10-06 Mig 234 — 수행(직영 / 협력사). 원청과 별개 축.
+  const performerState = usePerformer((workItems[0] && workItems[0].workType) || form.workType);
+
   // V14 1F — 분배 미리보기 (관리자만 catch / 기사 X)
   // 메인 항목 (workItems[0]) + 견적 박힐 때마다 debounce 500ms → calculateFee API 호출
   // Step 2-B-2 — KA + 냉매충전 + "1way" 케이스는 시트 매칭용 appliance="1way 첫 대"로 호출
@@ -10986,6 +10990,12 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
         setSubmitting(false);
         setConfirmMode(false);   // 2026-07-24 — 🅐: 실패 사유는 폼에서 보여줌.
         return;
+      }
+      // 수행 = 협력사면 접수 직후 넘긴다 (운영자 상세의 [협력사로 넘기기] 와 같은 처리).
+      //   넘기기만 실패한 경우 접수는 남아 있으므로 알리고 계속 진행한다.
+      if (performerState.performer) {
+        const ho = await handOverToPerformer(res.taskId, performerState.performer);
+        if (!ho.ok) window.alert(`접수는 저장했지만 ${performerState.name}(으)로 넘기지 못했습니다.\n작업 상세에서 다시 넘겨 주세요.\n(${ho.error || "오류"})`);
       }
       // V14 형식 작업번호 (예: O260507-001) — 부모로 전달
       // Step 2-B-2 — 부모도 분리된 workItems 받도록 (시트와 일관성)
@@ -11239,6 +11249,13 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
           </div>
         </FormSection>
 
+        {/* 1-b. 수행 — 일을 하는 곳 (직영 / 협력사). 등록된 협력사가 없으면 그리지 않는다 */}
+        {performerState.subs.length > 0 && (
+          <FormSection t={t} icon="🛠️" label="수행">
+            <PerformerChips state={performerState} colors={{ border: t.border, text: t.text, muted: t.textMuted }}/>
+          </FormSection>
+        )}
+
         {/* 2. 고객 정보 — 이름 선택 (자동 생성) */}
         <FormSection t={t} icon="👤" label="고객 정보" required error={errors.phone}>
           <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
@@ -11308,7 +11325,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
                 }}>
                   <span className="mono" style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, minWidth: 20 }}>#{idx + 1}</span>
                   <span style={{ fontSize: 12, fontWeight: 800, color: t.text, flex: 1 }}>
-                    {item.workType} · {item.appliance || "—"} <span className="mono" style={{ color: t.accent }}>×{item.qty || 1}</span>
+                    {item.workType} · {applianceLabel(item.appliance)} <span className="mono" style={{ color: t.accent }}>×{item.qty || 1}</span>
                   </span>
                   <button onClick={() => removeWorkItem(idx)} style={{
                     width: 26, height: 26,
@@ -11577,14 +11594,17 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
                 {feeLoading && <span style={{ marginLeft: "auto", color: t.textMuted, fontWeight: 600 }}>계산 중...</span>}
               </div>
 
-              {feeError && (
-                <div style={{ fontSize: 11, color: t.danger, fontWeight: 600 }}>
-                  ⚠ {feeError}
+              {performerState.performer && (
+                <SubFeePreview state={performerState} estimate={form.estimateTotal} colors={{ text: t.text, muted: t.textMuted }}/>
+              )}
+              {!performerState.performer && feeError && (
+                <div style={{ fontSize: 11, color: t.danger, fontWeight: 600, lineHeight: 1.5 }}>
+                  ⚠ {friendlyFeeError(feeError)}
                 </div>
               )}
 
               {/* 2026-05-16 Phase 4 — 유솔N skip 메시지 */}
-              {!feeError && feePreview && feePreview.skip && (
+              {!performerState.performer && !feeError && feePreview && feePreview.skip && (
                 <div style={{
                   fontSize: 11, color: t.textSecondary, fontWeight: 600,
                   padding: "8px 10px", background: t.bgInset || "rgba(0,0,0,0.04)",
@@ -11598,7 +11618,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
                 </div>
               )}
 
-              {!feeError && feePreview && feePreview.fee && (
+              {!performerState.performer && !feeError && feePreview && feePreview.fee && (
                 <>
                   <div style={{
                     fontSize: 11, color: t.textSecondary, fontWeight: 600,

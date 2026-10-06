@@ -122,7 +122,7 @@ export function SubcontractorAdminScreen({ onBack }) {
       {!editing && (
         <>
           <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6, marginBottom: 14 }}>
-            협력사는 올데이케어가 일을 맡기는 회사입니다. 직원 소속은 기사 편집 화면의 "소속 협력사"에서 정합니다.
+            협력사는 올데이케어가 일을 맡기는 회사입니다. 기사 소속은 기사 편집 화면의 "소속 협력사"에서 정합니다.
           </div>
           {loading && <div style={{ fontSize: 14, color: "var(--text-secondary)", padding: "30px 0", textAlign: "center" }}>불러오는 중…</div>}
           {error && <div style={{ ...card, color: "#E5484D", fontWeight: 700, lineHeight: 1.5 }}>{error}</div>}
@@ -138,7 +138,7 @@ export function SubcontractorAdminScreen({ onBack }) {
                     {r.active === false && <span style={{ marginLeft: 8, fontSize: 11, color: "#E5484D" }}>사용 중지</span>}
                   </div>
                   <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 4 }}>
-                    관리자 {r.manager_count || 0}명 · 직원 {r.staff_count || 0}명 · 코드 {r.code}
+                    관리자 {r.manager_count || 0}명 · 기사 {r.staff_count || 0}명 · 코드 {r.code}
                   </div>
                 </div>
                 <button type="button" onClick={() => openEdit(r)} style={ghost}>수정</button>

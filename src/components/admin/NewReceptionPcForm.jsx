@@ -32,6 +32,7 @@ import { lookupRate, autoGenerateCustomer } from "../principal/NewReceptionScree
 import { calculateCommissionMultiRpc } from "../../lib/commissionPoliciesDb.js";
 // 2026-06-17 — 실제 DB INSERT (모바일 폼과 동일 어댑터). 이전엔 호출 누락 사고 (in-memory only).
 import { createTaskAdapter as apiCreateTask } from "../../data/tasksDb.js";
+import { usePerformer, PerformerChips, SubFeePreview, handOverToPerformer, friendlyFeeError, applianceLabel } from "../PerformerPicker.jsx";
 // 2026-06-17 Phase 2 — 원청별 붙여넣기 파서 (KA/crikrin 주문 텍스트).
 import { parsePartnerPaste, APPLIANCE_CODE_TO_LABEL, extractRegion } from "../../utils/partnerPasteParser.js";
 // 2026-07-15 — 도로명·동 사전 fallback + 지역 수동 선택 목록
@@ -183,6 +184,9 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
     setAutoEstimateValue(total);
     setForm(prev => prev.estimateTotal === total ? prev : { ...prev, estimateTotal: total });
   }, [form.principal, workItems, quoteRates, estimateTouched, priceTBD]);
+
+  // 2026-10-06 Mig 234 — 수행(직영 / 협력사). 원청과 별개 축.
+  const performerState = usePerformer((workItems[0] && workItems[0].workType) || form.workType);
 
   // ── 분배 미리보기 (유솔N 제외, debounce 500ms) ──
   useEffect(() => {
@@ -436,6 +440,12 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
         setSubmitting(false);
         return;
       }
+      // 수행 = 협력사면 접수 직후 넘긴다 (운영자 상세의 [협력사로 넘기기] 와 같은 처리).
+      //   넘기기만 실패한 경우 접수는 남아 있으므로 알리고 계속 진행한다.
+      if (performerState.performer) {
+        const ho = await handOverToPerformer(res.taskId, performerState.performer);
+        if (!ho.ok) window.alert(`접수는 저장했지만 ${performerState.name}(으)로 넘기지 못했습니다.\n작업 상세에서 다시 넘겨 주세요.\n(${ho.error || "오류"})`);
+      }
       onSubmit && onSubmit({
         ...form,
         customer:      finalCustomer,
@@ -523,6 +533,13 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
               })}
             </div>
           </Card>
+
+          {/* 수행 — 일을 하는 곳 (직영 / 협력사). 등록된 협력사가 없으면 카드 자체를 그리지 않는다 */}
+          {performerState.subs.length > 0 && (
+            <Card t={t} title="수행">
+              <PerformerChips state={performerState} colors={{ border: t.border, text: t.text, muted: t.textMuted }}/>
+            </Card>
+          )}
 
           {/* 연락처 + 고객명 (2열) */}
           <Card t={t} title="고객 정보" error={errors.phone || errors.address}>
@@ -790,7 +807,11 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
           </Card>
 
           {/* 분배 미리보기 */}
-          {form.principal === "유솔홈케어 N" ? (
+          {performerState.performer ? (
+            <Card t={t} title={`분배 미리보기 (협력사 · ${performerState.name})`}>
+              <SubFeePreview state={performerState} estimate={priceTBD ? 0 : form.estimateTotal} colors={{ text: t.text, muted: t.textMuted }}/>
+            </Card>
+          ) : form.principal === "유솔홈케어 N" ? (
             <Card t={t} title="분배 미리보기">
               <div style={{ fontSize: 12, color: t.textMuted, fontWeight: 600 }}>
                 유솔N 은 네이버 정산 (별도 화면 — 미리보기 생략).
@@ -809,7 +830,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
               <div style={{ fontSize: 12, color: t.textMuted }}>계산 중...</div>
             </Card>
           ) : feeError ? (
-            <Card t={t} title="분배 미리보기" error={feeError}/>
+            <Card t={t} title="분배 미리보기" error={friendlyFeeError(feeError)}/>
           ) : null}
         </div>
       </div>
@@ -997,7 +1018,7 @@ function WorkItemsTable({ t, items, onRemove, onUpdate }) {
           fontSize: 12, color: t.text,
         }}>
           <span style={{ fontWeight: 700 }}>{it.workType}</span>
-          <span>{it.appliance || <em style={{ color: t.danger || "#FF3D5A" }}>(기종 누락)</em>}</span>
+          <span>{it.appliance ? applianceLabel(it.appliance) : <em style={{ color: t.danger || "#FF3D5A" }}>(기종 누락)</em>}</span>
           <input type="number" min="1" value={it.qty}
             onChange={(e) => onUpdate(idx, { qty: Math.max(1, parseInt(e.target.value || "1", 10)) })}
             style={{

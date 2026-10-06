@@ -20,6 +20,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   subStaffListSettlement, subListDailySettlements, subReportDailyFee,
   adminListSubDailyFees, adminConfirmSubDailyFee, adminCancelSubDailyReport, adminCloseSubCarryRefund,
+  subStaffListRemits, subStaffReportRemit, subManagerListStaffRemits, subManagerConfirmStaffRemit, subManagerCancelStaffRemit,
 } from "../lib/subcontractorsDb.js";
 import { fmtWon, fmtWonSigned } from "../utils/money.js";
 
@@ -37,6 +38,9 @@ const STATUS_STYLE = {
   "이월":      { fg: NEG,                      bg: "rgba(59,130,246,0.12)" },
   "보낼 금액 없음": { fg: "var(--text-secondary)", bg: "var(--bg-inset)" },
   "환급 완료": { fg: "var(--success, #10B981)", bg: "rgba(16,185,129,0.12)" },
+  // 기사 → 협력사 보고 (Mig 234)
+  "받음":      { fg: "var(--success, #10B981)", bg: "rgba(16,185,129,0.12)" },
+  "미보고":    { fg: "var(--danger, #EF4444)",  bg: "rgba(239,68,68,0.12)" },
   "보고됨":    { fg: "var(--accent)",          bg: "var(--accent-bg)" },
   "확인 완료": { fg: "var(--success, #10B981)", bg: "rgba(16,185,129,0.12)" },
   "차액":      { fg: "var(--danger, #EF4444)",  bg: "rgba(239,68,68,0.12)" },
@@ -225,7 +229,7 @@ function groupByEngineer(lines) {
   for (const l of lines || []) {
     if (l.kind !== "base") continue;
     const key = l.engineer_id || "none";
-    if (!m.has(key)) m.set(key, { name: l.engineer_name || "기사 미정", count: 0, received: 0, fee: 0, net: 0, vat: 0 });
+    if (!m.has(key)) m.set(key, { id: l.engineer_id || null, name: l.engineer_name || "기사 미정", count: 0, received: 0, fee: 0, net: 0, vat: 0 });
     const g = m.get(key);
     g.count += 1;
     g.received += Number(l.received) || 0;
@@ -239,9 +243,18 @@ function groupByEngineer(lines) {
 // ─────────────────────────────────────────────────────────────
 // 1) 협력사 기사 — 정산 탭 (보기 전용)
 // ─────────────────────────────────────────────────────────────
-export function SubStaffSettleTab({ user }) {
+export function SubStaffSettleTab({ user, onBack }) {
   const fn = useCallback(() => subStaffListSettlement(), []);
-  const { data, loading, error, load } = useLoader(fn);
+  const { data, loading, error, load: loadSettle } = useLoader(fn);
+  // 협력사에 보낼 금액 (Mig 234) — 날짜별 1탭 보고. 읽지 못하면 이 카드만 빠진다.
+  const [remits, setRemits] = useState([]);
+  const [sending, setSending] = useState(false);
+  const loadRemits = useCallback(async () => {
+    const res = await subStaffListRemits();
+    if (res.ok) setRemits(Array.isArray(res.days) ? res.days : []);
+  }, []);
+  useEffect(() => { loadRemits(); }, [loadRemits]);
+  const load = useCallback(() => { loadSettle(); loadRemits(); }, [loadSettle, loadRemits]);
   const days = ((data && data.days) || []).map(fixDay);
   const [open, setOpen] = useState(null);
   const subName = user?.subcontractor?.name || "협력사";
@@ -262,11 +275,29 @@ export function SubStaffSettleTab({ user }) {
     return { week, month, weekCnt, monthCnt };
   }, [days]);
 
+  // 보여 줄 줄: 열린 날짜 전부 + 닫힌 날짜는 최근 7개
+  const remitRows = useMemo(() => {
+    const open = remits.filter(r => !r.locked);
+    const closed = remits.filter(r => r.locked).slice(0, 7);
+    return [...open, ...closed].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  }, [remits]);
+
+  async function sendRemit(r) {
+    if (sending) return;
+    if (!window.confirm(`${dayLabel(r.date)}\n${subName}에 ${fmtWon(r.due)}을 보냈습니까?\n보고하면 이 날짜는 잠깁니다.`)) return;
+    setSending(true);
+    const res = await subStaffReportRemit(r.date);
+    setSending(false);
+    if (!res.ok) { window.alert(res.error || "보고하지 못했습니다."); return; }
+    loadRemits();
+  }
+
   return (
     <div style={S.page}>
       <TitleBar
         title="내 정산" onReload={load} loading={loading}
-        help={`내 수익 = 공급가 − 수수료. 수수료는 ${subName}에 내고, ${subName}가 올데이케어에 모아서 보냅니다. 부가세를 포함해 받은 건의 부가세는 수익에 넣지 않고 따로 보여 줍니다(신고·납부용). 이 화면은 금액 확인용입니다.`}
+        left={onBack ? <button type="button" onClick={onBack} style={S.btnSub}>← 뒤로</button> : null}
+        help={`내 수익 = 공급가 − 수수료. 수수료는 ${subName}에 내고, ${subName}가 올데이케어에 모아서 보냅니다. 날짜별로 ${subName}에 보낸 뒤 [${subName}에 보냄]을 눌러 주세요. 부가세를 포함해 받은 건의 부가세는 수익에 넣지 않고 따로 보여 줍니다(신고·납부용).`}
       />
       <HeroCard
         label="이번 주 내 수익" value={sums.week}
@@ -274,6 +305,37 @@ export function SubStaffSettleTab({ user }) {
       />
       {error && <ErrorBox text={error}/>}
       {!error && !loading && days.length === 0 && <Empty text="최근 한 달 완료한 작업이 없습니다."/>}
+
+      {/* 협력사에 보낼 금액 — 아직 닫히지 않은 날짜 전부 + 최근 닫힌 날짜 몇 개 */}
+      {remitRows.length > 0 && (
+        <div style={S.card}>
+          <div style={S.label}>{subName}에 보낼 금액</div>
+          {remitRows.map(r => {
+            const canSend = r.status === "대기" || r.status === "미보고";
+            return (
+              <div key={r.date} style={{ padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                  <span style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>{dayLabel(r.date)}</span>
+                  <span style={{ fontSize: 13, minWidth: 90, textAlign: "right" }}><Num value={r.due} strong/></span>
+                  <Badge status={r.status}/>
+                </div>
+                <div style={{ ...S.small, marginTop: 4 }}>
+                  {r.task_count}건 · 수수료 {fmtWon(r.fee)}
+                  {Number(r.cut) > 0 ? ` + ${subName} 회사 몫 ${fmtWon(r.cut)}` : ""}
+                  {Number(r.carry_in) !== 0 ? ` · 지난 날짜 반영 ${fmtWonSigned(r.carry_in)}` : ""}
+                  {r.status === "이월" && r.carried_to ? ` · ${dayLabel(r.carried_to)} 보고에 포함` : ""}
+                  {r.status === "이월" && !r.carried_to ? " · 다음 보낼 날에 차감" : ""}
+                </div>
+                {canSend && (
+                  <button type="button" disabled={sending} onClick={() => sendRemit(r)} style={{ ...S.btnMain, width: "100%", marginTop: 10 }}>
+                    {subName}에 보냄 · {fmtWon(r.due)}
+                  </button>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
 
       {days.length > 0 && (
         <div style={S.card}>
@@ -318,17 +380,41 @@ export function SubStaffSettleTab({ user }) {
 // ─────────────────────────────────────────────────────────────
 // 날짜 카드 본문 (관리자·운영자 공용): 기사별 표 또는 작업별 표
 // ─────────────────────────────────────────────────────────────
-function DayTable({ day, mode, onOpenTask }) {
+function DayTable({ day, mode, onOpenTask, remits, onReceive, onCancelSend, busy }) {
   const lines = day.lines || [];
   const adjust = lines.filter(l => l.kind !== "base" || l.origin_date);
   if (mode === "engineer") {
     const engs = groupByEngineer(lines.filter(l => !l.origin_date));
-    const rows = engs.map(g => ({
-      name: g.name,
-      count: <span className="mono">{g.count}</span>,
-      fee: <Num value={g.fee}/>,
-      net: <Num value={g.net}/>,
-    }));
+    // remits: Map("날짜|기사id" → 그 기사의 그날 보고 상태) — 협력사 관리자 화면에서만 넘어온다 (Mig 234)
+    const rows = engs.map(g => {
+      const rm = remits ? remits.get(`${day.date}|${g.id}`) : null;
+      return {
+        name: g.name,
+        count: <span className="mono">{g.count}</span>,
+        fee: <Num value={g.fee}/>,
+        net: <Num value={g.net}/>,
+        state: !rm ? "" : (
+          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, justifyContent: "flex-end", flexWrap: "wrap" }}>
+            <Badge status={rm.status}/>
+            {rm.status === "보고됨" && onReceive && (
+              <button type="button" disabled={busy} onClick={() => onReceive(g, rm, true)} style={{ ...S.btnLink, fontSize: 11 }}>
+                {fmtWon(rm.amount)} 받음 확인
+              </button>
+            )}
+            {rm.status === "보고됨" && onCancelSend && (
+              <button type="button" disabled={busy} onClick={() => onCancelSend(g, rm)} style={{ ...S.btnLink, fontSize: 11, color: "var(--danger, #EF4444)" }}>
+                보냄 취소
+              </button>
+            )}
+            {rm.status === "받음" && onReceive && (
+              <button type="button" disabled={busy} onClick={() => onReceive(g, rm, false)} style={{ ...S.btnLink, fontSize: 11, color: "var(--text-secondary)" }}>
+                받음 취소
+              </button>
+            )}
+          </span>
+        ),
+      };
+    });
     for (const l of adjust) {
       rows.push({
         name: <><Tag>{l.kind === "base" ? "이월" : "조정"}</Tag>{l.customer_name}{l.origin_date ? ` (${dayLabel(l.origin_date)})` : ""}</>,
@@ -345,6 +431,7 @@ function DayTable({ day, mode, onOpenTask }) {
         columns={[
           { key: "name", label: "기사" }, { key: "count", label: "건수", align: "right" },
           { key: "fee", label: "걷을 수수료", align: "right" }, { key: "net", label: "기사 수익", align: "right" },
+          ...(remits ? [{ key: "state", label: "기사 보고", align: "right" }] : []),
         ]}
         rows={rows}
         foot={{ name: "합계", count: <span className="mono">{day.task_count}</span>, fee: <Num value={day.fee} strong/>, net: "" }}
@@ -406,6 +493,51 @@ export function SubManagerSettleView() {
 
   const canReport = (d) => !d.locked && Number(d.fee) > 0;
 
+  // 기사 → 협력사 보고 상태 (Mig 234). 읽지 못해도 기존 화면은 그대로 동작한다.
+  const [staffRemits, setStaffRemits] = useState([]);
+  const loadRemits = useCallback(async () => {
+    const res = await subManagerListStaffRemits();
+    if (res.ok) setStaffRemits(Array.isArray(res.staff) ? res.staff : []);
+  }, []);
+  useEffect(() => { loadRemits(); }, [loadRemits]);
+  const remitMap = useMemo(() => {
+    const m = new Map();
+    for (const st of staffRemits) for (const d of (st.days || [])) m.set(`${d.date}|${st.engineer_id}`, { ...d, engineer_id: st.engineer_id, name: st.name });
+    return m;
+  }, [staffRemits]);
+  // 그 날짜에 아직 보내지 않은 기사 수 (대기·미보고)
+  const notSent = (date) => {
+    let n = 0;
+    for (const st of staffRemits) {
+      const d = (st.days || []).find(x => x.date === date);
+      if (d && (d.status === "대기" || d.status === "미보고")) n += 1;
+    }
+    return n;
+  };
+  async function receive(g, rm, confirm) {
+    if (busy) return;
+    if (!window.confirm(confirm
+      ? `${g.name} · ${dayLabel(rm.date)}\n${fmtWon(rm.amount)} 받은 것으로 확인할까요?`
+      : `${g.name} · ${dayLabel(rm.date)} 받음 확인을 취소할까요?`)) return;
+    setBusy(true);
+    const res = await subManagerConfirmStaffRemit(g.id, rm.date, confirm);
+    setBusy(false);
+    if (!res.ok) { window.alert(res.error || "처리하지 못했습니다."); return; }
+    loadRemits();
+  }
+  // 보냄 취소 (Mig 234) — 기사가 잘못 누른 [보냄]을 다시 대기로. 사유 필수, 서버가 이력에 남긴다.
+  async function cancelSend(g, rm) {
+    if (busy) return;
+    const reason = window.prompt(`${g.name} · ${dayLabel(rm.date)} 보냄 보고(${fmtWon(rm.amount)})를 취소합니다.\n올데이케어 정산에는 영향이 없습니다.\n\n취소 사유를 입력해 주세요.`);
+    if (reason == null) return;
+    if (!String(reason).trim()) { window.alert("취소 사유를 입력해 주세요."); return; }
+    setBusy(true);
+    const res = await subManagerCancelStaffRemit(g.id, rm.date, String(reason).trim());
+    setBusy(false);
+    if (!res.ok) { window.alert(res.error || "취소하지 못했습니다."); return; }
+    loadRemits();
+  }
+
   async function submit() {
     if (busy || !reporting) return;
     const n = Number(String(amount).replace(/[^0-9]/g, ""));
@@ -456,7 +588,12 @@ export function SubManagerSettleView() {
               {d.diff != null && Number(d.diff) !== 0 ? ` · 차액 ${fmtWonSigned(d.diff)}` : ""}
             </span>
           </div>
-          <DayTable day={d} mode="engineer"/>
+          <DayTable day={d} mode="engineer" remits={remitMap} onReceive={receive} onCancelSend={cancelSend} busy={busy}/>
+          {notSent(d.date) > 0 && (
+            <div style={{ ...S.small, color: "var(--danger, #EF4444)", fontWeight: 700, marginTop: 8 }}>
+              기사 미보고 {notSent(d.date)}명 — 기사에게 받기 전이어도 올데이케어 송금 보고는 할 수 있습니다.
+            </div>
+          )}
           {canReport(d) && (
             <button type="button" onClick={() => openReport(d)} style={{ ...S.btnMain, width: "100%", marginTop: 12 }}>송금 보고</button>
           )}
@@ -469,7 +606,7 @@ export function SubManagerSettleView() {
           {past.map(d => (
             <div key={d.date}>
               <PastLine left={dayLabel(d.date)} count={d.task_count} amount={d.fee} status={d.status} onClick={() => setPastOpen(pastOpen === d.date ? null : d.date)}/>
-              {pastOpen === d.date && <DayTable day={d} mode="engineer"/>}
+              {pastOpen === d.date && <DayTable day={d} mode="engineer" remits={remitMap} onReceive={receive} onCancelSend={cancelSend} busy={busy}/>}
             </div>
           ))}
         </div>
