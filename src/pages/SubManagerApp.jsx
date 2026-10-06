@@ -692,10 +692,11 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
                   display: "flex", alignItems: "center", gap: 8, padding: "11px 12px 11px 0", marginBottom: 6, overflow: "hidden",
                   cursor: "pointer", minHeight: 44, boxSizing: "border-box",
                   ...(cancelled ? { opacity: 0.6, filter: "grayscale(1)" } : {}),
+                  ...(closed && !cancelled ? { opacity: 0.7 } : {}),           // 완료 = 살짝 흐리게
                 }}>
                   <span style={{ width: 4, alignSelf: "stretch", borderRadius: "0 3px 3px 0", background: cat.color, flex: "none" }}/>
-                  <span style={{ width: 44, flex: "none", fontSize: 14, fontWeight: 800, color: "var(--accent, #FF1B8D)" }}>{timeShort(t)}</span>
-                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                  <span style={{ width: 44, flex: "none", fontSize: 14, fontWeight: 800, color: closed ? "var(--text-secondary)" : "var(--accent, #FF1B8D)" }}>{timeShort(t)}</span>
+                  <span style={{ flex: 1, minWidth: 0, fontSize: 14, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", color: closed ? "var(--text-secondary)" : "var(--text-primary)" }}>
                     <span aria-hidden="true" title={cat.label}>{cat.icon}</span> {t.customer_name}
                     {townOf(t) && <small style={{ fontSize: 12, fontWeight: 500, color: "var(--text-secondary)" }}> · {townOf(t)}</small>}
                   </span>

@@ -167,6 +167,7 @@ export function SubPcTimeline({ onOpen, refreshKey = 0, preset = null }) {
                             fontSize: 12, fontWeight: 700, textAlign: "left", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                             color: cancelled ? "var(--text-secondary)" : (cat.textOnColor || "#fff"),
                             background: bg,
+                            opacity: done ? 0.4 : 1,          // 완료 = 종목 색 그대로 + 반투명 + ✓ (진행·확정·배정은 진하게)
                             textDecoration: cancelled ? "line-through" : "none",
                           }}>
                           {done ? "✓ " : ""}{t.customer_name}{townOf(t) ? ` · ${townOf(t)}` : ""}
@@ -186,7 +187,7 @@ export function SubPcTimeline({ onOpen, refreshKey = 0, preset = null }) {
             <span style={{ width: 10, height: 10, borderRadius: 3, background: m.color }}/>{m.icon} {m.label}
           </span>
         ))}
-        <span>✓ 완료 · 줄무늬 = 취소 · 분홍 세로선 = 지금 · 막대 길이 = 서비스별 기본 소요 시간(표시용) · 겹친 구간은 연하게</span>
+        <span>✓ 연한 막대 = 완료 · 줄무늬 = 취소 · 분홍 세로선 = 지금 · 막대 길이 = 서비스별 기본 소요 시간(표시용) · 겹친 구간은 연하게</span>
       </div>
     </div>
   );
