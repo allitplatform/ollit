@@ -21,7 +21,7 @@ import {
   subStaffListSettlement, subListDailySettlements, subReportDailyFee,
   adminListSubDailyFees, adminConfirmSubDailyFee, adminCancelSubDailyReport, adminCloseSubCarryRefund,
   subStaffListRemits, subStaffReportRemit, subManagerListStaffRemits, subManagerConfirmStaffRemit, subManagerCancelStaffRemit,
-  subGetCompanyAccount,
+  subGetCompanyAccount, subStaffGetPayAccount,
 } from "../lib/subcontractorsDb.js";
 import BottomSheet, { SheetButtons } from "./BottomSheet.jsx";
 import { AccountLine, copyText } from "./SubManagerMe.jsx";
@@ -96,15 +96,16 @@ export function pendingStaffRemits(staffList) {
 }
 
 // 보낼 계좌 상자 (Mig 239).
-//   who = "staff"  : 기사 화면 — 소속 협력사의 회사 계좌 (복사할 때 전체 번호를 받아 오고 열람 기록이 남는다)
+//   who = "staff"  : 기사 화면 — 소속 협력사의 회사 계좌 (보낼 계좌이므로 전체 번호, 열람 기록 없음 — Mig 240)
 //   who = "manager": 관리자 화면 — 올데이케어로 보낼 곳 (운영자가 설정한 계좌, 협력사는 보기만)
 function PayToBox({ who, subName }) {
   const [data, setData] = useState(null);
   useEffect(() => {
     let alive = true;
-    subGetCompanyAccount(false).then(res => { if (alive && res.ok) setData(res); });
+    (who === "manager" ? subGetCompanyAccount(false) : subStaffGetPayAccount())
+      .then(res => { if (alive && res.ok) setData(res); });
     return () => { alive = false; };
-  }, []);
+  }, [who]);
   if (!data) return null;
   if (who === "manager") {
     const hq = data.hq_account;
@@ -122,11 +123,9 @@ function PayToBox({ who, subName }) {
     <div style={S.card}>
       <div style={S.label}>보낼 계좌 · {subName}</div>
       {acc
-        ? <AccountLine bank={acc.bank} number={acc.number_masked} holder={acc.holder} onCopy={async () => {
-            const res = await subGetCompanyAccount(true);
-            const num = res.ok && res.account ? res.account.number : "";
-            const ok = num ? await copyText(num) : false;
-            window.alert(ok ? `계좌번호를 복사했습니다.\n${acc.bank || ""} ${num}` : (num ? `복사하지 못했습니다. 직접 입력해 주세요.\n${acc.bank || ""} ${num}` : "계좌번호를 불러오지 못했습니다."));
+        ? <AccountLine bank={acc.bank} number={acc.number} holder={acc.holder} onCopy={async () => {
+            const ok = await copyText(acc.number);
+            window.alert(ok ? "계좌번호를 복사했습니다." : "복사하지 못했습니다. 직접 입력해 주세요.");
           }}/>
         : <div style={S.small}>{subName} 회사 계좌가 아직 등록되지 않았습니다. 관리자에게 문의해 주세요.</div>}
     </div>

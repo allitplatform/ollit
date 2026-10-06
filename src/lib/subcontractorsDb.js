@@ -150,6 +150,8 @@ export const subGetCompanyAccount = (reveal = false, subcontractorId = null) =>
   _call("sub_get_company_account", { p_reveal: !!reveal, p_subcontractor_id: subcontractorId });
 export const subSetCompanyAccount = (bank, account, holder) =>
   _call("sub_set_company_account", { p_bank: bank, p_account: account, p_holder: holder });
+// 기사용 "보낼 계좌" (Mig 240): 전체 번호, 열람 기록 없음. 가린 번호 + 열람 기록은 위 subGetCompanyAccount (관리자·운영자).
+export const subStaffGetPayAccount = () => _call("sub_staff_get_pay_account", {});
 export const subGetNotifyPrefs = () => _call("sub_get_notify_prefs", {});
 export const subSetNotifyPrefs = (prefs) => _call("sub_set_notify_prefs", { p_prefs: prefs || {} });
 

@@ -133,8 +133,8 @@ const KINDS = [
   { key: "new_task",      label: "새 작업 들어옴",        sub: "미배정 작업이 생기면" },
   { key: "staff_remit",   label: "기사 송금 보고",        sub: "기사가 [보냄] 을 누르면" },
   { key: "fee_reminder",  label: "오늘 보낼 수수료",      sub: "매일 정한 시각에 (보낼 금액이 있을 때만)" },
-  { key: "cancel_change", label: "작업 취소 · 일정 변경", sub: "발송 준비 중 — 설정만 저장됩니다", soon: true },
-  { key: "task_done",     label: "기사 작업 완료",        sub: "발송 준비 중 — 설정만 저장됩니다", soon: true },
+  { key: "cancel_change", label: "작업 취소 · 일정 변경", sub: "협력사 작업이 취소되거나 일정이 바뀌면" },
+  { key: "task_done",     label: "기사 작업 완료",        sub: "기사가 작업을 완료하면" },
 ];
 function NotifyCard() {
   const [prefs, setPrefs] = useState(null);
@@ -176,7 +176,7 @@ function NotifyCard() {
       )}
       {error && <div style={{ ...small, color: "var(--danger, #E5484D)" }}>{error}</div>}
       {prefs && KINDS.map(k => (
-        <div key={k.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid var(--border)", opacity: k.soon ? 0.6 : 1 }}>
+        <div key={k.key} style={{ display: "flex", alignItems: "center", gap: 10, padding: "9px 0", borderTop: "1px solid var(--border)" }}>
           <div style={{ flex: 1, minWidth: 0 }}>
             <div style={{ fontSize: 14, fontWeight: 700 }}>{k.label}</div>
             <div style={small}>{k.sub}</div>
