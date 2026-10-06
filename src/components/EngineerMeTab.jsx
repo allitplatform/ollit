@@ -20,8 +20,11 @@ import { loadFontSize, applyFontSize } from "../utils/fontSize.js";
 import { REGISTERED_USERS } from "../shared/users.js";
 import { loadEngineers as loadSheetEngineers } from "../data/engineers.js";
 import { EngineerBusinessInfoCard } from "./EngineerBusinessInfoCard.jsx";
+// 2026-10-06 — 설정 카드 부품을 공용 파일로 (협력사 관리자 내 정보와 같은 것을 쓴다)
+import { meCardStyle, SectionHeader, SettingRow, Toggle, FontSizeButton, Chevron, LogoutButton } from "./MeParts.jsx";
+import { ME_APP_VERSION } from "../lib/meConstants.js";
 
-const APP_VERSION = "v1.0 · Phase 1A";
+const APP_VERSION = ME_APP_VERSION;
 
 // V14 — 카카오 채널 URL (사장님 채널 받으면 적용)
 const KAKAO_CHANNEL_URL = ""; // ⚠️ 사장님 카톡 채널/오픈채팅 URL
@@ -235,12 +238,7 @@ export function EngineerMeTab({
   }
 
   // 카드 공통 스타일
-  const cardStyle = {
-    background: isDark ? "#1C1C1E" : "#FFFFFF",
-    border: `1px solid ${isDark ? "#2A2A2A" : "#EFE9E0"}`,
-    borderRadius: 18,
-    marginBottom: 14,
-  };
+  const cardStyle = meCardStyle(isDark);
 
   const initial = (eng.name || "?").charAt(0);
   // 협력사 소속은 "기사 · 협력사 이름" (올데이케어 직영 표기 "프로 · 올데이케어" 를 쓰지 않는다)
@@ -577,21 +575,7 @@ export function EngineerMeTab({
         </div>
 
         {/* 로그아웃 */}
-        <button onClick={handleLogoutClick} style={{
-          width: "100%",
-          background: isDark ? "transparent" : "#FFFFFF",
-          border: "1.5px solid #FF3B5C",
-          color: isDark ? "#FF6B85" : "#FF3B5C",
-          padding: 16,
-          borderRadius: 14,
-          fontSize: 15, fontWeight: 700,
-          cursor: "pointer",
-          fontFamily: "inherit",
-          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
-          marginTop: 4,
-        }}>
-          🚪 로그아웃
-        </button>
+        <LogoutButton isDark={isDark} onClick={handleLogoutClick}/>
       </div>
 
       <EngineerBottomNav active="me" onChange={onTabChange} unreadCount={unreadCount}/>
@@ -668,95 +652,6 @@ export function EngineerMeTab({
         );
       })()}
     </div>
-  );
-}
-
-function SectionHeader({ isDark, children }) {
-  return (
-    <div style={{
-      fontSize: 11,
-      color: isDark ? "#999" : "#6B6359",
-      fontWeight: 700,
-      letterSpacing: 0.3,
-      padding: "12px 18px 6px",
-    }}>
-      {children}
-    </div>
-  );
-}
-
-function SettingRow({ icon, label, rightSlot, onClick, isLast, isDark }) {
-  return (
-    <div onClick={onClick} style={{
-      padding: "14px 18px",
-      display: "flex",
-      justifyContent: "space-between",
-      alignItems: "center",
-      borderBottom: isLast ? "none" : `0.5px solid ${isDark ? "#2A2A2A" : "#F5F2ED"}`,
-      cursor: onClick ? "pointer" : "default",
-      gap: 12,
-    }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, minWidth: 0 }}>
-        <span style={{ fontSize: 18 }}>{icon}</span>
-        <span style={{
-          fontSize: 14,
-          color: isDark ? "#FAF8F5" : "#1A1A1A",
-          fontWeight: 600,
-        }}>
-          {label}
-        </span>
-      </div>
-      <div style={{ flexShrink: 0 }}>{rightSlot}</div>
-    </div>
-  );
-}
-
-function Toggle({ on, onChange }) {
-  return (
-    <div onClick={() => onChange(!on)} style={{
-      width: 44, height: 26,
-      background: on ? "#FF1B8D" : "#E5E0D6",
-      borderRadius: 999,
-      padding: 2,
-      display: "flex",
-      justifyContent: on ? "flex-end" : "flex-start",
-      boxSizing: "border-box",
-      cursor: "pointer",
-      transition: "background 0.2s",
-    }}>
-      <div style={{
-        width: 22, height: 22,
-        background: "#fff",
-        borderRadius: "50%",
-        boxShadow: "0 1px 3px rgba(0,0,0,0.2)",
-      }}/>
-    </div>
-  );
-}
-
-function FontSizeButton({ label, size, current, onChange, isDark }) {
-  const isActive = current === size;
-  const fontSize = size === "small" ? 12 : size === "large" ? 14 : 13;
-  return (
-    <button onClick={() => onChange(size)} style={{
-      background: isActive ? "#FF1B8D" : (isDark ? "transparent" : "#fff"),
-      border: isActive ? "1px solid #FF1B8D" : `1px solid ${isDark ? "#2A2A2A" : "#EFE9E0"}`,
-      color: isActive ? "#fff" : (isDark ? "#999" : "#555"),
-      padding: "5px 11px",
-      borderRadius: 8,
-      fontSize: fontSize,
-      fontWeight: 700,
-      cursor: "pointer",
-      fontFamily: "inherit",
-    }}>
-      {label}
-    </button>
-  );
-}
-
-function Chevron({ isDark }) {
-  return (
-    <span style={{ color: isDark ? "#555" : "#B0A99E", fontSize: 16 }}>›</span>
   );
 }
 

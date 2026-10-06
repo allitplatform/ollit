@@ -1,5 +1,6 @@
 -- ============================================================================
 -- 화이트코어 시험 작업 전부 정리 (작업 자체 + 정산 + 딸린 기록)
+-- ※ 2026-10-06 실행 완료 - 다시 쓰지 않습니다 (기록용으로만 보관).
 -- 작성 2026-10-06 · 실행은 사장님 · 선행: mig 225, 227, 228, 231, 233, 234
 --
 -- 사장님 결정: 실작업은 10/8 시작. 그 전에 만든 화이트코어 작업은 전부 시험 → 목록에서 완전히 없앤다.
@@ -71,8 +72,10 @@ BEGIN
   -- 대상 작업: 화이트코어 + 접수일(한국 시간) 이 기준일 이전
   SELECT COALESCE(array_agg(t.id), ARRAY[]::uuid[]) INTO v_ids
     FROM tasks t
-   WHERE t.subcontractor_id = v_sub
-     AND (COALESCE((to_jsonb(t) ->> 'created_at')::timestamptz, t.received_at) AT TIME ZONE 'Asia/Seoul')::date <= c_cut;
+   WHERE t.subcontractor_id = v_sub;
+  -- 2026-10-06 수정: 주방후드(화이트코어)는 아직 오픈 전이라 화이트코어 작업 전부가 시험 작업 (사장님 확인).
+  --   접수일 칸이 비어 있는 작업(A-261006-014)이 날짜 조건에서 빠져 안전장치가 멈췄던 문제 → 날짜 조건 제거.
+  --   반드시 실작업(10/8) 접수 전에 실행할 것.
 
   INSERT INTO _out
   SELECT '1 작업', t.task_no,
