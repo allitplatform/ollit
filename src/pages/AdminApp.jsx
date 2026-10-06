@@ -93,6 +93,7 @@ import { useIsPc } from "../utils/useIsPc.js";
 // 2026-06-17 — PC 새 접수 폼 (Stage 2). 모바일은 기존 NewReceptionFormScreen 유지.
 import { usePerformer, PerformerChips, SubFeePreview, handOverToPerformer, friendlyFeeError, applianceLabel } from "../components/PerformerPicker.jsx";
 import { getCategoryMeta } from "../lib/serviceCatalog.js";
+import SafeTopCover from "../components/SafeTopCover.jsx";
 import { NewReceptionPcForm } from "../components/admin/NewReceptionPcForm.jsx";
 import { AdminPcShell } from "./AdminPcShell.jsx";
 import { AdminPcDashboard } from "./AdminPcDashboard.jsx";
@@ -1448,6 +1449,8 @@ function Shell({ t, toasts, children, pcCtx }) {
   return (
     <div style={{ minHeight: "100vh", background: t.bg, color: t.text }}>
       {FontStyle}
+      {/* 2026-10-06 — 스크롤한 내용이 시계·배터리 줄 밑으로 비치지 않게 불투명 띠로 덮는다 */}
+      <SafeTopCover background={t.bg}/>
       <div style={{
         width: "100%",
         maxWidth: 480,

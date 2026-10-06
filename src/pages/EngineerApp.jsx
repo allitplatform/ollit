@@ -1,4 +1,5 @@
 import { SubStaffSettleTab } from "../components/SubSettlement.jsx";
+import SafeTopCover from "../components/SafeTopCover.jsx";
 import { getCategoryMeta } from "../lib/serviceCatalog.js";
 import { applianceQtyText, isCommonAppliance } from "../utils/workTypeKind.js";
 import { subStaffGetContacts } from "../lib/subcontractorsDb.js";
@@ -5280,6 +5281,8 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
 
   return (
     <div style={{ minHeight: "100vh", background: "var(--bg-primary)", paddingTop: "env(safe-area-inset-top, 12px)" }}>
+      {/* 2026-10-06 — 스크롤한 내용이 시계·배터리 줄 밑으로 비치지 않게 불투명 띠로 덮는다 */}
+      <SafeTopCover background="var(--bg-primary)"/>
       {/* Step 5-6 UX — 상단 sticky 박스 (다크/라이트/로그아웃) 제거 / "내 정보" 탭에 그대로 */}
       {/* Step 5-6 UX hotfix — paddingTop env(safe-area-inset-top, 12px) — 휴대폰 status bar 영역 보호 */}
 

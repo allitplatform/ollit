@@ -1,4 +1,4 @@
-import { SubManagerSettleView } from "../components/SubSettlement.jsx";
+import { SubManagerSettleView, pendingStaffRemits } from "../components/SubSettlement.jsx";
 // 2026-10-06 Mig 212~214, 220 — 협력사 관리자 화면 (v2).
 //   방향: 별도 간이 화면을 키우지 않고 운영자 앱의 화면을 재사용한다.
 //     · 작업 상세 = 운영자 AdminTaskDetailScreen 을 subMode 로 그대로 사용
@@ -22,6 +22,7 @@ import { fmtWon as fmtWonMoney } from "../utils/money.js";
 import { loadFontSize, applyFontSize } from "../utils/fontSize.js";
 import BottomSheet, { SheetButtons } from "../components/BottomSheet.jsx";
 import SubStaffManage from "../components/SubStaffManage.jsx";
+import SafeTopCover from "../components/SafeTopCover.jsx";
 
 const DONE = ["완료", "취소", "visit_only", "정산완료"];
 const TABS = [
@@ -30,6 +31,7 @@ const TABS = [
   { key: "fixed",  label: "일정확정" },
   { key: "doing",  label: "진행" },
   { key: "done",   label: "완료" },
+  { key: "cancel", label: "취소" },      // 0건이면 탭을 숨긴다
 ];
 const STATUS_STYLE = {
   "미배정": { bg: "rgba(229,72,77,0.14)",  fg: "#E5484D" },
@@ -56,6 +58,7 @@ function taskDay(t) {
 }
 
 function bucketOf(t) {
+  if (t.status === "취소") return "cancel";        // 완료 탭에 섞이지 않게 따로
   if (DONE.includes(t.status)) return "done";
   if (t.status === "진행중") return "doing";
   if (!t.assigned_engineer_id) return "todo";
@@ -130,6 +133,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const [fEng, setFEng] = useState("");               // 기사 id (비우면 전체)
   // 2026-10-06 — 화면 정리: 하단 탭 4개(작업·정산·기사·내 정보), "지금 할 일" 요약 띠, 기사 검색 시트
   const [engSheet, setEngSheet] = useState(false);
+  const [settleFocus, setSettleFocus] = useState(0);   // 띠를 눌러 정산으로 갈 때마다 +1 → 확인 대기 상자로 스크롤
   const [engQuery, setEngQuery] = useState("");
   const [todo, setTodo] = useState({ waiting: 0, todayFee: 0 });   // 받음 확인 대기 건수 / 오늘 보낼 수수료
   const [fontSize, setFontSizeState] = useState(() => loadFontSize());
@@ -149,7 +153,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const loadTodo = useCallback(async () => {
     const [rm, ds] = await Promise.all([subManagerListStaffRemits(), subListDailySettlements()]);
     let waiting = 0, todayFee = 0;
-    if (rm.ok) for (const st of (rm.staff || [])) for (const d of (st.days || [])) if (d.status === "보고됨") waiting += 1;
+    if (rm.ok) waiting = pendingStaffRemits(rm.staff).length;     // 정산 화면의 상자와 같은 함수 → 숫자가 항상 같다
     if (ds.ok) {
       const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
       const row = (ds.days || []).find(d => d.date === today);
@@ -160,7 +164,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   useEffect(() => { if (view === "tasks") loadTodo(); }, [view, loadTodo]);
 
   const groups = useMemo(() => {
-    const g = { todo: [], assigned: [], fixed: [], doing: [], done: [] };
+    const g = { todo: [], assigned: [], fixed: [], doing: [], done: [], cancel: [] };
     for (const t of tasks) {
       if (fEng && t.assigned_engineer_id !== fEng) continue;
       if (fDate && taskDay(t) !== fDate) continue;
@@ -169,6 +173,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
     const asc = (a, b) => String(a.sort_at || "").localeCompare(String(b.sort_at || ""));
     g.todo.sort(asc); g.assigned.sort(asc); g.fixed.sort(asc); g.doing.sort(asc);
     g.done.sort((a, b) => String(b.completed_at || "").localeCompare(String(a.completed_at || "")));
+    g.cancel.sort((a, b) => String(b.sort_at || "").localeCompare(String(a.sort_at || "")));
     return g;
   }, [tasks, fDate, fEng]);
 
@@ -342,6 +347,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
     return (
       // 상단 여백: 휴대폰 상태표시줄(시계) 아래로 뒤로가기 줄이 깔리지 않게 (운영자·기사 앱은 바깥 틀이 같은 여백을 준다)
       <div style={{ minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-primary)", fontFamily: "'Pretendard', sans-serif", paddingTop: "env(safe-area-inset-top, 0px)", boxSizing: "border-box" }}>
+        <SafeTopCover background="var(--bg-secondary)"/>
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
           <AdminTaskDetailScreen
             subMode
@@ -367,7 +373,8 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const fEngName = fEng ? ((engOptions.find(([id]) => id === fEng) || [])[1] || "기사") : "";
   const todoItems = [
     groups.todo.length > 0 ? { key: "todo", label: `미배정 ${groups.todo.length}`, onClick: () => setTab("todo") } : null,
-    todo.waiting > 0 ? { key: "wait", label: `받음 확인 대기 ${todo.waiting}`, onClick: () => setView("settle") } : null,
+    // "보고됨"(올데이케어 송금 보고)과 헷갈리지 않게 "기사 송금 확인". 누르면 정산 탭의 그 상자로 간다.
+    todo.waiting > 0 ? { key: "wait", label: `기사 송금 확인 ${todo.waiting}`, onClick: () => { setSettleFocus(n => n + 1); setView("settle"); } } : null,
     todo.todayFee > 0 ? { key: "fee", label: `오늘 보낼 수수료 ${fmtWonMoney(todo.todayFee)}`, onClick: () => setView("settle") } : null,
   ].filter(Boolean);
 
@@ -376,6 +383,8 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
       minHeight: "100vh", background: "var(--bg-primary)", color: "var(--text-primary)", fontFamily: "'Pretendard', sans-serif",
       paddingBottom: "calc(env(safe-area-inset-bottom, 0px) + 84px)",     // 하단 탭에 가려지지 않게
     }}>
+      {/* 시계·배터리 줄을 머리와 같은 불투명 색으로 덮는다 (4개 탭 공통) */}
+      <SafeTopCover background="var(--bg-secondary)"/>
       {/* 머리: 회사명 + 이름 한 줄. 작업 탭에서만 단계 탭과 함께 고정한다. */}
       <div style={{
         position: view === "tasks" ? "sticky" : "relative", top: 0, zIndex: 5,
@@ -391,7 +400,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
             {view === "tasks" && <button onClick={() => { load(); loadTodo(); }} disabled={loading} style={{ ...btnGhost, padding: "6px 10px" }}>{loading ? "…" : "새로고침"}</button>}
           </div>
           <div style={{ display: view === "tasks" ? "flex" : "none", gap: 6, marginTop: 8, overflowX: "auto" }}>
-            {TABS.map(tb => {
+            {TABS.filter(tb => tb.key !== "cancel" || groups.cancel.length > 0 || tab === "cancel").map(tb => {
               const n = groups[tb.key].length;
               const on = tab === tb.key;
               return (
@@ -417,7 +426,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
       )}
       {view === "settle" && (
         <div style={{ maxWidth: 720, margin: "0 auto" }}>
-          <SubManagerSettleView/>
+          <SubManagerSettleView focusRemits={settleFocus}/>
         </div>
       )}
       {view === "me" && (
@@ -498,6 +507,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
 
         {list.map((t, idx) => {
           const closed = DONE.includes(t.status);
+          const cancelled = t.status === "취소";
           const hasEng = !!t.assigned_engineer_id;
           const st = hasEng || closed ? t.status : "미배정";
           const ss = STATUS_STYLE[st] || { bg: "var(--bg-secondary)", fg: "var(--text-secondary)" };
@@ -512,6 +522,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
                 background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14,
                 padding: 14, marginBottom: 10,
                 ...categoryBar(catTask(t)),          // 종목 색 띠 (상태 배지와 겹치지 않게 띠·칩으로만)
+                ...(cancelled ? { opacity: 0.6, filter: "grayscale(1)" } : {}),
               }}>
                 <div onClick={() => openDetail(t.id)} style={{ cursor: "pointer" }}>
                   {/* ① 종목 칩 · 방문 시각 · 상태 배지 */}
@@ -542,7 +553,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
                 </div>
 
                 <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-                  {t.phone && <a href={`tel:${t.phone}`} style={btnLink}>고객 통화</a>}
+                  {t.phone && !cancelled && <a href={`tel:${t.phone}`} style={btnLink}>고객 통화</a>}
                   {!closed && t.status !== "진행중" && (
                     <button onClick={() => setPicking(t)} style={hasEng ? btnLinkBtn : btnMain}>
                       {hasEng ? "기사 변경" : "배정"}

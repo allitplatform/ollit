@@ -16,7 +16,7 @@
 // 금액 기준: 내 수익 = 공급가 − 올데이케어 수수료 − 협력사 회사 몫. 부가세는 별도 표시(신고·납부용).
 //   조정 줄은 수수료 변동만 뜻하므로 기사 수익 계산에 넣지 않는다.
 //   합계가 0 이하인 날은 송금 보고 없이 다음 날로 자동 이월 (상태 "이월").
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   subStaffListSettlement, subListDailySettlements, subReportDailyFee,
   adminListSubDailyFees, adminConfirmSubDailyFee, adminCancelSubDailyReport, adminCloseSubCarryRefund,
@@ -78,6 +78,19 @@ function matchFilter(status, key, role) {
   if (key === "done") return isClosed(status);
   if (key === "reported") return status === "보고됨" || status === "차액";
   return NEEDS(role).includes(status) || status === "이월";
+}
+
+// 기사 송금 "확인 대기" 목록 — 기사가 [보냄] 을 눌렀고 관리자가 아직 [받음 확인] 하지 않은 줄.
+//   작업 탭의 "기사 송금 확인 n" 띠와 정산 화면의 상자가 이 함수 하나를 같이 써서 숫자가 항상 같다.
+//   관리자 본인 작업은 보내는 즉시 "받음" 이 되므로 여기 들어오지 않는다.
+export function pendingStaffRemits(staffList) {
+  const out = [];
+  for (const st of (staffList || [])) {
+    for (const d of (st.days || [])) {
+      if (d.status === "보고됨") out.push({ engineer_id: st.engineer_id, name: st.name, date: d.date, amount: d.amount });
+    }
+  }
+  return out.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.name).localeCompare(String(b.name), "ko"));
 }
 
 // ── 공통 조각 ────────────────────────────────────────────────
@@ -472,7 +485,8 @@ function DayTable({ day, mode, onOpenTask, remits, onReceive, onCancelSend, busy
 // ─────────────────────────────────────────────────────────────
 // 2) 협력사 관리자 — 정산
 // ─────────────────────────────────────────────────────────────
-export function SubManagerSettleView() {
+// focusRemits: 숫자가 바뀔 때마다 "기사 송금 확인 대기" 상자로 스크롤한다 (작업 탭의 띠를 눌러 들어온 경우).
+export function SubManagerSettleView({ focusRemits = 0 }) {
   const fn = useCallback(() => subListDailySettlements(), []);
   const { data, loading, error, load } = useLoader(fn);
   const days = ((data && data.days) || []).map(fixDay);
@@ -501,6 +515,13 @@ export function SubManagerSettleView() {
     if (res.ok) setStaffRemits(Array.isArray(res.staff) ? res.staff : []);
   }, []);
   useEffect(() => { loadRemits(); }, [loadRemits]);
+  const pendingRemits = useMemo(() => pendingStaffRemits(staffRemits), [staffRemits]);
+  const pendingRef = useRef(null);
+  useEffect(() => {
+    if (focusRemits > 0 && pendingRemits.length > 0 && pendingRef.current) {
+      pendingRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+    }
+  }, [focusRemits, pendingRemits.length]);
   const remitMap = useMemo(() => {
     const m = new Map();
     for (const st of staffRemits) for (const d of (st.days || [])) m.set(`${d.date}|${st.engineer_id}`, { ...d, engineer_id: st.engineer_id, name: st.name });
@@ -563,6 +584,23 @@ export function SubManagerSettleView() {
         title="수수료 정산" onReload={load} loading={loading}
         help="날짜별로 올데이케어에 보낼 수수료입니다. 기사에게 걷은 뒤 하루에 한 번 송금하고 [송금 보고]를 눌러 주세요. 보고한 날짜는 잠기고, 그 뒤 바뀐 금액은 다음 날짜에 조정(추가분·차감분) 줄로 나옵니다. 합계가 0 이하인 날은 보고 없이 다음 송금에서 자동으로 차감됩니다(이월)."
       />
+      {/* 기사 송금 확인 대기 — 기사가 [보냄] 했고 아직 [받음 확인] 하지 않은 것. 0건이면 숨김.
+          (날짜 카드가 이미 "확인 완료" 로 접혀 있어도 여기서 바로 처리할 수 있다) */}
+      {pendingRemits.length > 0 && (
+        <div ref={pendingRef} style={{ ...S.card, borderColor: "var(--danger, #EF4444)", scrollMarginTop: 80 }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "var(--danger, #EF4444)" }}>기사 송금 확인 대기 {pendingRemits.length}건</div>
+          <div style={{ ...S.small, marginTop: 2 }}>기사가 화이트코어로 보냈다고 보고한 금액입니다. 받았으면 [받음 확인]을 눌러 주세요.</div>
+          {pendingRemits.map(r => (
+            <div key={`${r.engineer_id}|${r.date}`} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", borderTop: "1px solid var(--border)", marginTop: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 800 }}>{r.name}</div>
+                <div style={S.small}>{dayLabel(r.date)} · <Num value={r.amount} strong/></div>
+              </div>
+              <button type="button" disabled={busy} onClick={() => receive({ id: r.engineer_id, name: r.name }, r, true)} style={S.btnMain}>받음 확인</button>
+            </div>
+          ))}
+        </div>
+      )}
       <HeroCard
         label="오늘 보낼 수수료" value={todayRow ? todayRow.fee : 0}
         status={todayRow ? todayRow.status : "대기"}
