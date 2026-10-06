@@ -143,6 +143,16 @@ export const listSubcontractorFeeRules = () => _call("list_subcontractor_fee_rul
 // 협력사 소속 기사: 소속 협력사 관리자 연락처 (Mig 234) — "내 정보" 문의 카드용
 export const subStaffGetContacts = () => _call("sub_staff_get_contacts", {});
 
+// ── 협력사 회사 계좌 · 알림 설정 (Mig 239) ───────────────────
+//   계좌: 소속 기사·관리자(자기 협력사) 또는 운영자(subcontractorId 지정). reveal = true 면 계좌번호 전체 + 열람 기록.
+//   응답의 hq_account = 올데이케어로 보낼 곳(운영자가 설정한 회사 계좌, 협력사는 보기만).
+export const subGetCompanyAccount = (reveal = false, subcontractorId = null) =>
+  _call("sub_get_company_account", { p_reveal: !!reveal, p_subcontractor_id: subcontractorId });
+export const subSetCompanyAccount = (bank, account, holder) =>
+  _call("sub_set_company_account", { p_bank: bank, p_account: account, p_holder: holder });
+export const subGetNotifyPrefs = () => _call("sub_get_notify_prefs", {});
+export const subSetNotifyPrefs = (prefs) => _call("sub_set_notify_prefs", { p_prefs: prefs || {} });
+
 // ── 기사 → 협력사 송금 보고 (Mig 234, 2단계 보고) ────────────
 //   기사: 날짜별 보낼 금액·상태 / [협력사에 보냄].  관리자: 기사별 상태 / [받음 확인].
 export const subStaffListRemits = () => _call("sub_staff_list_remits", {});

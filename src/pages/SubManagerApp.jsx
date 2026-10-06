@@ -19,11 +19,11 @@ import SubAssignSheet from "../components/SubAssignSheet.jsx";
 import CategoryChip, { categoryBar } from "../components/CategoryChip.jsx";
 import { getCategoryMeta } from "../lib/serviceCatalog.js";
 import { subManagerListStaffRemits, subListDailySettlements } from "../lib/subcontractorsDb.js";
-import { loadFontSize, applyFontSize } from "../utils/fontSize.js";
 import BottomSheet, { SheetButtons } from "../components/BottomSheet.jsx";
 import SubStaffManage from "../components/SubStaffManage.jsx";
 import SafeTopCover from "../components/SafeTopCover.jsx";
 import SubManagerHome from "../components/SubManagerHome.jsx";
+import SubManagerMe from "../components/SubManagerMe.jsx";
 import { SubPcTimeline, SubPcSearch } from "../components/SubManagerPc.jsx";
 import { subSearchTasks } from "../lib/subcontractorsDb.js";
 
@@ -161,7 +161,6 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const changeDense = (v) => { setDense(v); try { localStorage.setItem("ollit_sub_task_density", v ? "dense" : "normal"); } catch (_e) { /* 저장 실패는 무시 */ } };
   const [engQuery, setEngQuery] = useState("");
   const [todo, setTodo] = useState({ waiting: 0, todayFee: 0 });   // 받음 확인 대기 건수 / 오늘 보낼 수수료
-  const [fontSize, setFontSizeState] = useState(() => loadFontSize());
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -453,16 +452,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
           {pcView === "search" && <SubPcSearch onOpen={openDetail} refreshKey={pcTick} preset={pcPreset.search}/>}
           {pcView === "settle" && <div style={{ maxWidth: 860, margin: "0 auto" }}><SubManagerSettleView focusRemits={settleFocus}/></div>}
           {pcView === "staff" && <div style={{ maxWidth: 860, margin: "0 auto" }}><SubStaffManage subName={subName} onCalendar={(s) => pcGo({ view: "tasks", eng: s.id })}/></div>}
-          {pcView === "me" && (
-            <div style={{ maxWidth: 520, margin: "0 auto", padding: 16 }}>
-              <div style={meCard}>
-                <div style={{ fontSize: 17, fontWeight: 800 }}>{user?.name || "—"}</div>
-                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{subName} · 관리자</div>
-                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{user?.phone || ""}</div>
-              </div>
-              <button onClick={onLogout} style={{ ...btnGhost, width: "100%", padding: "13px 0", color: "#E5484D" }}>로그아웃</button>
-            </div>
-          )}
+          {pcView === "me" && <div style={{ maxWidth: 560, margin: "0 auto" }}><SubManagerMe user={user} subName={subName} onLogout={onLogout}/></div>}
         </div>
         {/* 오른쪽 상세 패널 — 모바일과 같은 작업 상세(배정·일정·전화 포함) */}
         {detail && (
@@ -620,29 +610,8 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
         </div>
       )}
       {view === "me" && (
-        <div style={{ maxWidth: 720, margin: "0 auto", padding: 12 }}>
-          <div style={meCard}>
-            <div style={{ fontSize: 17, fontWeight: 800 }}>{user?.name || "—"}</div>
-            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{subName} · 관리자</div>
-            <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>{user?.phone || ""}</div>
-          </div>
-          <div style={meCard}>
-            <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 8 }}>글자 크기</div>
-            <div style={{ display: "flex", gap: 6 }}>
-              {[["small", "작게"], ["medium", "기본"], ["large", "크게"]].map(([k, label]) => (
-                <button key={k} onClick={() => { applyFontSize(k); setFontSizeState(k); }} style={{
-                  flex: 1, padding: "10px 0", borderRadius: 10, fontFamily: "inherit", cursor: "pointer", fontSize: 13, fontWeight: 800,
-                  border: fontSize === k ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",
-                  background: fontSize === k ? "var(--accent-bg, rgba(255,27,141,0.08))" : "var(--bg-elevated)",
-                  color: "var(--text-primary)",
-                }}>{label}</button>
-              ))}
-            </div>
-          </div>
-          <div style={{ ...meCard, fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6 }}>
-            기사 삭제 · 전화번호 변경 · 관리자 지정은 올데이케어 운영자에게 요청해 주세요.
-          </div>
-          <button onClick={onLogout} style={{ ...btnGhost, width: "100%", padding: "13px 0", color: "#E5484D" }}>로그아웃</button>
+        <div style={{ maxWidth: 720, margin: "0 auto" }}>
+          <SubManagerMe user={user} subName={subName} onLogout={onLogout}/>
         </div>
       )}
 
@@ -872,9 +841,6 @@ const sheetChip = (on) => ({
 });
 const kstToday = (plus) => new Date(Date.now() + plus * 86400000).toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
 
-const meCard = {
-  background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14, padding: 14, marginBottom: 10,
-};
 
 // 카드 ① 줄의 방문 시각 — "14:00" / 시간이 없으면 "시간 미정" (날짜는 묶음 머리가 보여 준다)
 function timeText(t) {

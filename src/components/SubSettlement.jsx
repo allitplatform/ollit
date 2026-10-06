@@ -21,8 +21,10 @@ import {
   subStaffListSettlement, subListDailySettlements, subReportDailyFee,
   adminListSubDailyFees, adminConfirmSubDailyFee, adminCancelSubDailyReport, adminCloseSubCarryRefund,
   subStaffListRemits, subStaffReportRemit, subManagerListStaffRemits, subManagerConfirmStaffRemit, subManagerCancelStaffRemit,
+  subGetCompanyAccount,
 } from "../lib/subcontractorsDb.js";
 import BottomSheet, { SheetButtons } from "./BottomSheet.jsx";
+import { AccountLine, copyText } from "./SubManagerMe.jsx";
 import { fmtWon, fmtWonSigned } from "../utils/money.js";
 
 const NEG = "#3B82F6";   // 음수(차감분) 표시색
@@ -91,6 +93,44 @@ export function pendingStaffRemits(staffList) {
     }
   }
   return out.sort((a, b) => String(a.date).localeCompare(String(b.date)) || String(a.name).localeCompare(String(b.name), "ko"));
+}
+
+// 보낼 계좌 상자 (Mig 239).
+//   who = "staff"  : 기사 화면 — 소속 협력사의 회사 계좌 (복사할 때 전체 번호를 받아 오고 열람 기록이 남는다)
+//   who = "manager": 관리자 화면 — 올데이케어로 보낼 곳 (운영자가 설정한 계좌, 협력사는 보기만)
+function PayToBox({ who, subName }) {
+  const [data, setData] = useState(null);
+  useEffect(() => {
+    let alive = true;
+    subGetCompanyAccount(false).then(res => { if (alive && res.ok) setData(res); });
+    return () => { alive = false; };
+  }, []);
+  if (!data) return null;
+  if (who === "manager") {
+    const hq = data.hq_account;
+    return (
+      <div style={S.card}>
+        <div style={S.label}>보낼 곳 · 올데이케어</div>
+        {hq
+          ? <AccountLine bank={hq.bank} number={hq.number} holder={hq.holder} onCopy={async () => { const ok = await copyText(hq.number); window.alert(ok ? "계좌번호를 복사했습니다." : "복사하지 못했습니다."); }}/>
+          : <div style={S.small}>올데이케어 입금 계좌가 아직 등록되지 않았습니다. 올데이케어 운영자에게 알려 주세요.</div>}
+      </div>
+    );
+  }
+  const acc = data.account;
+  return (
+    <div style={S.card}>
+      <div style={S.label}>보낼 계좌 · {subName}</div>
+      {acc
+        ? <AccountLine bank={acc.bank} number={acc.number_masked} holder={acc.holder} onCopy={async () => {
+            const res = await subGetCompanyAccount(true);
+            const num = res.ok && res.account ? res.account.number : "";
+            const ok = num ? await copyText(num) : false;
+            window.alert(ok ? `계좌번호를 복사했습니다.\n${acc.bank || ""} ${num}` : (num ? `복사하지 못했습니다. 직접 입력해 주세요.\n${acc.bank || ""} ${num}` : "계좌번호를 불러오지 못했습니다."));
+          }}/>
+        : <div style={S.small}>{subName} 회사 계좌가 아직 등록되지 않았습니다. 관리자에게 문의해 주세요.</div>}
+    </div>
+  );
 }
 
 // ── 공통 조각 ────────────────────────────────────────────────
@@ -320,6 +360,7 @@ export function SubStaffSettleTab({ user, onBack }) {
       {error && <ErrorBox text={error}/>}
       {!error && !loading && days.length === 0 && <Empty text="최근 한 달 완료한 작업이 없습니다."/>}
 
+      <PayToBox who="staff" subName={subName}/>
       {/* 협력사에 보낼 금액 — 아직 닫히지 않은 날짜 전부 + 최근 닫힌 날짜 몇 개 */}
       {remitRows.length > 0 && (
         <div style={S.card}>
@@ -609,6 +650,7 @@ export function SubManagerSettleView({ focusRemits = 0 }) {
           ? <button type="button" onClick={() => openReport(todayRow)} style={{ ...S.btnMain, width: "100%" }}>송금 보고</button>
           : null}
       />
+      <PayToBox who="manager"/>
       <FilterChips value={filter} onChange={setFilter} counts={counts}/>
       {error && <ErrorBox text={error}/>}
       {!error && !loading && active.length === 0 && past.length === 0 && <Empty text="해당 상태의 정산이 없습니다."/>}

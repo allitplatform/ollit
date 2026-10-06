@@ -6,9 +6,25 @@
 import { useCallback, useEffect, useState } from "react";
 import {
   adminListSubcontractors, adminUpsertSubcontractor, loadSubcontractorIndex, subGetCutRates,
-  listSubcontractorCategories, adminSetSubcontractorCategories,
+  listSubcontractorCategories, adminSetSubcontractorCategories, subGetCompanyAccount,
 } from "../../lib/subcontractorsDb.js";
 import { SubStaffReadOnlyList } from "../SubStaffManage.jsx";
+
+// 2026-10-06 Mig 239 — 협력사 회사 계좌 (협력사 관리자가 등록, 운영자는 보기만). 계좌번호는 가려서 보여 준다.
+function SubAccountLine({ subId }) {
+  const [acc, setAcc] = useState(undefined);
+  useEffect(() => {
+    let alive = true;
+    subGetCompanyAccount(false, subId).then(res => { if (alive) setAcc(res.ok ? (res.account || null) : undefined); });
+    return () => { alive = false; };
+  }, [subId]);
+  if (acc === undefined) return null;
+  return (
+    <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 6 }}>
+      회사 계좌 {acc ? `${acc.bank || ""} ${acc.number_masked || ""} · 예금주 ${acc.holder || "—"}` : "미등록"} (협력사 관리자가 등록 · 보기 전용)
+    </div>
+  );
+}
 
 // 2026-10-06 Mig 235 — 협력사가 맡는 종목 (운영자만 설정) + 소속 기사 보기.
 //   맡는 종목은 새 작업의 수행 추천과 기사별 "가능 종목" 의 범위로 쓰인다.
@@ -204,6 +220,7 @@ export function SubcontractorAdminScreen({ onBack }) {
                   : "사업자 정보 미입력"}
               </div>
               <CutRateLine subId={r.id}/>
+              <SubAccountLine subId={r.id}/>
               <SubExtras sub={r} cats={cats} onSaved={loadCats}/>
             </div>
           ))}
