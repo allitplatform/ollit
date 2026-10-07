@@ -62,6 +62,8 @@ import { SubChangeRequestBand, SubExceptionCard } from "./SubExceptionParts.jsx"
 import { SubPrincipalSplitCard } from "./SubPrincipalParts.jsx";
 import { getCategoryMetaOfRow } from "../lib/serviceCatalog.js";
 import { isRelocationTask } from "../utils/relocation.js";
+import { useIsPc } from "../utils/useIsPc.js";
+import { usePanelWidth, PcStatusStrip, PcCustomerCard, PcPlaceCard, PcExceptionCard, PcSection } from "./AdminTaskDetailPcParts.jsx";
 import { RelocationBlocks } from "./RelocationParts.jsx";
 
 // 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (0 이면 테두리 선이 화면 끝에서 잘려 12 로 — 2026-10-06 실화면 확인).
@@ -145,6 +147,12 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   const [fetchError, setFetchError] = useState(null);
   // 2026-06-28 — 견적 수정 후 재 fetch + 정규화 (Mig 153 적용 결과 표시).
   const [subPick, setSubPick] = useState(false);     // 협력사 작업의 기사 고르기 시트 (운영자 예외 경로)
+  // 2026-10-07 — 운영자 PC 작업 상세 개편 1차: PC 에서만 새 배치. 패널 폭이 760px 이상이면 2단.
+  const isPcScreen = useIsPc();
+  const [panelRef, panelW] = usePanelWidth();
+  const moneyRef = useRef(null);
+  const pcLayout = !subMode && isPcScreen;
+  const twoCol = pcLayout && panelW >= 760;
   const reloadTask = async () => {
     if (!initialTask?.id) return;
     try {
@@ -259,7 +267,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
 
   // 측 단일 return — early return 측 측, ternary 측 분기 (사장님 spec — hooks 순서 측 위반 spec 측 제거).
   return (
-    <div className="fade-in" style={{
+    <div ref={panelRef} className="fade-in" style={{
       background: "var(--bg-primary)",
       minHeight: "100vh",
       // 2026-06-03 — 측측 ExceptionActions 측측 측측 측측 (iOS PWA safe-area + Shell paddingBottom 측측 측측 부족 측).
@@ -388,6 +396,84 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
         </div>
       )}
       {/* 카드 1 — 상태 + 작업 종류 측 catch (변경 X) */}
+      {pcLayout ? (
+        <>
+          {/* 2026-10-07 — 운영자 PC 작업 상세 개편 1차 (시안 v2). 배치만 바꾼다 — 각 카드 · 저장 함수는 기존 것 그대로. */}
+          <MainCard task={task} onStatusChange={onStatusChange}/>
+          <PcStatusStrip
+            task={task}
+            canceled={isEffectivelyCanceled(task)}
+            onAssign={task.subcontractorId ? () => setSubPick(true) : onAssign}
+            onScheduleChange={onScheduleChange}
+            onComplete={onStatusChange ? () => { if (window.confirm("이 작업을 완료로 바꿀까요?")) onStatusChange("완료"); } : null}
+            onShowMoney={() => { if (moneyRef.current) moneyRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+            onCall={() => handleMenuAction("call", task)}
+            onEngineerCall={() => handleMenuAction("engineer_call", task)}
+            onMessage={() => setShowMessageModal(true)}
+          />
+          <SubChangeRequestBand task={task} subMode={false} onChanged={reloadTask} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
+          <CancelBanner task={task} force={isEffectivelyCanceled(task)} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
+          <div style={{ display: "grid", gridTemplateColumns: twoCol ? "minmax(0, 1fr) minmax(0, 1fr)" : "minmax(0, 1fr)", alignItems: "start", gap: 0 }}>
+            {/* 금액 · 수행 — 2단이면 오른쪽(스크롤을 따라옴), 1단이면 맨 위 카드 바로 아래 */}
+            <div style={{ order: twoCol ? 2 : 1, position: twoCol ? "sticky" : "static", top: 8, minWidth: 0 }}>
+              <PcSection title="금액" anchorRef={moneyRef}>
+                <SubFeeSplitCard task={task}/>
+                {(task.subcontractorId || getCategoryMetaOfRow(task).key === "hood") && (
+                  <SubPrincipalSplitCard task={task} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
+                )}
+                {!task.subcontractorId && <SettlementInfoCard task={task}/>}
+                {task.principalCode !== "usol_n" && <TaskItemsCard task={task} user={user} onReload={reloadTask}/>}
+                {task.principalCode === "usol_n" && (
+                  <UsolNSettlementCycleCard taskId={task.id} paymentMethod={task.paymentMethod || task.payment_method || null}/>
+                )}
+              </PcSection>
+              <PcSection title="수행">
+                <SubcontractorCard task={task} onChanged={reloadTask}/>
+                {!task.subcontractorId && (
+                  <div style={{ margin: `0 ${DETAIL_GUTTER + 4}px 12px`, fontSize: 13, color: "var(--text-secondary)" }}>
+                    올데이케어 직영 · {task.assignedEngineer || task.engineer || "담당 없음"}
+                  </div>
+                )}
+              </PcSection>
+            </div>
+            <div style={{ order: twoCol ? 1 : 2, minWidth: 0 }}>
+              <PcCustomerCard task={task} onEdit={() => setEditingBasic(true)}/>
+              <PcPlaceCard task={task} onSaveDest={async (addr, memo) => {
+                const res = await updateTaskAdapter(task.id, { destAddress: addr, destDetail: memo });
+                if (res && res.ok !== false) reloadTask();
+                return res;
+              }}/>
+              {task.reassignRequest?.requestedAt && task.status !== "취소" && <ReassignRequestCard request={task.reassignRequest} subMode={false}/>}
+              {task.consent?.signedAt && <ConsentCard consent={task.consent}/>}
+              {!task.consent?.signedAt
+                && (getServiceKind(task) === "refrigerant" || getServiceKind(task) === "leak")
+                && ["진행중", "완료", "정산완료"].includes(task.status) && (
+                <div style={{ margin: `0 ${DETAIL_GUTTER}px 12px`, padding: "12px 14px", borderRadius: 14, border: "1.5px solid rgba(255,59,92,0.45)", background: "rgba(255,59,92,0.07)" }}>
+                  <div style={{ fontSize: 12.5, fontWeight: 800, color: "#FF3B5C" }}>⚠️ 동의서 미수집</div>
+                  <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginTop: 4, lineHeight: 1.5 }}>
+                    {getServiceKind(task) === "leak" ? "누수/누설" : "냉매충전"} 건인데 고객 서명 동의서가 없습니다. 기사님 앱 작업 상세에서 소급 수집할 수 있어요.
+                  </div>
+                </div>
+              )}
+              <PcExceptionCard
+                task={task}
+                onVisitOnly={() => handleMenuAction("visit_only", task)}
+                onCancel={() => handleMenuAction("cancel", task)}
+                onGoItems={() => { if (moneyRef.current) moneyRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); }}
+              />
+              <PhotoSection taskId={task.id} taskType={task.type} photoLoader={photoLoader}/>
+              <CompletionNotice task={task} subMode={false}/>
+              <RequestMemoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
+              {/* 변경 이력 — 한 줄로 접어 둔다 */}
+              <details style={{ margin: `0 ${DETAIL_GUTTER}px 12px`, border: "1px solid var(--border)", borderRadius: 14, background: "var(--bg-elevated)" }}>
+                <summary style={{ padding: "12px 16px", fontSize: 13, fontWeight: 800, color: "var(--text-secondary)", cursor: "pointer" }}>변경 이력 · 작업 시간 (펼치기)</summary>
+                <WorkTimeHistoryCard task={task} onTaskRefresh={refetchTaskBasic}/>
+              </details>
+            </div>
+          </div>
+        </>
+      ) : (
+        <>
       <MainCard task={task} onStatusChange={subMode ? undefined : onStatusChange}/>
       {/* 2026-10-07 Mig 242 — 올데이케어 변경 요청 띠 (운영자: "변경 요청 중" / 협력사 관리자: 내용 + [처리 완료]) */}
       <SubChangeRequestBand task={task} subMode={subMode} onChanged={reloadTask} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
@@ -462,6 +548,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       {/* 카드 7 — 작업 사진 */}
       <PhotoSection taskId={task.id} taskType={task.type} photoLoader={photoLoader}/>
       <CompletionNotice task={task} subMode={subMode}/>
+        </>
+      )}
       {/* 2026-10-07 — 협력사로 넘긴 작업의 [배정 ›] · [변경 ›]: 직영 추천 화면이 아니라 그 협력사 기사 고르기 시트
             (상단 "수행" 카드의 [기사 지정] 과 같은 예외 경로) */}
       {subPick && !subMode && task.subcontractorId && (
@@ -1766,9 +1854,6 @@ function TaskItemsCard({ task, user, onReload }) {
               <span className="mono" style={{ color: "#D4537E", fontWeight: 800 }}>
                 ₩{Number(task?.receivedTotal || 0).toLocaleString("ko-KR")}
               </span>
-            </div>
-            <div style={{ fontSize: 9, color: "var(--text-tertiary)", marginTop: 3 }}>
-              ↳ DB 트리거 자동 sync — 각 row 받은 돈 합 (비-취소).
             </div>
           </>
         )}

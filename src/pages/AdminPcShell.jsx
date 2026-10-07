@@ -39,7 +39,8 @@ export function AdminPcShell({ t, pcCtx, asideNode, children }) {
       {/* 1280px+ 일 때 우 aside 옆에 (본문이 자동 좁아짐). */}
       {showAside && isWide && (
         <aside style={{
-          width: PC_DETAIL_W,
+          // 2026-10-07 — 작업 상세 개편: 넓은 화면에서는 패널을 넓혀 2단 배치가 되게 한다 (좁으면 기존 폭 그대로 1단)
+          width: `clamp(${PC_DETAIL_W}px, 52vw, 900px)`,
           flexShrink: 0,
           borderLeft: "1px solid var(--border)",
           overflow: "auto",

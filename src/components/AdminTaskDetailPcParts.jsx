@@ -1,0 +1,245 @@
+// 2026-10-07 — 운영자 PC 작업 상세 개편 1차 (시안 v2). 배치 · 묶음만 바꾼다 — 저장 함수 · 계산은 건드리지 않는다.
+//   usePanelWidth    : 상세 패널의 실제 폭 (2단 / 1단 판단)
+//   PcStatusStrip    : 맨 위 — 한 줄 요약(일정 · 담당 · 결제 · 지역) + 진행 막대 + 지금 할 일 버튼
+//   PcCustomerCard   : 고객 — 이름 · 연락처 · 요청사항(노란 상자)
+//   PcPlaceCard      : 장소 — 주소 블록 (이전설치면 철거 / 설치 두 블록 + 설치 주소 수정)
+//   PcExceptionCard  : 예외 처리 (빨간 테두리) — 출장비만 정산 · 품목별 취소 · 작업 전체 취소 · 오접수
+//   PcSection        : 제목 + 내용 묶음 (금액 · 수행 · 변경 이력)
+import { useEffect, useRef, useState } from "react";
+import { PAYMENT_METHOD_LABELS } from "../data/paymentMethods.js";
+import { engineerDisplayName } from "../lib/subcontractorsDb.js";
+import { formatDateTimeKST } from "../utils/dateLabel.js";
+import { isRelocationTask, relocationLine, mapSearchLinks, mapAppLinks } from "../utils/relocation.js";
+import { RelocationBlocks } from "./RelocationParts.jsx";
+
+const GUT = 12;
+const cardBox = {
+  background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14, padding: "14px 16px",
+  margin: `0 ${GUT}px 12px`,
+};
+const cardTitle = { fontSize: 13, fontWeight: 800, color: "var(--text-secondary)", marginBottom: 10, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 };
+const smallBtn = {
+  background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "5px 10px",
+  fontSize: 12, fontWeight: 700, color: "var(--text-primary)", fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
+};
+
+export function usePanelWidth() {
+  const ref = useRef(null);
+  const [w, setW] = useState(0);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    const read = () => setW(el.getBoundingClientRect().width || 0);
+    read();
+    if (typeof ResizeObserver === "undefined") {
+      window.addEventListener("resize", read);
+      return () => window.removeEventListener("resize", read);
+    }
+    const ro = new ResizeObserver(read);
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
+  return [ref, w];
+}
+
+// 상태 → 진행 단계 번호 (0 접수 · 1 배정 · 2 일정 확정 · 3 진행 · 4 완료)
+function stageOfTask(task) {
+  const s = String(task?.status || "");
+  if (s === "완료" || s === "정산완료" || s === "visit_only") return 4;
+  if (s === "진행중" || s === "작업중" || s === "이동중") return 3;
+  if (s === "확정") return 2;
+  if (s === "배정" || s === "약속대기") return 1;
+  return 0;
+}
+function whenText(task) {
+  const at = task.scheduledAt || task.scheduled_at;
+  if (at) return formatDateTimeKST(at);
+  const rd = String(task.requestedDate || "").slice(0, 10);
+  if (rd) return `희망 ${rd.slice(5).replace("-", "/")}${task.requestedTime ? ` ${String(task.requestedTime).slice(0, 5)}` : ""}`;
+  return "일정 미정";
+}
+
+export function PcStatusStrip({ task, canceled = false, onAssign, onScheduleChange, onComplete, onShowMoney, onCall, onMessage, onEngineerCall }) {
+  const stage = stageOfTask(task);
+  const isSub = !!task.subcontractorId;
+  const steps = [
+    { label: "접수", at: task.receivedAt || task.createdAt },
+    { label: "배정", at: task.assignedAt },
+    { label: "일정 확정", at: task.scheduledConfirmedAt },
+    { label: "진행", at: task.startedAt },
+    { label: "완료", at: task.completedAt },
+  ];
+  const eng = engineerDisplayName(task, "담당 없음");
+  const pay = PAYMENT_METHOD_LABELS[task.paymentMethod] || task.paymentMethod || "결제 미정";
+  const area = relocationLine(task) || task.region || "";
+  const main = {
+    border: "none", borderRadius: 10, padding: "10px 14px", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit",
+    cursor: "pointer", background: "var(--accent, #FF1B8D)", color: "#fff", whiteSpace: "nowrap",
+  };
+  const ghost = { ...main, background: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--border)" };
+
+  const actions = [];
+  if (!canceled) {
+    if (isSub) {
+      if (stage < 3 && onAssign) actions.push(<button key="a" type="button" onClick={onAssign} style={main}>👷 기사 지정 (예외)</button>);
+      if (stage < 3 && onScheduleChange) actions.push(<button key="s" type="button" onClick={onScheduleChange} style={ghost}>📅 일정</button>);
+      if (stage >= 4 && onShowMoney) actions.push(<button key="m" type="button" onClick={onShowMoney} style={main}>💰 정산 보기</button>);
+    } else if (stage === 0) {
+      if (onAssign) actions.push(<button key="a" type="button" onClick={onAssign} style={main}>👷 기사 배정</button>);
+      if (onScheduleChange) actions.push(<button key="s" type="button" onClick={onScheduleChange} style={ghost}>📅 일정 잡기</button>);
+    } else if (stage === 1) {
+      if (onScheduleChange) actions.push(<button key="s" type="button" onClick={onScheduleChange} style={main}>📅 일정 잡기</button>);
+      if (onAssign) actions.push(<button key="a" type="button" onClick={onAssign} style={ghost}>👷 기사 변경</button>);
+    } else if (stage === 2) {
+      if (onScheduleChange) actions.push(<button key="s" type="button" onClick={onScheduleChange} style={main}>📅 일정 변경</button>);
+      if (onAssign) actions.push(<button key="a" type="button" onClick={onAssign} style={ghost}>👷 기사 변경</button>);
+    } else if (stage === 3) {
+      if (onComplete) actions.push(<button key="c" type="button" onClick={onComplete} style={main}>✅ 완료 확인</button>);
+    } else if (onShowMoney) {
+      actions.push(<button key="m" type="button" onClick={onShowMoney} style={main}>💰 정산 보기</button>);
+    }
+  }
+
+  return (
+    <div style={{ ...cardBox, marginTop: 10 }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
+        <span>📅 {whenText(task)}</span>
+        <span>👷 {eng}</span>
+        <span>💳 {pay}</span>
+        {area && <span>📍 {area}</span>}
+      </div>
+
+      {/* 진행 막대 — 지나간 단계는 색칠, 마우스를 올리면 시각 */}
+      <div style={{ display: "flex", gap: 4, marginTop: 14 }}>
+        {steps.map((st, i) => {
+          const on = !canceled && i <= stage;
+          return (
+            <div key={st.label} title={st.at ? `${st.label} ${formatDateTimeKST(st.at)}` : st.label} style={{ flex: 1, minWidth: 0 }}>
+              <div style={{ height: 6, borderRadius: 3, background: on ? "var(--accent, #FF1B8D)" : "var(--border)" }}/>
+              <div style={{ fontSize: 11.5, fontWeight: i === stage && !canceled ? 800 : 600, marginTop: 4, textAlign: "center",
+                            color: on ? "var(--text-primary)" : "var(--text-tertiary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
+                {st.label}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      {canceled && <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--danger, #E5484D)", marginTop: 8 }}>취소된 작업입니다</div>}
+
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
+        {actions}
+        {onCall && <button type="button" onClick={onCall} style={ghost}>📞 고객 통화</button>}
+        {onMessage && <button type="button" onClick={onMessage} style={ghost}>💬 문자</button>}
+        {onEngineerCall && task.engineerPhone && <button type="button" onClick={onEngineerCall} style={ghost}>📞 기사 통화</button>}
+      </div>
+    </div>
+  );
+}
+
+export function PcCustomerCard({ task, onEdit }) {
+  const note = String(task.requestNote || task.memo || "").trim();
+  const row = (label, value) => (
+    <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "5px 0", fontSize: 14 }}>
+      <span style={{ color: "var(--text-secondary)" }}>{label}</span>
+      <span style={{ color: "var(--text-primary)", fontWeight: 700, textAlign: "right" }}>{value}</span>
+    </div>
+  );
+  return (
+    <div style={cardBox}>
+      <div style={cardTitle}>
+        <span>고객</span>
+        {onEdit && <button type="button" onClick={onEdit} style={smallBtn}>수정</button>}
+      </div>
+      {row("이름", task.customer || "—")}
+      {row("연락처", task.phone || "—")}
+      {note && (
+        <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, background: "rgba(251,191,36,0.14)", border: "1px solid rgba(251,191,36,0.5)" }}>
+          <div style={{ fontSize: 12, fontWeight: 800, color: "#B45309", marginBottom: 3 }}>📝 요청사항</div>
+          <div style={{ fontSize: 14, color: "var(--text-primary)", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{note}</div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function openMap(kind, address) {
+  const web = mapSearchLinks(address)[kind];
+  const app = mapAppLinks(address)[kind];
+  const isPhone = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+  if (!isPhone || !app) { window.open(web, "_blank"); return; }
+  const start = Date.now();
+  window.location.href = app;
+  setTimeout(() => { if (Date.now() - start < 2000 && document.visibilityState === "visible") window.open(web, "_blank"); }, 1500);
+}
+
+export function PcPlaceCard({ task, onSaveDest }) {
+  const [copied, setCopied] = useState(false);
+  const address = task.fullAddress || task.address || "";
+  async function copy() {
+    try { await navigator.clipboard.writeText(address); setCopied(true); setTimeout(() => setCopied(false), 1500); }
+    catch (_e) { window.prompt("주소를 복사해 주세요", address); }
+  }
+  return (
+    <div style={cardBox}>
+      <div style={cardTitle}><span>장소</span></div>
+      {isRelocationTask(task) ? (
+        <RelocationBlocks task={task} onSaveDest={onSaveDest}/>
+      ) : (
+        <>
+          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", wordBreak: "keep-all" }}>{address || "주소 없음"}</div>
+          {address && (
+            <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
+              <button type="button" onClick={() => openMap("kakao", address)} style={smallBtn}>카카오맵</button>
+              <button type="button" onClick={() => openMap("tmap", address)} style={smallBtn}>티맵</button>
+              <button type="button" onClick={() => openMap("naver", address)} style={smallBtn}>네이버지도</button>
+              <button type="button" onClick={copy} style={smallBtn}>{copied ? "복사됨 ✓" : "주소 복사"}</button>
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+// 기존 동작을 그대로 부른다: 출장비만 정산 · 작업 전체 취소(사유 입력 창) / 품목별 취소는 금액 카드의 항목 줄에서.
+export function PcExceptionCard({ task, onVisitOnly, onCancel, onGoItems, children = null }) {
+  const closed = ["완료", "정산완료", "취소", "visit_only"].includes(String(task.status || ""));
+  const item = (emoji, title, desc, onClick, danger) => (
+    <button type="button" onClick={onClick} disabled={!onClick} style={{
+      display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", fontFamily: "inherit",
+      cursor: onClick ? "pointer" : "default", opacity: onClick ? 1 : 0.45,
+      background: "transparent", border: `1px solid ${danger ? "rgba(229,72,77,0.5)" : "var(--border)"}`, borderRadius: 10,
+      padding: "10px 12px", marginBottom: 6,
+    }}>
+      <span style={{ fontSize: 16 }}>{emoji}</span>
+      <span style={{ minWidth: 0 }}>
+        <b style={{ display: "block", fontSize: 13.5, color: danger ? "var(--danger, #E5484D)" : "var(--text-primary)" }}>{title}</b>
+        <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{desc}</span>
+      </span>
+    </button>
+  );
+  return (
+    <div style={{ ...cardBox, borderColor: "rgba(229,72,77,0.55)" }}>
+      <div style={cardTitle}>
+        <span>⚙️ 예외 처리</span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-tertiary)" }}>드물게 쓰는 기능 · 누르면 사유 입력</span>
+      </div>
+      {item("💸", "출장비만 정산", "현장에 갔지만 작업을 못 한 경우", closed ? null : onVisitOnly, false)}
+      {item("✂️", "품목별 취소", "일부 항목만 취소 — 금액 카드의 항목 줄에서 처리", onGoItems, false)}
+      {item("🚫", "작업 전체 취소", "사유 필수 · 고객 사정 / 일정 조율 실패 / 현장 불가 / 기타", task.status === "취소" ? null : onCancel, true)}
+      {item("🗑", "오접수 처리", "실수 접수 · 통계에서 빠짐 (기록은 남음) — 취소 사유에서 '오접수'를 고릅니다", task.status === "취소" ? null : onCancel, true)}
+      {children}
+    </div>
+  );
+}
+
+export function PcSection({ title, right = null, children, anchorRef = null, bare = false }) {
+  return (
+    <div ref={anchorRef} style={{ marginBottom: 4 }}>
+      <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-secondary)", margin: `2px ${GUT + 4}px 8px`, display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+        <span>{title}</span>{right}
+      </div>
+      {bare ? children : <div>{children}</div>}
+    </div>
+  );
+}
