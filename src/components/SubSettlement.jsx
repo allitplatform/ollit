@@ -23,6 +23,7 @@ import {
   subStaffListRemits, subStaffReportRemit, subManagerListStaffRemits, subManagerConfirmStaffRemit, subManagerCancelStaffRemit,
   subGetCompanyAccount, subStaffGetPayAccount,
   subStaffReportExtra, subManagerListStaffExtras, subManagerConfirmStaffExtra,
+  subStaffCancelRemit, subStaffCancelExtra, subManagerCancelStaffExtra,
 } from "../lib/subcontractorsDb.js";
 import BottomSheet, { SheetButtons } from "./BottomSheet.jsx";
 import { AccountLine, copyText } from "./SubManagerMe.jsx";
@@ -426,6 +427,27 @@ export function SubStaffSettleTab({ user, onBack }) {
     loadRemits();
   }
 
+  // 보냄 취소 (Mig 251) — 받음 확인 전까지, 본인 보고만. 취소하면 그 날짜가 다시 "보낼 돈" 상태로 돌아간다.
+  async function cancelRemit(r) {
+    if (sending) return;
+    if (!window.confirm(`${dayLabel(r.date)} 보냄(${num(r.amount)}원)을 취소할까요?\n다시 "보낼 돈" 상태로 돌아갑니다.`)) return;
+    setSending(true);
+    const res = await subStaffCancelRemit(r.date);
+    setSending(false);
+    if (!res.ok) { window.alert(res.error || "취소하지 못했습니다."); return; }
+    loadRemits();
+  }
+  async function cancelExtra(e) {
+    if (sending) return;
+    if (!window.confirm(`추가분 보냄(${num(e.amount)}원)을 취소할까요?\n다시 "추가로 보낼 돈" 으로 돌아갑니다.`)) return;
+    setSending(true);
+    const res = await subStaffCancelExtra(e.id);
+    setSending(false);
+    if (!res.ok) { window.alert(res.error || "취소하지 못했습니다."); return; }
+    loadRemits();
+  }
+  const ghostBtn = { ...ST.btn, background: "var(--bg-secondary)", color: "var(--text-secondary)", fontWeight: 700, fontSize: 14, padding: 12 };
+
   const extraWhy = (() => {
     const list = remitRes.extra_tasks;
     if (list.length === 0) return "먼저 보낸 뒤에 금액이 바뀌었어요. 이 금액만 따로 보내 주세요.";
@@ -460,6 +482,7 @@ export function SubStaffSettleTab({ user, onBack }) {
           <div style={ST.k}>추가분 보낸 돈 · {dayLabel(e.ref_date)}</div>
           <div style={{ ...ST.big, fontSize: 26, color: AMBER }}>{num(e.amount)}<span style={ST.won}>원</span></div>
           <div style={ST.calc}>{hmKst(e.reported_at)} 보냄 · <b style={{ color: "var(--text-primary)" }}>관리자 확인을 기다리는 중</b></div>
+          <button type="button" disabled={sending} onClick={() => cancelExtra(e)} style={ghostBtn}>추가분 취소 (잘못 눌렀을 때)</button>
         </div>
       ))}
 
@@ -475,7 +498,7 @@ export function SubStaffSettleTab({ user, onBack }) {
               <div style={ST.k}>{isToday ? "오늘 " : ""}보낸 돈 · {dayLabel(r.date)}</div>
               <div style={{ ...ST.big, color: AMBER }}>{num(due)}<span style={ST.won}>원</span></div>
               <div style={ST.calc}>{hmKst(r.reported_at)} 보냄 · <b style={{ color: "var(--text-primary)" }}>관리자 확인을 기다리는 중</b></div>
-              <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginTop: 8 }}>잘못 눌렀으면 관리자에게 [보냄 취소] 를 요청해 주세요.</div>
+              <button type="button" disabled={sending} onClick={() => cancelRemit(r)} style={ghostBtn}>보냄 취소 (잘못 눌렀을 때)</button>
               <Steps at={2}/>
             </div>
           );
@@ -688,6 +711,18 @@ export function SubManagerSettleView({ focusRemits = 0 }) {
   }, []);
   useEffect(() => { loadExtras(); }, [loadExtras]);
   const pendingExtras = staffExtras.filter(e => !e.received_at);
+  // 추가분 보냄 취소 (Mig 251) — 사유 필수, 서버가 이력에 남긴다
+  async function cancelExtraSend(e) {
+    if (busy) return;
+    const reason = window.prompt(`${e.name} · 추가분 보냄(${fmtWon(e.amount)})을 취소합니다.\n올데이케어 정산에는 영향이 없습니다.\n\n취소 사유를 입력해 주세요.`);
+    if (reason == null) return;
+    if (!String(reason).trim()) { window.alert("취소 사유를 입력해 주세요."); return; }
+    setBusy(true);
+    const res = await subManagerCancelStaffExtra(e.id, String(reason).trim());
+    setBusy(false);
+    if (!res.ok) { window.alert(res.error || "취소하지 못했습니다."); return; }
+    loadExtras();
+  }
   async function receiveExtra(e) {
     if (busy) return;
     if (!window.confirm(`${e.name} · 추가분\n${fmtWon(e.amount)} 받은 것으로 확인할까요?`)) return;
@@ -777,6 +812,7 @@ export function SubManagerSettleView({ focusRemits = 0 }) {
                 <div style={{ fontSize: 14, fontWeight: 800 }}>{e.name}</div>
                 <div style={S.small}>{dayLabel(e.ref_date)} 추가분 · <Num value={e.amount} strong/></div>
               </div>
+              <button type="button" disabled={busy} onClick={() => cancelExtraSend(e)} style={{ ...S.btnLink, fontSize: 11, color: "var(--danger, #EF4444)" }}>보냄 취소</button>
               <button type="button" disabled={busy} onClick={() => receiveExtra(e)} style={S.btnMain}>받음 확인</button>
             </div>
           ))}

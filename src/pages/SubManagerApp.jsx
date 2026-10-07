@@ -18,7 +18,7 @@ import { RoleSwitcher } from "../components/RoleSwitcher.jsx";
 import SubAssignSheet from "../components/SubAssignSheet.jsx";
 import CategoryChip, { categoryBar } from "../components/CategoryChip.jsx";
 import { getCategoryMeta } from "../lib/serviceCatalog.js";
-import { subManagerListStaffRemits, subListDailySettlements } from "../lib/subcontractorsDb.js";
+import { subManagerListStaffRemits, subListDailySettlements, subManagerListStaffExtras } from "../lib/subcontractorsDb.js";
 import BottomSheet, { SheetButtons } from "../components/BottomSheet.jsx";
 import SubStaffManage from "../components/SubStaffManage.jsx";
 import SafeTopCover from "../components/SafeTopCover.jsx";
@@ -180,9 +180,11 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
 
   // "지금 할 일" 요약 — 받음 확인 대기(기사가 보냈다고 보고했는데 아직 확인 안 한 줄), 오늘 보낼 수수료
   const loadTodo = useCallback(async () => {
-    const [rm, ds] = await Promise.all([subManagerListStaffRemits(), subListDailySettlements()]);
+    const [rm, ds, ex] = await Promise.all([subManagerListStaffRemits(), subListDailySettlements(), subManagerListStaffExtras()]);
     let waiting = 0, todayFee = 0;
     if (rm.ok) waiting = pendingStaffRemits(rm.staff).length;     // 정산 화면의 상자와 같은 함수 → 숫자가 항상 같다
+    // 2026-10-07 Mig 250 — 기사가 따로 보낸 "추가분" 가운데 아직 받음 확인하지 않은 것도 같이 센다
+    if (ex.ok && Array.isArray(ex.rows)) waiting += ex.rows.filter(e => !e.received_at).length;
     if (ds.ok) {
       const today = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
       const row = (ds.days || []).find(d => d.date === today);

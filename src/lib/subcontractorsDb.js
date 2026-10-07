@@ -164,6 +164,11 @@ export const subStaffReportExtra = () => _call("sub_staff_report_extra", {});
 export const subManagerListStaffExtras = () => _call("sub_manager_list_staff_extras", {});
 export const subManagerConfirmStaffExtra = (id, confirm = true) =>
   _call("sub_manager_confirm_staff_extra", { p_id: id, p_confirm: !!confirm });
+// 보냄 취소 (Mig 251) — 기사 본인: 받음 확인 전까지 / 관리자: 추가분 취소(사유 필수)
+export const subStaffCancelRemit = (date) => _call("sub_staff_cancel_remit", { p_date: date });
+export const subStaffCancelExtra = (id) => _call("sub_staff_cancel_extra", { p_id: id });
+export const subManagerCancelStaffExtra = (id, reason) =>
+  _call("sub_manager_cancel_staff_extra", { p_id: id, p_reason: reason });
 export const subStaffListRemits = () => _call("sub_staff_list_remits", {});
 export const subStaffReportRemit = (date) => _call("sub_staff_report_remit", { p_date: date });
 export const subManagerListStaffRemits = () => _call("sub_manager_list_staff_remits", {});
