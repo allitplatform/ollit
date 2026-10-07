@@ -3122,7 +3122,7 @@ function SettlementRow({ label, value, valueColor }) {
 }
 
 // ──────────────── ⋮ 메뉴 (BottomSheet) ────────────────
-function TaskMenu({ task, onClose, onReschedule, onCancel, onContactOps }) {
+function TaskMenu({ task, onClose, onReschedule, onCancel }) {
   return (
     <div onClick={onClose} style={{
       position: "fixed", inset: 0,
@@ -3140,23 +3140,14 @@ function TaskMenu({ task, onClose, onReschedule, onCancel, onContactOps }) {
           <>
             <MenuItem icon="🕐" label="일정 변경" onClick={onReschedule}/>
             <MenuItem icon="⛔" label="작업 취소 / 부분 취소" danger onClick={onCancel}/>
-            <MenuDivider/>
-            <MenuItem icon="⚠️" label="운영팀 연락" onClick={onContactOps}/>
           </>
         )}
         {task.status === "진행중" && (
           <>
             <MenuItem icon="⛔" label="부분 취소" danger onClick={onCancel}/>
-            <MenuDivider/>
-            <MenuItem icon="⚠️" label="운영팀 연락" onClick={onContactOps}/>
           </>
         )}
-        {(task.status === "완료" || task.status === "visit_only") && (
-          <MenuItem icon="⚠️" label="운영팀 연락" onClick={onContactOps}/>
-        )}
-        {task.status === "미배정" && (
-          <MenuItem icon="⚠️" label="운영팀 연락" onClick={onContactOps}/>
-        )}
+        {/* 2026-10-07 — "운영팀 연락" 항목은 연결된 동작이 없어 뺐다 (사장님 결정) */}
       </div>
     </div>
   );

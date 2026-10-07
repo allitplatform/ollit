@@ -2,10 +2,11 @@
 //   프로필 / 회사(회사 계좌 · 보낼 곳) / 설정(다크 모드 · 푸시 알림 · 글자 크기 · 비밀번호 변경) / 정보 / 로그아웃.
 //   · 회사 계좌 = 소속 기사가 [보냄] 할 때 보낼 계좌. 관리자만 바꿀 수 있고, 계좌번호 전체 보기는 열람 기록이 남는다 (Mig 239).
 //   · 다크 모드 · 글자 크기는 기사 앱과 같은 저장 값을 쓴다.
-//   · 푸시 알림 토글 = 이 기기의 구독 켜기/끄기 (기사 앱과 같음). 줄을 누르면 "알림 종류" 화면 (종류별 설정은 서버 저장).
+//   · 푸시 알림 토글 = 전체 스위치. 끄면 서버가 5종 모두 보내지 않고(Mig 241, 모든 기기) 이 기기의 구독도 해제한다.
+//     켜면 전체 스위치를 켜고 이 기기를 구독한다. 줄을 누르면 "알림 종류" 화면 (종류별 설정은 서버 저장).
 import { useCallback, useEffect, useState } from "react";
 import {
-  subGetCompanyAccount, subSetCompanyAccount, subGetNotifyPrefs, subSetNotifyPrefs,
+  subGetCompanyAccount, subSetCompanyAccount, subGetNotifyPrefs, subSetNotifyPrefs, subSetPushAll,
 } from "../lib/subcontractorsDb.js";
 import { applyTheme, loadTheme } from "../styles/themes.js";
 import { loadFontSize, applyFontSize } from "../utils/fontSize.js";
@@ -182,7 +183,7 @@ function NotifyKindsPage({ isDark, pushOn, onBack }) {
         background: "transparent", border: "none", padding: "4px 2px 12px", cursor: "pointer", fontFamily: "inherit",
         fontSize: 16, fontWeight: 700, color: "var(--text-primary)", display: "flex", alignItems: "center", gap: 8,
       }}><span style={{ fontSize: 20 }}>←</span> 알림 종류</button>
-      {!pushOn && <div style={{ ...small, padding: "0 4px 10px" }}>푸시 알림이 꺼져 있어 이 기기로는 오지 않습니다. 설정은 저장됩니다.</div>}
+      {!pushOn && <div style={{ ...small, padding: "0 4px 10px" }}>푸시 알림이 꺼져 있어 아래 알림은 모두 발송되지 않습니다. 설정은 저장됩니다.</div>}
       {error && <div style={{ ...small, color: "var(--danger, #E5484D)", padding: "0 4px 10px" }}>{error}</div>}
       {prefs && (
         <div style={{ ...meCardStyle(isDark), padding: "6px 0" }}>
@@ -231,13 +232,18 @@ export default function SubManagerMe({ user, subName, onLogout }) {
   }, []);
   useEffect(() => { loadAcc(); }, [loadAcc]);
 
-  // 이 기기의 구독 상태로 토글 맞추기
+  // 토글 = 서버의 전체 스위치(Mig 241)가 켜져 있고 + 이 기기가 구독돼 있을 때 켜짐
   useEffect(() => {
-    if (!isPushSupported()) return;
     let alive = true;
-    getCurrentSubscription().then(sub => {
-      if (alive) setPush(!!(sub && getPermissionState() === "granted"));
-    });
+    (async () => {
+      const [res, sub] = await Promise.all([
+        subGetNotifyPrefs(),
+        isPushSupported() ? getCurrentSubscription() : Promise.resolve(null),
+      ]);
+      if (!alive) return;
+      const serverOn = !(res && res.ok && res.push_all === false);     // 241 실행 전(값 없음)이면 켜진 것으로 본다
+      setPush(serverOn && !!(sub && getPermissionState() === "granted"));
+    })();
     return () => { alive = false; };
   }, []);
 
@@ -255,13 +261,19 @@ export default function SubManagerMe({ user, subName, onLogout }) {
       if (isIOS() && !isStandalone()) { showToast("⚠️ 홈 화면에 추가한 후 다시 시도해주세요"); return; }
       const res = await subscribePushWithSync({ ...ids, role: "sub_manager" });
       setPerm(getPermissionState());
-      if (res.ok || res.reason === "sync_failed") { setPush(true); showToast("✓ 푸시 알림이 활성화되었습니다"); }
+      if (res.ok || res.reason === "sync_failed") {
+        await subSetPushAll(true);                 // 전체 스위치 켜기 (실패해도 기기 구독은 된 상태)
+        setPush(true); showToast("✓ 푸시 알림이 활성화되었습니다");
+      }
       else if (res.reason === "denied") showToast("⚠️ 알림 권한이 거부되었습니다 (휴대폰 설정에서 변경)");
       else if (res.reason === "no_vapid") showToast("⚠️ 푸시 키가 설정되지 않았습니다");
       else showToast(`⚠️ ${res.error || "활성화 실패"}`);
     } else {
+      // 전체 스위치를 먼저 끈다 — 다른 기기(PC 등)에 구독이 남아 있어도 서버가 5종 모두 보내지 않는다
+      const srv = await subSetPushAll(false);
       const res = await unsubscribePushWithSync(ids);
       setPush(false);
+      if (!srv.ok) { showToast("⚠️ 이 기기만 껐습니다. 전체 끄기는 저장하지 못했습니다"); return; }
       showToast(res.ok ? "✓ 푸시 알림이 비활성화되었습니다" : `⚠️ ${res.error || "비활성화 실패"}`);
     }
   }

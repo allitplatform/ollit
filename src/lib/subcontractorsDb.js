@@ -153,6 +153,8 @@ export const subSetCompanyAccount = (bank, account, holder) =>
 // 기사용 "보낼 계좌" (Mig 240): 전체 번호, 열람 기록 없음. 가린 번호 + 열람 기록은 위 subGetCompanyAccount (관리자·운영자).
 export const subStaffGetPayAccount = () => _call("sub_staff_get_pay_account", {});
 export const subGetNotifyPrefs = () => _call("sub_get_notify_prefs", {});
+// 푸시 전체 스위치 (Mig 241): 꺼져 있으면 서버가 5종 모두 보내지 않는다. 종류별 설정은 그대로 남는다.
+export const subSetPushAll = (on) => _call("sub_set_push_all", { p_on: !!on });
 export const subSetNotifyPrefs = (prefs) => _call("sub_set_notify_prefs", { p_prefs: prefs || {} });
 
 // ── 기사 → 협력사 송금 보고 (Mig 234, 2단계 보고) ────────────
