@@ -1688,7 +1688,18 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
       <div style={{ padding: D1_OUTER_PAD }}>
         <div style={D1_CARD_STYLE}>
           <div style={{ ...grid, fontSize: 11.5, fontWeight: 700, color: "var(--text-tertiary)", paddingBottom: 6, borderBottom: "1px solid var(--border)" }}>
-            <span>항목</span><span style={{ textAlign: "right" }}>견적</span><span style={{ textAlign: "right" }}>받은 돈</span><span/>
+            <span>항목</span><span style={{ textAlign: "right" }}>견적</span><span style={{ textAlign: "right" }}>받은 돈</span>
+            {/* 2-2 — [+ 항목 추가] 를 표 머리줄 오른쪽으로 */}
+            {!isVisitOnly ? (
+              <button type="button" onClick={() => canEdit && setShowAdd(true)} disabled={!canEdit}
+                title={canEdit ? "항목 추가 (정책 검증)" : disabledReason} style={{
+                  padding: "4px 9px", borderRadius: 7, fontSize: 11, fontWeight: 800, fontFamily: "inherit", whiteSpace: "nowrap",
+                  background: canEdit ? "rgba(255,27,141,0.1)" : "var(--bg-secondary)",
+                  border: `1px dashed ${canEdit ? "#FF1B8D" : "var(--border)"}`,
+                  color: canEdit ? "#FF1B8D" : "var(--text-tertiary, var(--text-secondary))",
+                  cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.5,
+                }}>+ 항목 추가</button>
+            ) : <span/>}
           </div>
           {items.length === 0 && (
             <div style={{ padding: "14px 0", fontSize: 12.5, fontWeight: 700, color: "#B45309" }}>⚠️ 작업 항목이 없습니다. [항목 추가]로 등록해 주세요.</div>
@@ -1742,7 +1753,14 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
                         border: `1px solid ${canEdit ? "#FF1B8D" : "var(--border)"}`,
                         color: canEdit ? "#FF1B8D" : "var(--text-tertiary, var(--text-secondary))",
                         cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.5, whiteSpace: "nowrap",
-                      }}>✏️ 수정</button>
+                      }}>✏️</button>
+                  )}
+                  {/* 2-2 — 품목별 취소도 같은 줄에서 (기존 품목별 취소 창을 연다) */}
+                  {!isCanceled && it.id && !isVisitOnly && onPartialCancel && (
+                    <button type="button" onClick={onPartialCancel} title="품목별 취소" aria-label="품목별 취소" style={{
+                      padding: "3px 7px", borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: "inherit",
+                      background: "transparent", border: "1px solid var(--border)", color: "var(--text-secondary)", cursor: "pointer",
+                    }}>✂️</button>
                   )}
                   
                 </span>
@@ -1756,18 +1774,6 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
             <span/>
           </div>
           {footer}
-          {!isVisitOnly && (
-            <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
-              <button type="button" onClick={() => canEdit && setShowAdd(true)} disabled={!canEdit}
-                title={canEdit ? "항목 추가 (정책 검증)" : disabledReason} style={{
-                  padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 800, fontFamily: "inherit",
-                  background: canEdit ? "rgba(255,27,141,0.1)" : "var(--bg-secondary)",
-                  border: `1px dashed ${canEdit ? "#FF1B8D" : "var(--border)"}`,
-                  color: canEdit ? "#FF1B8D" : "var(--text-tertiary, var(--text-secondary))",
-                  cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.5,
-                }}>➕ 항목 추가</button>
-            </div>
-          )}
           {!isVisitOnly && !canEdit && disabledReason && (
             <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: "var(--text-tertiary, var(--text-secondary))", textAlign: "right" }}>⚠️ {disabledReason}</div>
           )}
