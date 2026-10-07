@@ -239,6 +239,59 @@ export function PcExceptionCard({ task, onVisitOnly, onCancel, onPartialCancel, 
   );
 }
 
+// 금액 카드 아래쪽: 기사 · 회사 (협력사 작업이면 협력사 · 수수료 · 원청 몫) 비율 막대 + 자재비 · 부가세 줄.
+//   값은 서버가 계산해 둔 정산 값(payments)을 그대로 읽는다. 계산이 아직 없으면 안내만.
+export function PcMoneySplit({ task }) {
+  const won = (n) => `₩${Math.round(Number(n) || 0).toLocaleString("ko-KR")}`;
+  const isSub = !!task.subcontractorId;
+  const share = Math.max(0, Number(task.sub_principal_share || 0));
+  const fee = Number(task.owner_amount || 0);
+  let parts;
+  if (isSub) {
+    const supply = Number(task.supplyAmount || 0) || Number(task.receivedTotal || 0) || 0;
+    parts = [
+      { label: "협력사", amount: Math.max(0, supply - fee), color: "#A78BFA" },
+      { label: "회사 (수수료)", amount: Math.max(0, fee - share), color: "#FF1B8D" },
+      { label: "원청 몫", amount: share, color: "#F59E0B" },
+    ];
+  } else {
+    parts = [
+      { label: "기사", amount: Number(task.engineer_amount || 0), color: "#06B6D4" },
+      { label: "회사", amount: Math.max(0, fee - share), color: "#FF1B8D" },
+      { label: "원청", amount: Number(task.principal_amount || 0) + share, color: "#F59E0B" },
+    ];
+  }
+  parts = parts.filter(p => p.amount > 0);
+  const sum = parts.reduce((s, p) => s + p.amount, 0);
+  const material = Number(task.materialCost || 0);
+  const got = Number(task.receivedTotal ?? task.totalAmount ?? 0) || 0;
+  const vat = (!isSub && task.vatIncluded === true && got > 0) ? Math.max(0, got - Math.round(got / 1.1)) : 0;
+  return (
+    <div style={{ marginTop: 12 }}>
+      {sum > 0 ? (
+        <>
+          <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", background: "var(--border)" }}>
+            {parts.map(p => <div key={p.label} style={{ width: `${(p.amount / sum) * 100}%`, background: p.color }} title={`${p.label} ${won(p.amount)}`}/>)}
+          </div>
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "4px 14px", marginTop: 8, fontSize: 13 }}>
+            {parts.map(p => (
+              <span key={p.label} style={{ display: "inline-flex", alignItems: "center", gap: 5 }}>
+                <span style={{ width: 9, height: 9, borderRadius: 3, background: p.color }}/>
+                <span style={{ color: "var(--text-secondary)" }}>{p.label} {Math.round((p.amount / sum) * 100)}%</span>
+                <b style={{ color: "var(--text-primary)" }}>{won(p.amount)}</b>
+              </span>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div style={{ fontSize: 12.5, color: "var(--text-tertiary)" }}>기사 · 회사 분배는 정산이 계산된 뒤에 나옵니다</div>
+      )}
+      {material > 0 && <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 6 }}>🧰 자재비 {won(material)} (기사 선지출 — 기사 몫에 포함)</div>}
+      {vat > 0 && <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 4 }}>🧾 부가세 {won(vat)} (따로 받은 금액 · 어느 몫에도 넣지 않음)</div>}
+    </div>
+  );
+}
+
 // 수행 — 누가 하는지 (상태만). children: 직영 작업을 협력사로 넘기는 기존 카드
 export function PcPerformerCard({ task, children = null }) {
   const isSub = !!task.subcontractorId;

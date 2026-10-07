@@ -63,7 +63,7 @@ import { SubPrincipalSplitCard } from "./SubPrincipalParts.jsx";
 import { getCategoryMetaOfRow } from "../lib/serviceCatalog.js";
 import { isRelocationTask } from "../utils/relocation.js";
 import { useIsPc } from "../utils/useIsPc.js";
-import { usePanelWidth, PcStatusStrip, PcCustomerCard, PcPlaceCard, PcExceptionCard, PcSection, PcPerformerCard } from "./AdminTaskDetailPcParts.jsx";
+import { usePanelWidth, PcStatusStrip, PcCustomerCard, PcPlaceCard, PcExceptionCard, PcSection, PcPerformerCard, PcMoneySplit } from "./AdminTaskDetailPcParts.jsx";
 import { RelocationBlocks } from "./RelocationParts.jsx";
 
 // 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (0 이면 테두리 선이 화면 끝에서 잘려 12 로 — 2026-10-06 실화면 확인).
@@ -424,10 +424,21 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
                 {(task.subcontractorId || getCategoryMetaOfRow(task).key === "hood") && (
                   <SubPrincipalSplitCard task={task} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
                 )}
-                {!task.subcontractorId && <SettlementInfoCard task={task}/>}
-                {task.principalCode !== "usol_n" && <TaskItemsCard task={task} user={user} onReload={reloadTask}/>}
+                {/* 2차 — 표 하나: 항목 | 견적 | 받은 돈 → 합계 → 비율 막대 → 자재비 · 부가세 */}
+                {task.principalCode !== "usol_n" && (
+                  <TaskItemsCard task={task} user={user} onReload={reloadTask} pc
+                    onPartialCancel={() => setShowPartialCancelDialog(true)}
+                    footer={<PcMoneySplit task={task}/>}/>
+                )}
                 {task.principalCode === "usol_n" && (
                   <UsolNSettlementCycleCard taskId={task.id} paymentMethod={task.paymentMethod || task.payment_method || null}/>
+                )}
+                {/* 기존 "정산 정보" 카드 — 자재비 입력 · 계산 내역은 여기 그대로 (접어 둠) */}
+                {!task.subcontractorId && (
+                  <details style={{ margin: `0 ${DETAIL_GUTTER}px 12px`, border: "1px solid var(--border)", borderRadius: 14, background: "var(--bg-elevated)" }}>
+                    <summary style={{ padding: "11px 16px", fontSize: 12.5, fontWeight: 800, color: "var(--text-secondary)", cursor: "pointer" }}>정산 자세히 · 자재비 입력 (펼치기)</summary>
+                    <SettlementInfoCard task={task}/>
+                  </details>
                 )}
               </PcSection>
               <PcPerformerCard task={task}/>
@@ -1561,7 +1572,8 @@ function SettlementRow({ label, value, color, bold }) {
 // ──────────────── Phase C Step 6 — 작업 항목별 받은 돈 표시/수정 카드 ────────────────
 // 2026-05-31 — task_items per-item 표시 + 신규 흐름 (non-usol_n / non-prepaid) 측 받은 돈 input.
 // onBlur 측 setTaskItemReceivedAmount 호출 → DB 트리거 chain → tasks.received_total + extra_fee + compute_payment 자동 sync.
-function TaskItemsCard({ task, user, onReload }) {
+//   pc: 운영자 PC 새 배치(표 하나) / footer: 합계 아래에 넣을 내용 / onPartialCancel: 품목별 취소 창 열기
+function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPartialCancel = null }) {
   if (task?.type === "external") return null;
 
   const items = Array.isArray(task?.workItems) ? task.workItems : [];
@@ -1666,6 +1678,118 @@ function TaskItemsCard({ task, user, onReload }) {
   // 2026-07-12 — 사장님 spec: items 0개여도 카드 렌더 ([+ 항목 추가] 항상 노출).
   //   빈 작업 (A-260712-029 같이 workItems 없이 저장된 case) 복구 경로 확보.
   //   이전: return null 로 카드 자체가 사라져 사용자가 항목 추가 불가.
+
+  // 2026-10-07 — 운영자 PC 새 배치: 표 하나 (항목 | 견적 | 받은 돈) → 합계 → 아래 내용(footer).
+  //   입력칸 · 저장(handleBlur) · 수정 · 추가 창은 위에서 쓰는 것과 똑같은 것이다. 모양만 다르다.
+  if (pc) {
+    const grid = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 92px 118px auto", gap: 8, alignItems: "center" };
+    const sumQuote = items.reduce((s, it) => s + (it.isCanceled || isVisitOnly ? 0 : (Number(it.subtotal) || (Number(it.unitPrice) || 0) * (Number(it.qty) || 1))), 0);
+    return (
+      <div style={{ padding: D1_OUTER_PAD }}>
+        <div style={D1_CARD_STYLE}>
+          <div style={{ ...grid, fontSize: 11.5, fontWeight: 700, color: "var(--text-tertiary)", paddingBottom: 6, borderBottom: "1px solid var(--border)" }}>
+            <span>항목</span><span style={{ textAlign: "right" }}>견적</span><span style={{ textAlign: "right" }}>받은 돈</span><span/>
+          </div>
+          {items.length === 0 && (
+            <div style={{ padding: "14px 0", fontSize: 12.5, fontWeight: 700, color: "#B45309" }}>⚠️ 작업 항목이 없습니다. [항목 추가]로 등록해 주세요.</div>
+          )}
+          {items.map((it, idx) => {
+            const colors    = getWorkTypeColors(it.workType);
+            const qty       = Number(it.qty) || 1;
+            const unitPrice = Number(it.unitPrice) || 0;
+            const subtotal  = Number(it.subtotal) || (unitPrice * qty);
+            const isMain    = (it.orderType || it.order_type) !== '추가선택';
+            const isCanceled = !!it.isCanceled;
+            const canShowInput = usesReceivedTotalFlow && isMain && !isCanceled && !isVisitOnly;
+            const name = it.appliance || it.description || ((it.workType && it.workType !== colors.name) ? it.workType : colors.name);
+            return (
+              <div key={it.id || idx} style={{ ...grid, padding: "9px 0", borderBottom: "1px solid var(--border)", opacity: isCanceled ? 0.55 : 1 }}>
+                <span style={{ minWidth: 0, fontSize: 13.5, fontWeight: 700, color: isCanceled ? "#9CA3AF" : "var(--text-primary)", textDecoration: isCanceled ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ marginRight: 5, filter: isCanceled ? "grayscale(1)" : "none" }}>{colors.icon}</span>
+                  {name} ×{qty}
+                  {isCanceled && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, color: "#A32D2D" }}>취소</span>}
+                  {isVisitOnly && !isCanceled && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, color: "#1D4ED8" }}>출장 전환</span>}
+                </span>
+                <span className="mono" style={{ textAlign: "right", fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)", textDecoration: isCanceled ? "line-through" : "none" }}>
+                  {(isVisitOnly ? 0 : subtotal).toLocaleString("ko-KR")}
+                </span>
+                {canShowInput ? (
+                  <input
+                    type="number"
+                    inputMode="numeric"
+                    value={localReceived[it.id] != null ? localReceived[it.id] : ""}
+                    placeholder={String(subtotal)}
+                    onChange={(e) => setLocalReceived(prev => ({ ...prev, [it.id]: e.target.value }))}
+                    onBlur={() => handleBlur(it.id, it.receivedAmount)}
+                    disabled={!!saving[it.id]}
+                    aria-label="받은 돈"
+                    style={{
+                      width: "100%", boxSizing: "border-box", padding: "6px 8px", background: "var(--card-bg)",
+                      border: `1px solid ${colors.main}`, borderRadius: 6, color: "var(--text-primary)",
+                      fontSize: 13.5, fontWeight: 700, textAlign: "right", outline: "none", fontFamily: "inherit",
+                      opacity: saving[it.id] ? 0.5 : 1,
+                    }}
+                  />
+                ) : (
+                  <span style={{ textAlign: "right", fontSize: 12, color: "var(--text-tertiary)" }}>—</span>
+                )}
+                <span style={{ display: "inline-flex", gap: 4, justifyContent: "flex-end" }}>
+                  {!isCanceled && it.id && !isVisitOnly && (
+                    <button type="button" onClick={() => canEdit ? setEditItem(it) : null} disabled={!canEdit}
+                      title={canEdit ? "견적 수정" : disabledReason} aria-label="견적 수정" style={{
+                        padding: "3px 7px", borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: "inherit",
+                        background: canEdit ? "rgba(255,27,141,0.1)" : "var(--bg-secondary)",
+                        border: `1px solid ${canEdit ? "#FF1B8D" : "var(--border)"}`,
+                        color: canEdit ? "#FF1B8D" : "var(--text-tertiary, var(--text-secondary))",
+                        cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.5, whiteSpace: "nowrap",
+                      }}>✏️ 수정</button>
+                  )}
+                  
+                </span>
+              </div>
+            );
+          })}
+          <div style={{ ...grid, padding: "10px 0 0", fontSize: 14, fontWeight: 800 }}>
+            <span style={{ color: "var(--text-primary)" }}>합계</span>
+            <span className="mono" style={{ textAlign: "right", color: "var(--text-primary)" }}>{sumQuote.toLocaleString("ko-KR")}</span>
+            <span className="mono" style={{ textAlign: "right", color: "#D4537E" }}>{usesReceivedTotalFlow ? Number(task?.receivedTotal || 0).toLocaleString("ko-KR") : "—"}</span>
+            <span/>
+          </div>
+          {footer}
+          {!isVisitOnly && (
+            <div style={{ marginTop: 12, display: "flex", justifyContent: "flex-end" }}>
+              <button type="button" onClick={() => canEdit && setShowAdd(true)} disabled={!canEdit}
+                title={canEdit ? "항목 추가 (정책 검증)" : disabledReason} style={{
+                  padding: "6px 12px", borderRadius: 8, fontSize: 11, fontWeight: 800, fontFamily: "inherit",
+                  background: canEdit ? "rgba(255,27,141,0.1)" : "var(--bg-secondary)",
+                  border: `1px dashed ${canEdit ? "#FF1B8D" : "var(--border)"}`,
+                  color: canEdit ? "#FF1B8D" : "var(--text-tertiary, var(--text-secondary))",
+                  cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.5,
+                }}>➕ 항목 추가</button>
+            </div>
+          )}
+          {!isVisitOnly && !canEdit && disabledReason && (
+            <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: "var(--text-tertiary, var(--text-secondary))", textAlign: "right" }}>⚠️ {disabledReason}</div>
+          )}
+        </div>
+        {editItem && (
+          <EditTaskItemModal t={editT} item={editItem} task={task} actorId={editActorId}
+            onClose={() => setEditItem(null)} onApplied={() => { setEditItem(null); handleApplied("✓ 견적 수정됨"); }}/>
+        )}
+        {showAdd && (
+          <AddTaskItemModal t={editT} task={task} actorId={editActorId}
+            onClose={() => setShowAdd(false)} onApplied={() => { setShowAdd(false); handleApplied("✓ 항목 추가됨"); }}/>
+        )}
+        {toast && (
+          <div style={{
+            position: "fixed", left: "50%", bottom: "calc(60px + env(safe-area-inset-bottom))", transform: "translateX(-50%)",
+            background: "rgba(0, 135, 90, 0.95)", color: "#fff", padding: "10px 16px", borderRadius: 10,
+            fontSize: 13, fontWeight: 700, boxShadow: "0 4px 12px rgba(0,0,0,0.3)", zIndex: 1200, pointerEvents: "none",
+          }}>{toast}</div>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div style={{ padding: D1_OUTER_PAD }}>
