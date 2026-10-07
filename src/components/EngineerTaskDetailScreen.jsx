@@ -1,4 +1,5 @@
-import { subStaffSetReceived } from "../lib/subcontractorsDb.js";
+import { subStaffSetReceived, engineerSetHoodVat } from "../lib/subcontractorsDb.js";
+import { getCategoryMetaOfRow } from "../lib/serviceCatalog.js";
 // V13-FINAL — 기사 PWA 작업 상세 (3 상태 + 부분 취소 + 일정 변경 + 출장비만)
 // V14 — 사진 분류 X / 완료 분기 3가지 (완료 / 부분 / 출장비만)
 // 진입: 오늘 화면 / 새 배정 리스트 / 다음 일정
@@ -158,9 +159,11 @@ function getTaskItems(task, itemEngineerAmounts = {}) {
       const sub = Number(w.subtotal || w.unitPrice || w.unit_price || 0) * (w.subtotal ? 1 : (w.qty || 1));
       return s + sub;
     }, 0);
+    // 2026-10-07 Mig 256 — 직영 주방후드는 기사 몫 65% (정산 계산 전의 추정값. 계산 뒤에는 실제 기사 몫을 항목 금액 비율로 나눈다)
+    const _isHoodTask = getCategoryMetaOfRow(task).key === "hood";
     const distRatio = (sumSubtotal > 0 && engineerAmount > 0)
       ? (engineerAmount / sumSubtotal)
-      : 0.6;
+      : (_isHoodTask ? 0.65 : 0.6);
     return task.workItems.map((wi, i) => {
       const isCanceled = !!(wi.isCanceled ?? wi.is_canceled);
       const subtotal = Number(wi.subtotal || wi.unitPrice || wi.unit_price || 0) * (wi.subtotal ? 1 : (wi.qty || 1));
@@ -385,6 +388,19 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   //   접수 견적은 부가세 제외 금액 → 공급가와 비교. 공급가가 적으면 사유 필수.
   //   저장에 실패하면 다음 화면으로 넘어가지 않는다 (금액 없이 완료되는 것 방지).
   const [vatIncluded, setVatIncluded] = useState(task.vatIncluded === true);
+  // 2026-10-07 Mig 257 — 직영 주방후드: 부가세 포함해서 받았는지 (기본 꺼짐). 누르는 즉시 저장 → 서버가 다시 계산.
+  //   포함이면 공급가 = 받은 금액 ÷ 1.1, 기사 몫은 공급가의 65%. 다른 종목에는 나오지 않는다.
+  const isHoodDirect = !isSubTask && getCategoryMetaOfRow(task).key === "hood";
+  const [hoodVat, setHoodVat] = useState(task.vatIncluded === true);
+  const [hoodVatBusy, setHoodVatBusy] = useState(false);
+  async function toggleHoodVat(next) {
+    if (hoodVatBusy) return;
+    setHoodVatBusy(true);
+    const res = await engineerSetHoodVat(task.id, next);
+    setHoodVatBusy(false);
+    if (!res || !res.ok) { alert((res && res.error) || "저장하지 못했습니다."); return; }
+    setHoodVat(next);
+  }
   const [shortReason, setShortReason] = useState(task.supplyShortfallReason || "");
   const subSupply    = vatIncluded ? Math.round(parsedReceived / 1.1) : parsedReceived;
   const subQuote     = Number(task.estimateTotal || task.productPrice || 0) || 0;
@@ -1082,6 +1098,30 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
             onPhotoChange={handlePhotoChange}
             onRemove={handleRemovePhoto}
           />
+          {isHoodDirect && usesReceivedTotalFlow && (() => {
+            const got = usesPerItemFlow ? sumPerItemReceived : parsedReceived;
+            const supply = hoodVat ? Math.round(got / 1.1) : got;
+            return (
+              <div style={{
+                margin: "0 16px 12px", padding: "12px 14px", borderRadius: 12,
+                background: "var(--bg-elevated)", border: "1px solid var(--border)",
+              }}>
+                <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, fontWeight: 700, color: "var(--text-primary)", cursor: "pointer", opacity: hoodVatBusy ? 0.6 : 1 }}>
+                  <input
+                    type="checkbox" checked={hoodVat} disabled={hoodVatBusy}
+                    onChange={e => toggleHoodVat(e.target.checked)}
+                    style={{ width: 20, height: 20 }}
+                  />
+                  부가세 포함해서 받음
+                </label>
+                <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                  {hoodVat && got > 0
+                    ? `공급가 ₩${supply.toLocaleString("ko-KR")} / 부가세 ₩${(got - supply).toLocaleString("ko-KR")} · 내 몫은 공급가의 65%`
+                    : "주방후드 견적은 부가세 별도입니다. 부가세까지 받았으면 체크해 주세요. 내 몫은 공급가의 65%"}
+                </div>
+              </div>
+            );
+          })()}
           {usesPerItemFlow ? (
             <PerItemReceivedCards
               items={allMainItems}

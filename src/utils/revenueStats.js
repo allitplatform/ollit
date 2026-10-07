@@ -55,6 +55,20 @@ function _sumSubFee(apiTasks, startYmd, endYmd) {
   return { subFee, subShare, subGross, subCount };
 }
 
+// 직영 작업(track A)에 붙은 원청 몫 합계 — 완료 계열 + 완료일(KST)이 기간 안. 지금은 직영 주방후드만 해당.
+function _sumDirectShare(apiTasks, startYmd, endYmd) {
+  let s = 0;
+  for (const t of (apiTasks || [])) {
+    if (!isTrackARemittance(t)) continue;
+    const completed = t.completedAt || t.completed_at;
+    if (!completed) continue;
+    const ymd = toKstYmd(completed);
+    if (!ymd || ymd < startYmd || ymd > endYmd) continue;
+    s += Math.max(0, Number(t.sub_principal_share || 0));
+  }
+  return s;
+}
+
 // 기존 집계 결과(서버 요약 또는 클라이언트 계산의 직영·원청분)에 협력사 수수료를 얹는다.
 //   기존 칸(total / engineer / principal / byService / count)은 건드리지 않는다.
 //   owner 만 "기존 + 협력사 수수료" 로 바뀌고, 기존 값은 ownerDirect 에 남긴다.
@@ -64,8 +78,10 @@ export function withSubFee(rev, apiTasks, startYmd, endYmd, user) {
     return { ...rev, ownerDirect: Number(rev.owner) || 0, subFee: 0, subShare: 0, subGross: 0, subCount: 0 };
   }
   const sub = _sumSubFee(apiTasks, startYmd, endYmd);
-  const ownerDirect = Number(rev.owner) || 0;
-  return { ...rev, ownerDirect, owner: ownerDirect + sub.subFee, ...sub };
+  // 2026-10-07 Mig 256 — 서버 요약의 회사 몫은 owner_amount 합계라 직영 주방후드의 원청 몫이 들어 있다 → 뺀다.
+  const dShare = _sumDirectShare(apiTasks, startYmd, endYmd);
+  const ownerDirect = (Number(rev.owner) || 0) - dShare;
+  return { ...rev, principal: (Number(rev.principal) || 0) + dShare, ownerDirect, owner: ownerDirect + sub.subFee, ...sub };
 }
 
 // 2026-07-14 — Stage 2c: 서버 집계(get_admin_dashboard_summary) 응답 → computeRevenueByYmRange 반환 형태 매핑.
@@ -134,10 +150,13 @@ export function computeRevenueByYmRange(apiTasks, startYmd, endYmd, user) {
   let cleaningOwner = 0, refrigerantOwner = 0, installOwner = 0, leakOwner = 0, otherOwner = 0;
   for (const t of list) {
     const amt   = Number(t.totalAmount || t.총금액 || t.estimateTotal || 0);
-    const ownAmt = Number(t.owner_amount || 0);
+    // 2026-10-07 Mig 256 — 직영 주방후드: 수수료(owner_amount) 가운데 원청 몫은 회사 수입이 아니다.
+    //   회사 몫 = 수수료 − 원청 몫, 원청 몫은 "원청" 칸으로 옮긴다 (협력사 작업 · 가계부와 같은 기준).
+    const dShare = Math.max(0, Number(t.sub_principal_share || 0));
+    const ownAmt = Number(t.owner_amount || 0) - dShare;
     total     += amt;
     engineer  += Number(t.engineer_amount || 0);
-    principal += Number(t.principal_amount || 0);
+    principal += Number(t.principal_amount || 0) + dShare;
     owner     += ownAmt;
 
     const code = pickServiceCode(t);

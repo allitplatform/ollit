@@ -1162,7 +1162,8 @@ function AdminPcTodayByPrincipal({ apiTasks = [], fill = false, happycallMode = 
         done.set(code, (done.get(code) || 0) + 1);
         // 회사 몫 — usol_n 은 트랙 B (월정산) 이므로 즉시 미확정
         if (code !== USOLN_CODE) {
-          owner.set(code, (owner.get(code) || 0) + Number(t.owner_amount || 0));
+          // 2026-10-07 Mig 256 — 원청 몫(sub_principal_share)은 회사 몫이 아니다 (협력사 · 직영 주방후드 공통, 가계부와 같은 기준)
+          owner.set(code, (owner.get(code) || 0) + Number(t.owner_amount || 0) - Math.max(0, Number(t.sub_principal_share || 0)));
         }
       }
     }

@@ -219,6 +219,9 @@ export const adminConfirmSubFeeExtra = (id, confirm = true) =>
   _call("admin_confirm_sub_fee_extra", { p_id: id, p_confirm: confirm });
 export const adminCancelSubFeeExtra = (id, reason) =>
   _call("admin_cancel_sub_fee_extra", { p_id: id, p_reason: reason });
+// 직영 주방후드: 부가세 포함해서 받았는지 (Mig 257) — 기사 본인 배정 작업 또는 운영자
+export const engineerSetHoodVat = (taskId, vatIncluded) =>
+  _call("engineer_set_hood_vat", { p_task_id: taskId, p_vat_included: !!vatIncluded });
 // 쿨가이(KB) 원청 전용 화면 (Mig 254) — 보기 전용, 허용된 칸만 내려온다
 export const partnerKbListTasks = () => _call("partner_kb_list_tasks", {});
 export const partnerKbGetTask = (taskId) => _call("partner_kb_get_task", { p_task_id: taskId });

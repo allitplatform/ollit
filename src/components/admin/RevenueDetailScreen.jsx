@@ -310,7 +310,7 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
       return bT - aT;
     });
     const sumTotal = sorted.reduce((s, x) => s + Number(x.totalAmount || x.총금액 || x.estimateTotal || 0), 0);
-    const sumOwner = sorted.reduce((s, x) => s + Number(x.owner_amount || 0), 0);
+    const sumOwner = sorted.reduce((s, x) => s + (Number(x.owner_amount || 0) - Math.max(0, Number(x.sub_principal_share || 0))), 0);
     return { taskList: sorted, taskTotalRevenue: sumTotal, taskTotalOwner: sumOwner };
   }, [apiTasks, startYmd, endYmd, user, taskKind]);
 
@@ -678,7 +678,7 @@ function TaskView({ t, isPc, isDay, tasks, sumTotal, sumOwner, kind, setKind, on
           <div style={{ display: "flex", flexDirection: "column", gap: 6, marginBottom: 12 }}>
             {extraTasks.map(({ task, extraKind }, i) => {
               const isVisit = extraKind === "visit";
-              const owner = Number(task.owner_amount || 0);
+              const owner = (Number(task.owner_amount || 0) - Math.max(0, Number(task.sub_principal_share || 0)));
               const travel = Number(task.travelFee || task.travel_fee || task.totalAmount || 0);
               return (
                 <button key={task.id || i} type="button"
@@ -774,7 +774,7 @@ function TaskTable({ t, tasks, onTaskClick }) {
       {tasks.map((task, idx) => {
         const kind = kindOfTask(task);
         const total = Number(task.totalAmount || task.총금액 || task.estimateTotal || 0);
-        const owner = Number(task.owner_amount || 0);
+        const owner = (Number(task.owner_amount || 0) - Math.max(0, Number(task.sub_principal_share || 0)));
         return (
           <button
             key={task.id || idx}
@@ -838,7 +838,7 @@ function TaskCardList({ t, tasks, onTaskClick }) {
       {tasks.map((task, idx) => {
         const kind = kindOfTask(task);
         const total = Number(task.totalAmount || task.총금액 || task.estimateTotal || 0);
-        const owner = Number(task.owner_amount || 0);
+        const owner = (Number(task.owner_amount || 0) - Math.max(0, Number(task.sub_principal_share || 0)));
         // 2026-06-19 — 종류·수량 압축 결합 (사장님 spec: 원청·기사 줄 끝에).
         const itemSummary = (() => {
           const items = Array.isArray(task.workItems) ? task.workItems : [];
