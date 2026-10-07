@@ -401,7 +401,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       {!subMode && <SubcontractorCard task={task} onChanged={reloadTask}/>}
       {/* 2026-10-06 Mig 215~217 — 협력사 작업 분배: 공급가 / 수수료 / 협력사 몫 */}
       <SubFeeSplitCard task={task}/>
-      {/* 2026-10-07 Mig 244 — 원청 몫(쿨가이). 운영자 화면에만 — 협력사 관리자·기사에게는 보여 주지 않는다 */}
+      {/* 2026-10-07 Mig 244 — 원청 몫. 운영자 화면에만 — 협력사 관리자·기사에게는 보여 주지 않는다 */}
       {!subMode && task.subcontractorId && (
         <SubPrincipalSplitCard task={task} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
       )}

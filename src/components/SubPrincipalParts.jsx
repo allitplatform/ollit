@@ -1,9 +1,11 @@
-// 2026-10-07 Mig 244·245 — 협력사 작업의 원청 몫(쿨가이). 올데이케어(운영자) 화면 전용.
-//   · 화이트코어가 올데이케어에 보내는 수수료(35%)는 그대로다. 그 안에서 쿨가이 몫을 따로 보여 준다.
-//     쿨가이 몫 = LEAST(견적 공급가 × 35%, 수수료) · 올데이케어 실제 몫 = 수수료 − 쿨가이 몫
+// 2026-10-07 Mig 244·245·247 — 협력사 작업의 원청 몫. 올데이케어(운영자) 화면 전용.
+//   · 화이트코어가 올데이케어에 보내는 수수료(35%)는 그대로다. 그 안에서 원청 몫을 따로 보여 준다.
+//     원청 몫 = LEAST(견적 공급가 × 35%, 수수료) · 올데이케어 실제 몫 = 수수료 − 원청 몫
 //   · 협력사 관리자·기사 화면에는 쓰지 않는다 (원청 몫을 보여 주지 않는다).
-//   SubPrincipalSplitCard : 작업 상세 — 견적(수정 가능) · 쿨가이 몫 · 올데이케어 몫
-//   PrincipalRemitBox     : 협력사 수수료 화면 — "쿨가이에 보낼 돈" 날짜별 줄 + [쿨가이 송금 완료]
+//   · 사장님 지시(2026-10-07): 원청 이름은 화면에 쓰지 않는다. 문구는 "원청" 으로 고정하고,
+//     어느 원청인지는 작업코드(K-…)로 구분한다.
+//   SubPrincipalSplitCard : 작업 상세 — 견적(수정 가능) · 원청 몫 · 올데이케어 몫
+//   PrincipalRemitBox     : 협력사 수수료 화면 — "원청에 보낼 돈" 날짜별 줄 + [원청 송금 완료]
 //   useSubSplits          : 작업 id 목록 → Map(task_id → 분배) (정산 화면의 작업 줄 표시용)
 import { useCallback, useEffect, useMemo, useState } from "react";
 import {
@@ -18,8 +20,8 @@ const linkBtn = {
   fontSize: 12, fontWeight: 700, color: "var(--text-primary)", fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
 };
 const tag = (bg, fg) => ({ display: "inline-block", fontSize: 10.5, fontWeight: 800, padding: "1px 6px", borderRadius: 5, background: bg, color: fg, marginLeft: 6, whiteSpace: "nowrap" });
-// 원청 이름에서 "(KB)" 같은 꼬리표를 뗀다 — "쿨가이 (KB)" → "쿨가이"
-export const shortPrincipal = (name) => String(name || "원청").replace(/\s*\([^)]*\)\s*$/, "") || "원청";
+// 화면에 쓰는 원청 문구 — 이름을 쓰지 않고 "원청" 으로 고정한다 (어느 원청인지는 작업코드로 구분)
+export const shortPrincipal = () => "원청";
 
 function dayLabel(ymd) {
   const [, m, d] = String(ymd || "").split("-");
@@ -42,7 +44,7 @@ export function useSubSplits(taskIds) {
   return map;
 }
 
-// 정산 화면 작업 줄 아래 한 줄 — "쿨가이 35,000 / 올데이케어 17,500"
+// 정산 화면 작업 줄 아래 한 줄 — "원청 35,000 / 올데이케어 17,500"
 export function SplitNote({ split }) {
   if (!split || !split.has_rule || split.fee == null) return null;
   const share = Number(split.share) || 0;
@@ -101,7 +103,7 @@ export function SubPrincipalSplitCard({ task, style = {} }) {
     <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14, padding: "12px 14px", ...style }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
         <div style={{ flex: 1, fontSize: 12, fontWeight: 800, color: VIOLET }}>
-          원청 몫 · {pname}
+          원청 몫
           {data.quote_edited_at && <span style={tag("rgba(249,115,22,0.16)", "#F97316")}>견적 수정</span>}
         </div>
         <button type="button" disabled={busy} onClick={editQuote} style={linkBtn}>{busy ? "…" : "견적 수정"}</button>
@@ -152,8 +154,8 @@ export function PrincipalRemitBox({ refreshKey = 0, style = {} }) {
     if (busy) return;
     const who = shortPrincipal(r.principal_name);
     const msg = paidFlag
-      ? `${who} · ${dayLabel(r.date)} 입금 확인분\n${fmtWon(r.amount)} 을 ${who}에 송금했습니까?\n\n가계부에 출금 ${fmtWon(r.amount)} 이 기록됩니다.`
-      : `${who} · ${dayLabel(r.date)} 송금 완료(${fmtWon(r.amount)})를 되돌릴까요?\n가계부의 출금 기록도 지워집니다.`;
+      ? `${dayLabel(r.date)} 입금 확인분 · 원청 송금\n${fmtWon(r.amount)} 을 ${who}에 송금했습니까?\n\n가계부에 출금 ${fmtWon(r.amount)} 이 기록됩니다.`
+      : `${dayLabel(r.date)} 입금 확인분 · 원청 송금 완료(${fmtWon(r.amount)})를 되돌릴까요?\n가계부의 출금 기록도 지워집니다.`;
     if (!window.confirm(msg)) return;
     setBusy(true);
     const res = await adminMarkPrincipalRemitPaid(r.id, paidFlag);
@@ -187,7 +189,7 @@ export function PrincipalRemitBox({ refreshKey = 0, style = {} }) {
     }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
         <button type="button" onClick={() => setOpen(open === r.id ? null : r.id)} style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", color: "var(--text-primary)", fontSize: 13, fontWeight: 800, textAlign: "left", flex: 1, minWidth: 0 }}>
-          {open === r.id ? "▼" : "▶"} {dayLabel(r.date)} 입금 확인분 · {shortPrincipal(r.principal_name)}
+          {open === r.id ? "▼" : "▶"} {dayLabel(r.date)} 입금 확인분 · 원청 송금
           <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}> · {r.subcontractor_name} · {(r.lines || []).length}건</span>
         </button>
         <b style={{ fontSize: 14, color: kind === "todo" ? "var(--danger, #E5484D)" : "var(--text-primary)" }}>{fmtWon(r.amount)}</b>
@@ -198,7 +200,7 @@ export function PrincipalRemitBox({ refreshKey = 0, style = {} }) {
         )}
         {kind === "paid" && (
           <>
-            <span style={{ ...small, fontSize: 11 }}>송금 완료{r.paid_by ? ` · ${r.paid_by}` : ""}</span>
+            <span style={{ ...small, fontSize: 11 }}>원청 송금 완료{r.paid_by ? ` · ${r.paid_by}` : ""}</span>
             <button type="button" disabled={busy} onClick={() => mark(r, false)} style={{ ...linkBtn, color: "var(--text-secondary)" }}>되돌리기</button>
           </>
         )}
@@ -211,7 +213,7 @@ export function PrincipalRemitBox({ refreshKey = 0, style = {} }) {
   return (
     <div style={{ background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 14, padding: "12px 14px", ...style }}>
       <div style={{ display: "flex", alignItems: "baseline", gap: 8, flexWrap: "wrap" }}>
-        <div style={{ fontSize: 13, fontWeight: 800, color: VIOLET, flex: 1 }}>원청(쿨가이)에 보낼 돈</div>
+        <div style={{ fontSize: 13, fontWeight: 800, color: VIOLET, flex: 1 }}>원청에 보낼 돈</div>
         <div style={{ fontSize: 16, fontWeight: 800, color: total > 0 ? "var(--danger, #E5484D)" : "var(--text-secondary)" }}>
           {total > 0 ? `미송금 ${fmtWon(total)}` : "미송금 없음"}
         </div>
@@ -223,7 +225,7 @@ export function PrincipalRemitBox({ refreshKey = 0, style = {} }) {
       {waiting.map(r => card(r, "wait"))}
       {paid.length > 0 && (
         <button type="button" onClick={() => setShowPaid(v => !v)} style={{ ...linkBtn, marginTop: 10 }}>
-          {showPaid ? "▼" : "▶"} 송금 완료 {paid.length}건
+          {showPaid ? "▼" : "▶"} 원청 송금 완료 {paid.length}건
         </button>
       )}
       {showPaid && paid.map(r => card(r, "paid"))}

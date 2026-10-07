@@ -263,7 +263,8 @@ export async function subGetTaskDetail(taskId) {
   const res = await _call("sub_get_task_detail", { p_task_id: taskId });
   if (!res.ok || !res.task) return null;
   const task = rowToTask(res.task);
-  if (task && res.task.principal_rel) task.principal = res.task.principal_rel.name || "";
+  // Mig 247 — 원청 정보는 협력사에 내려오지 않는다 (서버가 빼고 준다). 혹시 남아 있어도 화면에 쓰지 않는다.
+  if (task) { task.principal = ""; task.principalCode = ""; }
   return task;
 }
 

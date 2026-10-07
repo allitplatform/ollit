@@ -502,7 +502,7 @@ function DayTable({ day, mode, onOpenTask, remits, onReceive, onCancelSend, busy
         {onOpenTask && (
           <button type="button" onClick={() => onOpenTask(l.task_id)} style={{ ...S.btnLink, fontSize: 11, marginLeft: 6 }}>사진 {l.photo_count || 0} · 열기</button>
         )}
-        {/* Mig 244 — 원청이 쿨가이인 작업: "쿨가이 35,000 / 올데이케어 17,500" (운영자 화면에서만 splits 가 넘어온다) */}
+        {/* Mig 244 — 원청 몫이 있는 작업: "원청 35,000 / 올데이케어 17,500" (운영자 화면에서만 splits 가 넘어온다) */}
         {splits && l.kind === "base" && <SplitNote split={splits.get(l.task_id)}/>}
       </>
     ),
@@ -736,7 +736,7 @@ export function SubFeeAdminScreen({ onBack, onOpenTask }) {
     return out;
   }, [subs]);
 
-  // Mig 244 — 화면에 나온 작업들의 원청 몫 (쿨가이 원청 작업에만 값이 있다)
+  // Mig 244 — 화면에 나온 작업들의 원청 몫 (원청 몫 규칙이 걸린 작업에만 값이 있다)
   const splitIds = useMemo(() => {
     const ids = [];
     for (const r of rows) for (const l of (r.lines || [])) if (l.task_id) ids.push(l.task_id);
@@ -831,7 +831,7 @@ ${r.subName} · ${dayLabel(r.date)} 이월 금액을 환급 처리로 닫을까�
         status={summary.unpaid > 0 ? "미입금" : summary.waitingConfirm > 0 ? "보고됨" : "대기"}
         sub={`입금 확인 대기 ${summary.waitingConfirm}건 · 미입금 ${summary.unpaid}건`}
       />
-      {/* Mig 245 — 원청(쿨가이)에 보낼 돈: 입금 확인한 날짜의 작업분만, 날짜별 [송금 완료] */}
+      {/* Mig 245 — 원청에 보낼 돈: 입금 확인한 날짜의 작업분만, 날짜별 [원청 송금 완료] */}
       <PrincipalRemitBox refreshKey={remitTick} style={{ marginBottom: 12 }}/>
       <FilterChips value={filter} onChange={setFilter} counts={counts}/>
       {error && <ErrorBox text={error}/>}
