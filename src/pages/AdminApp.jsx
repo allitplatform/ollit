@@ -71,7 +71,7 @@ import {
   getAppliancePool as getAppliancePoolShared,
   // 2026-06-17 — 카톡 파서 추출 (PC 폼 공유). 모바일 handleAutoFill 무변경.
   formatPhone, parseKaText, parseKakaoText,
-  hoodAutoEstimate,
+  hoodAutoEstimate, isHoodListItems,
 } from "../utils/receptionForm.js";
 import { AllEngineersModal } from "../components/AllEngineersModal.jsx";
 import { SettlementScreen as SettlementDailyClose } from "../components/SettlementScreen.jsx";
@@ -81,7 +81,7 @@ import { computeDashboardStats, TASK_FILTERS, _getEffectiveStatus } from "../uti
 // 2026-07-14 — Stage 3: 기간 집계 RPC 날짜 계산용 (매출 카드와 동일 규칙).
 import { getMonthStart, getPrevMonthSameDay, getPrevMonthStart, getMonthRange, computeRevenueByYmRange } from "../utils/revenueStats.js";
 import { engineerDisplayName } from "../lib/subcontractorsDb.js";
-import { useServiceCatalog, shortServiceLabel } from "../lib/serviceCatalog.js";
+import { useServiceCatalog, shortServiceLabel, useHoodPrices } from "../lib/serviceCatalog.js";
 import { SubcontractorAdminScreen } from "../components/admin/SubcontractorAdminScreen.jsx";
 import { SubFeeAdminScreen } from "../components/SubSettlement.jsx";
 // 2026-07-24 — 개요 탭 돈 스트립 미리보기 (통장 잔고 · 이번 달 순이익 — 손익 화면과 동일 산식)
@@ -10734,12 +10734,16 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
     return () => { alive = false; };
   }, [form.principal]);
 
+  // 2026-10-07 — 주방후드 단가표 (DB). 못 읽으면 자동 견적 없이 직접 입력 + 안내.
+  const hoodPrices = useHoodPrices();
+  const hoodPriceNotice = isHoodListItems(workItems) && hoodPrices.ready && !hoodPrices.ok;
+
   // [2] 자동 견적 계산 — workItems / quoteRates / principal / estimateTouched 측 측
   useEffect(() => {
     if (estimateTouched) return;
     if (priceTBD) return;                       // 견적 미정 토글 측 측 측 X
     // 2026-10-07 Mig 244 — 주방후드는 원청과 상관없이 단가표 합계가 견적 (직접 입력 줄이 있으면 자동으로 채우지 않는다)
-    const hoodTotal = hoodAutoEstimate(workItems);
+    const hoodTotal = hoodAutoEstimate(workItems, hoodPrices.ok ? hoodPrices.list : null);
     if (hoodTotal !== undefined) {
       if (hoodTotal === null || hoodTotal <= 0) { setAutoEstimateValue(null); return; }
       setAutoEstimateValue(hoodTotal);
@@ -10787,7 +10791,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
 
     setAutoEstimateValue(total);
     setForm(prev => prev.estimateTotal === total ? prev : { ...prev, estimateTotal: total });
-  }, [form.principal, workItems, quoteRates, estimateTouched, priceTBD]);
+  }, [form.principal, workItems, quoteRates, estimateTouched, priceTBD, hoodPrices]);
 
   // workItems 조작 (V14 헌법 — 모든 작업유형 기종/케이스 필수)
   function addWorkItem() {
@@ -11559,6 +11563,11 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
             }}>원</span>
           </div>
           {/* 2026-06-08 — 자동 견적 표시 (quote_rates 측 측 측 측 측 측 측 측 measure measure 측 측 측) */}
+          {hoodPriceNotice && (
+            <div style={{ fontSize: 12, fontWeight: 700, color: "#E5484D", marginBottom: 8, lineHeight: 1.5 }}>
+              주방후드 단가표를 불러오지 못했습니다 — 견적을 직접 입력해 주세요.
+            </div>
+          )}
           {!priceTBD && autoEstimateValue != null && !estimateTouched && (
             <div style={{
               marginTop: 6, fontSize: 11, color: t.textMuted, fontWeight: 600,

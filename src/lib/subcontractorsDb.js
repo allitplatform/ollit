@@ -191,6 +191,8 @@ export const adminCloseSubCarryRefund = (subcontractorId, date, amount, reason) 
 export const subListStaff = () => _call("sub_list_staff", {});
 // 배정 시트용 기사 목록 (Mig 230) — 작업 한 건 기준. 협력사 관리자(자기 작업)와 운영자가 쓴다.
 //   기사별: zone_match / today_tasks / day_tasks / next_at / off / off_part
+// 그 날짜의 소속 기사 휴무 (Mig 246) — 협력사 관리자 전용. [{ engineer_id, name, type, start_time, end_time }]
+export const subListStaffOffs = (date) => _call("sub_list_staff_offs", { p_date: date });
 export const subListStaffForTask = (taskId) => _call("sub_list_staff_for_task", { p_task_id: taskId });
 // 반려 (Mig 232) — 사유와 함께 올데이케어로 되돌린다. 진행 중·끝난 작업은 불가.
 // ── 협력사 작업의 원청 몫 (Mig 244·245) — 운영자 전용 ───────────

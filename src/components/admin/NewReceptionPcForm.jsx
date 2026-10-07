@@ -27,7 +27,7 @@ import {
   getAppliancePool,
   // 2026-06-17 Phase 2 — 카톡/KA 파서 (모바일 폼과 공유, Stage 1 확장).
   parseKakaoText, formatPhone,
-  hoodAutoEstimate,
+  hoodAutoEstimate, isHoodListItems,
 } from "../../utils/receptionForm.js";
 import { lookupRate, autoGenerateCustomer } from "../principal/NewReceptionScreenLite.jsx";
 import { calculateCommissionMultiRpc } from "../../lib/commissionPoliciesDb.js";
@@ -41,7 +41,7 @@ import { parseRegion } from "../../utils/regionParser.js";
 // 2026-07-15 — 정부 주소 API fallback (사전으로 못 뽑는 도로명 → 시군구)
 import { resolveAddressDistrict } from "../../lib/jusoApi.js";
 import { ALL_REGIONS } from "../../data/engineers.js";
-import { useServiceCatalog, shortServiceLabel } from "../../lib/serviceCatalog.js";
+import { useServiceCatalog, shortServiceLabel, useHoodPrices } from "../../lib/serviceCatalog.js";
 
 // formatPhone 은 receptionForm.js 에서 import (DRY).
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
@@ -156,11 +156,15 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
     return () => { alive = false; };
   }, [form.principal]);
 
+  // 2026-10-07 — 주방후드 단가표 (DB). 못 읽으면 자동 견적 없이 직접 입력 + 안내.
+  const hoodPrices = useHoodPrices();
+  const hoodPriceNotice = isHoodListItems(workItems) && hoodPrices.ready && !hoodPrices.ok;
+
   // ── 자동 견적 ──
   useEffect(() => {
     if (estimateTouched || priceTBD) return;
     // 2026-10-07 Mig 244 — 주방후드는 원청과 상관없이 단가표 합계가 견적 (직접 입력 줄이 있으면 자동으로 채우지 않는다)
-    const hoodTotal = hoodAutoEstimate(workItems);
+    const hoodTotal = hoodAutoEstimate(workItems, hoodPrices.ok ? hoodPrices.list : null);
     if (hoodTotal !== undefined) {
       if (hoodTotal === null || hoodTotal <= 0) { setAutoEstimateValue(null); return; }
       setAutoEstimateValue(hoodTotal);
@@ -192,7 +196,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
     }
     setAutoEstimateValue(total);
     setForm(prev => prev.estimateTotal === total ? prev : { ...prev, estimateTotal: total });
-  }, [form.principal, workItems, quoteRates, estimateTouched, priceTBD]);
+  }, [form.principal, workItems, quoteRates, estimateTouched, priceTBD, hoodPrices]);
 
   // 2026-10-06 Mig 234 — 수행(직영 / 협력사). 원청과 별개 축.
   const performerState = usePerformer((workItems[0] && workItems[0].workType) || form.workType);
@@ -714,6 +718,11 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
 
           {/* 견적 금액 */}
           <Card t={t} title="견적금액" error={errors.estimateTotal}>
+            {hoodPriceNotice && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#E5484D", marginBottom: 8, lineHeight: 1.5 }}>
+                주방후드 단가표를 불러오지 못했습니다 — 견적을 직접 입력해 주세요.
+              </div>
+            )}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
               <input type="number" value={form.estimateTotal || ""}
                 onChange={(e) => {

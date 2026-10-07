@@ -120,36 +120,32 @@ export const WORK_TYPES = ["세척", "냉매충전", "누설", "누수", "설치
   // 2026-10-06 Mig 215 — 주방후드 (협력사 수행)
   "주방후드(업소용)", "주방후드(가정용)", "후드설치", "후드옵션"];
 
-// 2026-10-07 Mig 244 — 주방후드 단가표 (부가세 별도 = 공급가). DB work_types.default_unit_price 와 같은 값.
-//   0 = 접수할 때 직접 입력 (현장 확인 / 범위 금액).
-export const HOOD_PRICE_LIST = {
-  "주방후드(업소용)": { "1,000mm 이하": 198000, "1,000~2,000mm(2구)": 289000, "2,000mm 초과(현장 확인)": 0 },
-  "주방후드(가정용)": { "기본형": 100000, "2구 더블": 120000, "고급형": 150000 },
-  "후드옵션":         { "화구 스팀 세척": 0, "자바라": 30000, "소방후드": 10000 },
-};
+// 2026-10-07 Mig 244·246 — 주방후드 단가표. 금액은 화면 코드에 두지 않고 DB(work_types.default_unit_price)에서 읽는다
+//   (src/lib/serviceCatalog.js 의 useHoodPrices). 여기에는 "단가표로 고르는 서비스" 목록과 안내 문구만 둔다.
+export const HOOD_LIST_SERVICES = ["주방후드(업소용)", "주방후드(가정용)", "후드옵션"];
 export const HOOD_PRICE_HINT = {
   "주방후드(업소용)|2,000mm 초과(현장 확인)": "현장 확인 후 견적을 직접 입력해 주세요",
   "후드옵션|화구 스팀 세척": "40,000~70,000원 사이 — 견적을 직접 입력해 주세요",
 };
-// 단가표에 있는 줄이면 단가(0 포함), 주방후드가 아니면 undefined
-export function hoodListPrice(workType, appliance) {
-  const m = HOOD_PRICE_LIST[workType];
-  if (!m) return undefined;
-  return Object.prototype.hasOwnProperty.call(m, appliance) ? m[appliance] : undefined;
-}
-// 작업 항목들이 전부 단가표 줄이면 합계(직접 입력 줄이 있으면 null), 주방후드 줄이 하나도 없으면 undefined
-export function hoodAutoEstimate(workItems) {
+// 작업 항목이 전부 단가표로 고르는 주방후드 줄인지
+export function isHoodListItems(workItems) {
   const items = Array.isArray(workItems) ? workItems : [];
-  if (items.length === 0) return undefined;
-  let total = 0, any = false;
-  for (const it of items) {
-    const p = hoodListPrice(it.workType, it.appliance);
-    if (p === undefined) return undefined;          // 주방후드가 아닌 항목이 섞임 → 기존 방식(원청 단가표)으로
-    any = true;
-    if (p === 0) return null;                        // 직접 입력해야 하는 줄
+  return items.length > 0 && items.every(it => HOOD_LIST_SERVICES.includes(it.workType));
+}
+// 단가표 합계.  prices = { 서비스 이름: { 줄 이름: 단가 } } (DB 에서 읽은 것) 또는 null(못 읽음)
+//   주방후드 줄만 있는 접수가 아니면 undefined (→ 기존 방식: 원청 단가표)
+//   단가표를 못 읽었거나, 모르는 줄이거나, 0원 줄(직접 입력)이 있으면 null (→ 자동으로 채우지 않는다)
+export function hoodAutoEstimate(workItems, prices) {
+  if (!isHoodListItems(workItems)) return undefined;
+  if (!prices) return null;
+  let total = 0;
+  for (const it of workItems) {
+    const m = prices[it.workType];
+    const p = m && Object.prototype.hasOwnProperty.call(m, it.appliance) ? Number(m[it.appliance]) : NaN;
+    if (!Number.isFinite(p) || p <= 0) return null;
     total += p * (Number(it.qty) || 1);
   }
-  return any ? total : undefined;
+  return total;
 }
 
 // 2026-07-08 — 표시 라벨 매핑 (저장값/매칭키와 표시값 분리).

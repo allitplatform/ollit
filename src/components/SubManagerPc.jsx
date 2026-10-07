@@ -3,7 +3,7 @@
 //   협력사 RPC(sub_query_tasks · sub_list_staff — 세션 확인 + 자기 협력사 작업만)에서 읽는다.
 //   운영자 RPC·운영자 화면 구성요소는 쓰지 않는다.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { subQueryTasks, subListStaff, subListTasks, subListStaffForTask, subAssignTask, subSetSchedule } from "../lib/subcontractorsDb.js";
+import { subQueryTasks, subListStaff, subListTasks, subListStaffForTask, subAssignTask, subSetSchedule, subListStaffOffs } from "../lib/subcontractorsDb.js";
 import { getCategoryMeta, categoriesInTasks, getTaskDurationHours, categoryTint } from "../lib/serviceCatalog.js";
 import CategoryChip from "./CategoryChip.jsx";
 import { fmtWon } from "../utils/money.js";
@@ -152,6 +152,7 @@ export function SubPcTimeline({ onOpen, onPick, onChanged, refreshKey = 0, prese
   const [tasks, setTasks] = useState([]);
   const [openAll, setOpenAll] = useState([]);       // 그 협력사의 전체 작업 (미배정 목록용)
   const [staff, setStaff] = useState([]);
+  const [offs, setOffs] = useState([]);             // 그 날짜의 기사 휴무 (Mig 246). 못 읽으면 빈 목록 — 전처럼 전원 표시
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [now, setNow] = useState(() => new Date());
@@ -162,7 +163,8 @@ export function SubPcTimeline({ onOpen, onPick, onChanged, refreshKey = 0, prese
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [tr, sr, ar] = await Promise.all([subQueryTasks({ from: day, to: day }), subListStaff(), subListTasks()]);
+    const [tr, sr, ar, fr] = await Promise.all([subQueryTasks({ from: day, to: day }), subListStaff(), subListTasks(), subListStaffOffs(day)]);
+    setOffs(fr.ok && Array.isArray(fr.offs) ? fr.offs : []);
     if (!tr.ok) setError(tr.error || "작업을 불러오지 못했습니다.");
     else { setError(""); setTasks(Array.isArray(tr.tasks) ? tr.tasks : []); }
     if (sr.ok) setStaff(Array.isArray(sr.staff) ? sr.staff : []);
@@ -190,13 +192,26 @@ export function SubPcTimeline({ onOpen, onPick, onChanged, refreshKey = 0, prese
     }
     const names = new Map(staff.map(s => [s.id, s.name]));
     for (const t of tasks) if (t.assigned_engineer_id && !names.has(t.assigned_engineer_id)) names.set(t.assigned_engineer_id, t.engineer_name || "기사");
+    // 2026-10-07 — 휴무 규칙 (운영자 타임라인과 같음)
+    //   정기(반복) 휴무 + 그날 작업 0건 → 줄을 숨긴다 (위쪽에 "정기 휴무 n명" 숫자만). 끌어다 놓을 대상도 아니다.
+    //   정기 휴무인데 작업이 있음      → 줄 표시 + "⚠ 휴무일 작업"
+    //   하루·기간 휴무                 → 줄은 그대로, 이름 옆에 🏖️
+    const offBy = new Map();
+    for (const o of offs) { if (!offBy.has(o.engineer_id)) offBy.set(o.engineer_id, []); offBy.get(o.engineer_id).push(o); }
+    const isRepeat = (id) => (offBy.get(id) || []).some(o => o.type === "repeat");
+    const isDayOff = (id) => (offBy.get(id) || []).some(o => ["single", "range", "repeat", "휴무종일"].includes(o.type));
+    const live = (id) => (by.get(id) || []).filter(t => t.status !== "취소").length;
     const withWork = [...names.keys()].filter(id => by.has(id)).sort((a, b) => by.get(b).length - by.get(a).length || String(names.get(a)).localeCompare(String(names.get(b)), "ko"));
-    const idle = [...names.keys()].filter(id => !by.has(id)).sort((a, b) => String(names.get(a)).localeCompare(String(names.get(b)), "ko"));
-    return [
-      ...withWork.map(id => ({ id, name: names.get(id), items: by.get(id) })),
-      ...idle.map(id => ({ id, name: names.get(id), items: [], dim: true })),
+    const idleAll = [...names.keys()].filter(id => !by.has(id)).sort((a, b) => String(names.get(a)).localeCompare(String(names.get(b)), "ko"));
+    const hidden = idleAll.filter(isRepeat).map(id => names.get(id));
+    const idle = idleAll.filter(id => !isRepeat(id));
+    const list = [
+      ...withWork.map(id => ({ id, name: names.get(id), items: by.get(id), offWork: isRepeat(id) && live(id) > 0, dayOff: isDayOff(id) })),
+      ...idle.map(id => ({ id, name: names.get(id), items: [], dim: true, dayOff: isDayOff(id) })),
     ];
-  }, [tasks, staff]);
+    list.hiddenOff = hidden;
+    return list;
+  }, [tasks, staff, offs]);
 
   // ── 끌어다 놓기 ──
   async function handleDragStart(t) {
@@ -282,6 +297,14 @@ export function SubPcTimeline({ onOpen, onPick, onChanged, refreshKey = 0, prese
         <input type="date" value={day} onChange={e => e.target.value && setDay(e.target.value)} style={field} aria-label="날짜 선택"/>
         <span style={{ fontSize: 14, fontWeight: 700 }}>{dayTitle(day)}</span>
         <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>· {dayTasks.filter(t => t.status !== "취소").length}건{dayTasks.some(t => t.status === "취소") ? ` (취소 ${dayTasks.filter(t => t.status === "취소").length})` : ""}</span>
+        {rows.hiddenOff && rows.hiddenOff.length > 0 && (
+          <button type="button" onClick={() => window.alert(`🏖️ 이 날 정기 휴무
+
+${rows.hiddenOff.join(", ")}`)} title={rows.hiddenOff.join(", ")} style={{
+            background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit",
+            fontSize: 13, color: "var(--text-secondary)", textDecoration: "underline dotted",
+          }}>· 정기 휴무 {rows.hiddenOff.length}명</button>
+        )}
         <span style={{ flex: 1 }}/>
         <button type="button" onClick={load} disabled={loading} style={btn}>{loading ? "…" : "새로고침"}</button>
       </div>
@@ -310,8 +333,15 @@ export function SubPcTimeline({ onOpen, onPick, onChanged, refreshKey = 0, prese
               <div key={r.id} style={{ display: "flex", borderBottom: "1px solid var(--border)", opacity: r.dim && !target ? 0.45 : 1, minHeight: 46 }}>
                 <div style={{ width: NAMEW, flexShrink: 0, padding: "8px 12px", boxSizing: "border-box" }}>
                   <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>
+                    {r.dayOff && <span title="휴무" style={{ marginRight: 3 }}>🏖️</span>}
                     {r.name}{r.items.length > 0 ? ` ${r.items.length}` : ""}
                   </div>
+                  {r.offWork && (
+                    <span title="정기 휴무일에 작업이 잡혀 있습니다" style={{
+                      display: "inline-block", marginTop: 3, fontSize: 10.5, fontWeight: 800, padding: "1px 6px", borderRadius: 5,
+                      background: "rgba(249,115,22,0.16)", color: "#F97316", whiteSpace: "nowrap",
+                    }}>⚠ 휴무일 작업</span>
+                  )}
                   {/* 시각이 없는 작업은 이름 아래 칩으로 */}
                   {untimed.map(t => (
                     <button key={t.id} type="button" onClick={() => onOpen(t.id)} title={`${t.customer_name} · 시간 미정`} style={{

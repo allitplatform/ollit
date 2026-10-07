@@ -243,6 +243,49 @@ function _categoryCodeOfItem(item) {
   return _categoryCodeOfItem(String(item.workType || item.work_type || item.name || ""));
 }
 
+// 2026-10-07 Mig 244·246 — 주방후드 단가표를 DB 에서 읽는다 (접수 폼의 자동 견적용).
+//   work_types 가운데 code 가 hood_ 로 시작하고 이름이 "서비스 이름_줄 이름" 인 줄. 예전 "(공통)" 줄은 뺀다.
+//   결과: { ready, ok, list: { 서비스 이름: { 줄 이름: 단가 } } }.  못 읽으면 ok = false → 폼은 직접 입력으로 넘어간다.
+let _hoodPrices = { ready: false, ok: false, list: null };
+let _hoodPromise = null;
+export function loadHoodPrices(force = false) {
+  if (force) _hoodPromise = null;
+  if (!_hoodPromise) {
+    _hoodPromise = (async () => {
+      try {
+        const { data, error } = await supabase
+          .from("work_types")
+          .select("code, name, default_unit_price, service_types ( code, name )")
+          .like("code", "hood%");
+        if (error || !Array.isArray(data)) throw new Error((error && error.message) || "no data");
+        const list = {};
+        for (const w of data) {
+          const svc = w.service_types && w.service_types.name;
+          if (!svc || !String(w.name || "").startsWith(svc + "_")) continue;
+          const label = String(w.name).slice(svc.length + 1);
+          if (!label || label === "(공통)") continue;
+          (list[svc] || (list[svc] = {}))[label] = Number(w.default_unit_price) || 0;
+        }
+        _hoodPrices = { ready: true, ok: Object.keys(list).length > 0, list };
+      } catch (_e) {
+        _hoodPrices = { ready: true, ok: false, list: null };
+        _hoodPromise = null;                 // 다음에 다시 시도할 수 있게
+      }
+      return _hoodPrices;
+    })();
+  }
+  return _hoodPromise;
+}
+export function useHoodPrices() {
+  const [st, setSt] = useState(_hoodPrices);
+  useEffect(() => {
+    let alive = true;
+    loadHoodPrices().then(v => { if (alive) setSt(v); });
+    return () => { alive = false; };
+  }, []);
+  return st;
+}
+
 // 작업(task) · workItem · 작업 이름 문자열 → 종목 표의 한 줄 { key, label, short, icon, color }.
 //   · 항목이 여러 개면 "공통(출장비 등)" 을 뺀 첫 항목의 종목.
 //   · 항목으로 못 정하면 작업의 종목(category) 값, 그래도 없으면 "그 밖".
