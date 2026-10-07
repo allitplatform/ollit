@@ -66,7 +66,7 @@ const _FIXED_CODES = new Set(["cleaning", "refrigerant", "install", "leak"]);
 const _FIXED_META_KEYS = new Set(["aircon", "etc", "unknown", "refrigerant", "install", "leak"]);
 function _extras(apiTasks, startYmd, endYmd) {
   const cats = {};
-  let subKeep = 0, subSupply = 0, directExtra = 0;
+  let subKeep = 0, subSupply = 0, directExtra = 0, vat = 0;
   const add = (meta, amt, owner) => {
     const c = cats[meta.key] || (cats[meta.key] = { key: meta.key, label: meta.label, icon: meta.icon, color: meta.color, total: 0, count: 0, owner: 0 });
     c.total += amt; c.count += 1; c.owner += owner;
@@ -93,20 +93,24 @@ function _extras(apiTasks, startYmd, endYmd) {
     const meta = getCategoryMetaOfRow(t);
     if (_FIXED_META_KEYS.has(meta.key)) continue;
     const amt = Number(t.totalAmount || t.총금액 || t.estimateTotal || 0);
-    add(meta, amt, Number(t.owner_amount || 0) - share);
-    directExtra += amt;
+    // 2026-10-07 Mig 258 — 직영 주방후드를 부가세 포함으로 받았으면 부가세는 매출·회사 몫·기사 몫 어디에도 넣지 않는다.
+    const v = (t.vatIncluded === true || t.vat_included === true) ? Math.max(0, amt - Math.round(amt / 1.1)) : 0;
+    add(meta, amt - v, Number(t.owner_amount || 0) - share);
+    directExtra += amt;        // "기타" 칸에 들어 있던 금액(부가세 포함)을 그대로 뺀다
+    vat += v;
   }
-  return { cats, subKeep, subSupply, directExtra };
+  return { cats, subKeep, subSupply, directExtra, vat };
 }
 
 // 집계 결과 → 매출 현황 화면에 그릴 값. 종목 줄은 기준표 순서, 0원은 뺀다.
 //   total = 직영·원청 총액 + 협력사 받은 공급가  /  parts 합계 = total
 export function revenueView(rev) {
   const r = rev || {};
-  const x = r.ext || { cats: {}, subKeep: 0, subSupply: 0, directExtra: 0 };
+  const x = r.ext || { cats: {}, subKeep: 0, subSupply: 0, directExtra: 0, vat: 0 };
   const bs = r.byService || {};
   const bd = r.byServiceDetail || {};
-  const total = (Number(r.total) || 0) + x.subSupply;
+  const vat = Number(x.vat) || 0;
+  const total = (Number(r.total) || 0) - vat + x.subSupply;      // 총 거래액 (부가세 제외)
   const ex = (k) => SERVICE_EXCEPTIONS.find(e => e.key === k) || {};
   const aircon = CATEGORY_META.find(c => c.key === "aircon") || {};
   const fixed = [
@@ -126,6 +130,7 @@ export function revenueView(rev) {
                   owner: Number(bd.other?.owner) || 0 };
   return {
     total,
+    vat,
     count: (Number(r.count) || 0) + (Number(r.subCount) || 0),
     engineer: Number(r.engineer) || 0,
     subKeep: x.subKeep,

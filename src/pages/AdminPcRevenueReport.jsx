@@ -29,6 +29,7 @@ import {
   computeRevenueByPrincipal,
   computeRevenueByEngineer,
   getMonthRange,
+  revenueView,
 } from "../utils/revenueStats.js";
 // 2026-07-21 — 기사별 월 수익 CSV 다운로드 (사장님 spec: 출장비 포함, 엑셀에서 열림)
 import { downloadEngineerEarningsCsv } from "../utils/engineerEarningsExport.js";
@@ -138,10 +139,9 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
   const isToday = selectedYmd === todayStr;
   const isThisMonth = selectedYm === todayStr.slice(0, 7);
   const dow = dowOf(selectedYmd);
-  const sd  = day.byServiceDetail || {
-    cleaning:    { total: 0, count: 0, owner: 0 },
-    refrigerant: { total: 0, count: 0, owner: 0 },
-  };
+  // 2026-10-07 — 대시보드 매출 현황과 같은 값(revenueView): 종목 기준표 · 협력사 받은 공급가 포함 · 부가세 제외
+  const dayView = revenueView(day);
+  const monthView = revenueView(month);
 
   function jumpDay(ymd) {
     setSelectedYmd(ymd);
@@ -243,19 +243,29 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
 
       {/* 4카드 */}
       <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }}>
-        <BigCard t={t} label="총 매출" amount={day.total}        color={t.text}           emphasis="mid"/>
-        <BigCard t={t} label="기사 정산" amount={day.engineer}    color={COLOR_ENGINEER}    emphasis="mid"/>
-        <BigCard t={t} label="원청 수수료" amount={day.principal} color={COLOR_PRINCIPAL}   emphasis="mid"/>
-        <BigCard t={t} label="회사 마진" amount={day.owner}        color={t.accent}          emphasis="big"/>
+        <BigCard t={t} label="총 거래액" amount={dayView.total}      color={t.text}           emphasis="mid"/>
+        <BigCard t={t} label={dayView.subKeep > 0 ? "기사 · 협력사 정산" : "기사 정산"} amount={dayView.engineer + dayView.subKeep} color={COLOR_ENGINEER} emphasis="mid"/>
+        <BigCard t={t} label="원청 수수료" amount={dayView.principal} color={COLOR_PRINCIPAL}   emphasis="mid"/>
+        <BigCard t={t} label="회사 마진" amount={dayView.owner}       color={t.accent}          emphasis="big"/>
       </div>
+      {(dayView.subKeep > 0 || dayView.vat > 0) && (
+        <div style={{ fontSize: 12, color: t.textSecondary, margin: "-8px 0 16px" }}>
+          {dayView.subKeep > 0 && <>ⓘ 협력사 정산 ₩{dayView.subKeep.toLocaleString("ko-KR")} 은 협력사가 갖는 금액입니다 (회사 돈 아님). </>}
+          {dayView.vat > 0 && <>부가세 ₩{dayView.vat.toLocaleString("ko-KR")} 은 거래액에 넣지 않았습니다.</>}
+        </div>
+      )}
 
       {/* 종류별 2단 */}
       <div style={{
         display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12,
         marginBottom: 18,
       }}>
-        <ServiceCard t={t} icon="❄" label="세척" color={COLOR_CLEANING} detail={sd.cleaning}/>
-        <ServiceCard t={t} icon="⚡" label="냉매" color={COLOR_REFRI}    detail={sd.refrigerant}/>
+        {dayView.services.map(sv => (
+          <ServiceCard key={sv.key} t={t} icon={sv.icon} label={sv.label} color={sv.color} detail={sv}/>
+        ))}
+        {dayView.services.length === 0 && (
+          <div style={{ gridColumn: "1 / -1", padding: "18px 10px", textAlign: "center", color: t.textMuted, fontSize: 13 }}>해당 날짜 완료 작업 없음</div>
+        )}
       </div>
 
       {/* 원청별 분포 */}
@@ -387,10 +397,10 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
 
         {/* 월 4카드 */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }}>
-          <BigCard t={t} label="월 총매출"    amount={month.total}     color={t.text}           emphasis="mid"/>
-          <BigCard t={t} label="기사 정산"     amount={month.engineer}  color={COLOR_ENGINEER}    emphasis="mid"/>
-          <BigCard t={t} label="원청 수수료"   amount={month.principal} color={COLOR_PRINCIPAL}   emphasis="mid"/>
-          <BigCard t={t} label="회사 마진"     amount={month.owner}     color={t.accent}          emphasis="big"/>
+          <BigCard t={t} label="월 총 거래액" amount={monthView.total}     color={t.text}           emphasis="mid"/>
+          <BigCard t={t} label={monthView.subKeep > 0 ? "기사 · 협력사 정산" : "기사 정산"} amount={monthView.engineer + monthView.subKeep} color={COLOR_ENGINEER} emphasis="mid"/>
+          <BigCard t={t} label="원청 수수료"   amount={monthView.principal} color={COLOR_PRINCIPAL}   emphasis="mid"/>
+          <BigCard t={t} label="회사 마진"     amount={monthView.owner}     color={t.accent}          emphasis="big"/>
         </div>
 
         {/* 일별 막대그래프 */}

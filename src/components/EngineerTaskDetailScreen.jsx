@@ -150,6 +150,8 @@ function openKakaoMap(task) {
 //   2순위 (RPC 실패 등): 분배식 — engineer_amount × (subtotal / SUM(subtotal))
 //          합계는 일치 / item별 분포는 정확도 ↓
 //   3순위 (옛 fallback): subtotal × 0.6
+// 2026-10-07 — 직영 주방후드 "부가세 포함" 체크: 이번 실행에서 바꾼 값 (작업 id → true/false)
+const _hoodVatMemo = {};
 function getTaskItems(task, itemEngineerAmounts = {}) {
   if (Array.isArray(task.items) && task.items.length > 0) return task.items;
   const engineerAmount = Number(task.engineer_amount || 0);
@@ -391,7 +393,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   // 2026-10-07 Mig 257 — 직영 주방후드: 부가세 포함해서 받았는지 (기본 꺼짐). 누르는 즉시 저장 → 서버가 다시 계산.
   //   포함이면 공급가 = 받은 금액 ÷ 1.1, 기사 몫은 공급가의 65%. 다른 종목에는 나오지 않는다.
   const isHoodDirect = !isSubTask && getCategoryMetaOfRow(task).key === "hood";
-  const [hoodVat, setHoodVat] = useState(task.vatIncluded === true);
+  //   방금 바꾼 값은 _hoodVatMemo 에 적어 둔다 → 작업 목록을 다시 읽기 전에 화면을 다시 열어도 체크가 유지된다.
+  const [hoodVat, setHoodVat] = useState(() => (task.id in _hoodVatMemo) ? _hoodVatMemo[task.id] : task.vatIncluded === true);
   const [hoodVatBusy, setHoodVatBusy] = useState(false);
   async function toggleHoodVat(next) {
     if (hoodVatBusy) return;
@@ -399,6 +402,7 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
     const res = await engineerSetHoodVat(task.id, next);
     setHoodVatBusy(false);
     if (!res || !res.ok) { alert((res && res.error) || "저장하지 못했습니다."); return; }
+    _hoodVatMemo[task.id] = next;
     setHoodVat(next);
   }
   const [shortReason, setShortReason] = useState(task.supplyShortfallReason || "");

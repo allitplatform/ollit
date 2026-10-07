@@ -85,8 +85,9 @@ export function isRefrigerant(input) {
 export const SERVICE_KIND_META = {
   cleaning:    { key: "cleaning",    label: "세척",       color: "#0EA5E9", icon: "❄" },
   refrigerant: { key: "refrigerant", label: "냉매",       color: "#FFB800", icon: "⚡" },
-  install:     { key: "install",     label: "설치",       color: "#8B5CF6", icon: "🔧" },
-  leak:        { key: "leak",        label: "냉매 누설·물 누수",  color: "#DC2626", icon: "💧" },
+  // 2026-10-07 — 종목 기준표(serviceCatalog)와 같은 색·아이콘으로 맞춤
+  install:     { key: "install",     label: "설치",       color: "#6366F1", icon: "🛠" },
+  leak:        { key: "leak",        label: "냉매 누설·물 누수",  color: "#14B8A6", icon: "💧" },
   other:       { key: "other",       label: "기타",       color: "#9CA3AF", icon: "•" },
 };
 

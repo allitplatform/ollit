@@ -23,6 +23,7 @@ import {
   SERVICE_KIND_META,
   SERVICE_KIND_ORDER,
 } from "../../utils/workTypeKind.js";
+import { getCategoryMetaOfRow } from "../../lib/serviceCatalog.js";
 import { EngineerTaskModal } from "./EngineerTaskList.jsx";
 
 // 2026-07-09 — 일별 네비용 헬퍼. selectedDay ("YYYY-MM-DD") ±1 일 이동.
@@ -84,8 +85,23 @@ function MarginBar({ t, share, color }) {
 
 // 2026-07-20 — 5종 통일. workTypeKind.getServiceKind 사용 (설치/누설/기타 정확 분류).
 //   옛 자체 3종 (cleaning/refrigerant/other) 폐기 — 누설·설치가 "기타" 로 뭉치는 사고 해결.
+// 2026-10-07 — 5종에 들지 않는 작업은 종목 기준표(serviceCatalog)로 본다 → 주방후드 등이 "기타" 로 뭉치지 않는다.
+const _FIXED_META_KEYS = new Set(["aircon", "etc", "unknown", "refrigerant", "install", "leak"]);
 function kindOfTask(task) {
-  return SERVICE_KIND_META[getServiceKind(task)] || SERVICE_KIND_META.other;
+  const k = getServiceKind(task);
+  if (k && k !== "other" && SERVICE_KIND_META[k]) return SERVICE_KIND_META[k];
+  const meta = getCategoryMetaOfRow(task);
+  if (meta && !_FIXED_META_KEYS.has(meta.key)) return { key: meta.key, label: meta.label, color: meta.color, icon: meta.icon };
+  return SERVICE_KIND_META.other;
+}
+// 그 기간에 실제로 있는 "5종 밖" 종목 (필터 칩에 덧붙인다)
+function extraKindsOf(tasks) {
+  const m = new Map();
+  for (const tk of (tasks || [])) {
+    const k = kindOfTask(tk);
+    if (!SERVICE_KIND_META[k.key]) m.set(k.key, k);
+  }
+  return [...m.values()];
 }
 
 // 2026-06-26 — onEngineerClick: 모바일에서 기사 행 클릭 시 부모(AdminApp) 로 올려 화면 전환.
@@ -299,6 +315,7 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
   const [taskKind, setTaskKind] = useState("all"); // 'all' | 'cleaning' | 'refrigerant' | 'other'
 
   // 작업별 리스트 (필터 + 정렬). 합계 검산용.
+  const extraKinds = useMemo(() => extraKindsOf(getTasksByYmRange(apiTasks, startYmd, endYmd, user)), [apiTasks, startYmd, endYmd, user]);
   const { taskList, taskTotalRevenue, taskTotalOwner } = useMemo(() => {
     const raw = getTasksByYmRange(apiTasks, startYmd, endYmd, user);
     const filtered = taskKind === "all"
@@ -553,6 +570,7 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
             sumOwner={taskTotalOwner}
             kind={taskKind}
             setKind={setTaskKind}
+            extraKinds={extraKinds}
             onTaskClick={onTaskClick}
             extraTasks={extraTasks}
           />
@@ -616,7 +634,7 @@ function TabBar({ t, tab, setTab }) {
 // ──────────────────────────────────────────────────────────────────
 // 작업별 뷰 — PC=표 / 모바일=카드. 기간·종류 필터 + 하단 합계.
 // ──────────────────────────────────────────────────────────────────
-function TaskView({ t, isPc, isDay, tasks, sumTotal, sumOwner, kind, setKind, onTaskClick, extraTasks = [] }) {
+function TaskView({ t, isPc, isDay, tasks, sumTotal, sumOwner, kind, setKind, onTaskClick, extraTasks = [] , extraKinds = [] }) {
   return (
     <>
       {/* 2026-07-09 — 자체 기간 토글 폐기 (상위 mode 사용). 종류 필터만 유지. */}
@@ -629,6 +647,7 @@ function TaskView({ t, isPc, isDay, tasks, sumTotal, sumOwner, kind, setKind, on
           {[
             { id: "all", label: "전체" },
             ...SERVICE_KIND_ORDER.map(k => ({ id: k, label: SERVICE_KIND_META[k].label })),
+            ...(extraKinds || []).map(k => ({ id: k.key, label: k.label })),
           ].map(opt => {
             const active = kind === opt.id;
             return (

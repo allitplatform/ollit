@@ -181,6 +181,12 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
                 muted
               />
             )}
+            {view.subKeep > 0 && (
+              <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: -6 }}>ⓘ 협력사가 갖는 금액입니다 (회사 돈 아님)</div>
+            )}
+            {view.vat > 0 && (
+              <div style={{ fontSize: 11, color: "var(--text-tertiary)" }}>ⓘ 부가세 {fmtKRW(view.vat)} 은 거래액 · 마진 · 정산에 넣지 않았습니다</div>
+            )}
             <RevItem
               color={COLOR_PRINCIPAL}
               label="원청 수수료"
@@ -295,7 +301,7 @@ function Donut({ size = 170, total, engineerPct, principalPct, diffPct, periodLa
         <span style={{
           fontSize: 9, color: "var(--text-secondary)",
           fontWeight: 700, letterSpacing: 0.3,
-        }}>총 매출 · {periodLabel}</span>
+        }}>총 거래액 · {periodLabel}</span>
         <span className="mono" style={{
           fontSize: 13, fontWeight: 800,
           color: "var(--text-primary)",
@@ -339,7 +345,7 @@ function RevItem({ color, label, amount, pct, muted, big }) {
         width: 10, height: 10, background: color, borderRadius: 3, flexShrink: 0,
       }}/>
       <span style={{
-        fontSize: big ? 13 : 12,
+        fontSize: big ? 15 : 12,
         fontWeight: big ? 800 : 600,
         color: muted ? "var(--text-secondary)" : "var(--text-primary)",
         whiteSpace: "nowrap",

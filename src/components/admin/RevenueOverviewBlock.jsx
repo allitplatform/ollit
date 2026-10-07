@@ -106,9 +106,10 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
         </div>
       </div>
 
-      {/* 매출 + 전월비 */}
-      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 14 }}>
-        <span className="mono" style={{ fontSize: 22, fontWeight: 800, color: t.accent, letterSpacing: "-0.5px" }}>
+      {/* 2026-10-07 — 맨 위 = 총 거래액(협력사 받은 공급가 포함, 부가세 제외), 그 아래 회사 마진을 가장 크게 */}
+      <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginBottom: 2 }}>총 거래액</div>
+      <div style={{ display: "flex", alignItems: "baseline", gap: 10, marginBottom: 8 }}>
+        <span className="mono" style={{ fontSize: 17, fontWeight: 800, color: t.text, letterSpacing: "-0.5px" }}>
           {fmtKRW(total)}
         </span>
         {diffPct !== null && (
@@ -121,6 +122,13 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
         )}
         <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginLeft: "auto" }}>
           {periodLabel} · {view.count}건
+        </span>
+      </div>
+
+      <div style={{ display: "flex", alignItems: "baseline", gap: 8, marginBottom: 14 }}>
+        <span style={{ fontSize: 11, color: t.textSecondary, fontWeight: 700 }}>회사 마진</span>
+        <span className="mono" style={{ fontSize: 26, fontWeight: 800, color: t.accent, letterSpacing: "-0.5px" }}>
+          {fmtKRW(view.owner)}
         </span>
       </div>
 
@@ -156,6 +164,12 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
           <Legend color="#F59E0B"   label="원청 수수료" amount={view.principal} t={t}/>
           <Legend color={t.accent}  label="회사 마진"   amount={view.owner}     t={t}/>
         </div>
+        {view.subKeep > 0 && (
+          <div style={{ fontSize: 10, color: t.textMuted, marginTop: 6 }}>ⓘ 협력사 정산은 협력사가 갖는 금액입니다 (회사 돈 아님)</div>
+        )}
+        {view.vat > 0 && (
+          <div style={{ fontSize: 10, color: t.textMuted, marginTop: 2 }}>ⓘ 부가세 {fmtKRW(view.vat)} 은 따로 받은 금액이라 거래액 · 마진 · 정산에 넣지 않았습니다</div>
+        )}
       </div>
 
       {/* 종류별 */}
