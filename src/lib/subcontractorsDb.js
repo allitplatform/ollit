@@ -193,6 +193,17 @@ export const subListStaff = () => _call("sub_list_staff", {});
 //   기사별: zone_match / today_tasks / day_tasks / next_at / off / off_part
 export const subListStaffForTask = (taskId) => _call("sub_list_staff_for_task", { p_task_id: taskId });
 // 반려 (Mig 232) — 사유와 함께 올데이케어로 되돌린다. 진행 중·끝난 작업은 불가.
+// ── 협력사 작업 예외 처리 (Mig 242) ──────────────────────────
+//   운영자: 관리자에게 변경 요청 (kind = engineer / schedule / etc) · 올데이케어로 회수 (사유 필수)
+export const adminRequestSubChange = (taskId, kind, body) =>
+  _call("admin_request_sub_change", { p_task_id: taskId, p_kind: kind, p_body: body });
+export const adminRecallSubTask = (taskId, reason) =>
+  _call("admin_recall_sub_task", { p_task_id: taskId, p_reason: reason });
+//   협력사 관리자: 열린 변경 요청 목록 · 처리 완료
+export const subListChangeRequests = () => _call("sub_list_change_requests", {});
+export const subResolveChangeRequest = (taskId) =>
+  _call("sub_resolve_change_request", { p_task_id: taskId });
+
 export const subRejectTask = (taskId, reason) =>
   _call("sub_reject_task", { p_task_id: taskId, p_reason: String(reason || "") });
 // ── 기사 관리 · 회사 몫 % (Mig 231) — 협력사 관리자 ──────────

@@ -25,7 +25,8 @@ import SafeTopCover from "../components/SafeTopCover.jsx";
 import SubManagerHome from "../components/SubManagerHome.jsx";
 import SubManagerMe from "../components/SubManagerMe.jsx";
 import { SubPcTimeline, SubPcSearch } from "../components/SubManagerPc.jsx";
-import { subSearchTasks } from "../lib/subcontractorsDb.js";
+import { subSearchTasks, subListChangeRequests } from "../lib/subcontractorsDb.js";
+import { SubChangeRequestChip } from "../components/SubExceptionParts.jsx";
 
 const DONE = ["완료", "취소", "visit_only", "정산완료"];
 const TABS = [
@@ -162,6 +163,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
   const [engQuery, setEngQuery] = useState("");
   const [todo, setTodo] = useState({ waiting: 0, todayFee: 0 });   // 받음 확인 대기 건수 / 오늘 보낼 수수료
 
+  const [changeReqs, setChangeReqs] = useState(() => new Map());   // task_id → 올데이케어 변경 요청
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -169,6 +171,9 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
     if (!tr.ok) setError(tr.error || "작업을 불러오지 못했습니다.");
     else setTasks(Array.isArray(tr.tasks) ? tr.tasks : []);
     setLoading(false);
+    // Mig 242 — 올데이케어가 보낸 변경 요청(열려 있는 것). 실패해도(242 이전) 목록은 그대로 보인다.
+    const cr = await subListChangeRequests();
+    setChangeReqs(new Map((cr.ok && Array.isArray(cr.rows) ? cr.rows : []).map(r => [r.task_id, r])));
   }, []);
 
   useEffect(() => { load(); }, [load]);
@@ -672,6 +677,9 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
                   {!unassigned && hasEng && (
                     <span style={{ flex: "none", maxWidth: 64, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>{t.engineer_name || ""}</span>
                   )}
+                  {changeReqs.has(t.id) && (
+                    <span title="올데이케어 변경 요청" style={{ flex: "none", fontSize: 11, fontWeight: 800, padding: "3px 6px", borderRadius: 6, background: "rgba(249,115,22,0.14)", color: "#F97316", whiteSpace: "nowrap" }}>변경 요청</span>
+                  )}
                   <span style={{ flex: "none", fontSize: 11, fontWeight: 800, padding: "3px 7px", borderRadius: 6, background: ss.bg, color: ss.fg, whiteSpace: "nowrap" }}>{stLabel}</span>
                   {/* 미배정 카드만 [배정] — 누르면 기존 배정 시트 (카드 상세는 열리지 않는다) */}
                   {unassigned && t.status !== "진행중" && (
@@ -708,6 +716,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
                     {t.customer_name}
                     <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}>{" · "}{townOf(t) || "주소 없음"}{" · "}{workLabel(t)}</span>
                   </div>
+                  <SubChangeRequestChip request={changeReqs.get(t.id)}/>
                 </div>
                 {/* ③ 담당 기사 + 전화 */}
                 <div style={{ display: "flex", alignItems: "center", gap: 8, marginTop: 8, minHeight: 36 }}>

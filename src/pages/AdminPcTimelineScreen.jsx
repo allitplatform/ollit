@@ -8,7 +8,11 @@
 //   · 잠금: 진행중 / 완료 / 취소 / visit_only / 정산완료.
 //   · 드래그 중 막대 자체 이동 + 새 시각 라벨 미리보기.
 
-import { getCategoryMeta } from "../lib/serviceCatalog.js";
+import { getCategoryMeta, getTaskDurationHours, categoryTint } from "../lib/serviceCatalog.js";
+// 2026-10-07 — 타임라인 개편 (시안 v1): 왼쪽 미배정 목록 · 소속별 묶음 · 협력사 보기 전용
+import { useSubcontractorIndex, subcontractorOfEngineer, subcontractorName, adminAssignTaskToSubcontractor, listSubcontractorCategories } from "../lib/subcontractorsDb.js";
+import { ZONE_GROUPS } from "../utils/zoneGroups.js";
+import { updateTaskDb } from "../data/tasksDb.js";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 
@@ -30,13 +34,46 @@ const START_HOUR    = 7;
 const END_HOUR      = 24;
 const TOTAL_HOURS   = END_HOUR - START_HOUR;  // 17
 const LANE_HEIGHT   = 52;
-const ENGINEER_COL  = 120;
+const ENGINEER_COL  = 150;
 // 2026-06-19 — 시간당 고정폭 (사장님 spec). 컨테이너 fit X → 가로 스크롤.
 //   1시간 = 80px → 7~24시 = 17 × 80 = 1360px.
 const HOUR_WIDTH       = 80;
 const TIME_AREA_WIDTH  = HOUR_WIDTH * TOTAL_HOURS; // 1360
 const SNAP_MINUTES  = 30;
 const DRAG_THRESHOLD_PX = 5;
+const UNASSIGNED_COL = 290;            // 왼쪽 미배정 목록 폭
+const FOLD_KEY = "ollit_pc_timeline_fold_v1";   // 묶음 접힘 · "일 없는 기사" 펼침 기억 (기기별)
+const DONE_STATUSES = new Set(["완료", "취소", "visit_only", "정산완료"]);
+
+function loadFold() {
+  try { const v = JSON.parse(localStorage.getItem(FOLD_KEY) || "{}"); return v && typeof v === "object" ? v : {}; } catch (_e) { return {}; }
+}
+function saveFold(v) {
+  try { localStorage.setItem(FOLD_KEY, JSON.stringify(v)); } catch (_e) { /* 저장 실패는 무시 */ }
+}
+// 작업의 소요 시간(분) — 협력사 타임라인과 같은 표 (SERVICE_DURATION_HOURS)
+function taskDurationMin(task) {
+  return Math.max(30, Math.round(getTaskDurationHours(task) * 60));
+}
+function hm(min) {
+  return `${pad(Math.floor(min / 60))}:${pad(min % 60)}`;
+}
+// 지역 묶음(zoneGroups) 판정 — 기사: 지역 글자 / 작업: 주소·동네 글자
+const REGION_WORDS = { seoul: ["서울"], gsouth: ["경기남부", "경기 남부"], geast: ["경기동부", "경기 동부"], gnorth: ["경기북부", "경기 북부"], incheon: ["인천"] };
+function textInRegion(text, groupKey) {
+  if (!groupKey) return true;
+  const t = String(text || "");
+  if (!t) return false;
+  if ((REGION_WORDS[groupKey] || []).some(w => t.includes(w))) return true;
+  const g = ZONE_GROUPS.find(x => x.key === groupKey);
+  if (!g) return false;
+  // 구 이름이 서울·인천에 겹치는 것(서구·중구 등)이 있다 → 인천은 "인천" 글자가 있을 때만, 서울은 인천·경기 글자가 없을 때만 구 이름으로 판단
+  if (groupKey === "incheon") return false;
+  if (groupKey === "seoul") return !t.includes("인천") && !t.includes("경기") && g.zones.some(z => t.includes(z));
+  // 경기: "경기" 라고만 적힌 기사(남부·동부·북부 구분 없음)는 경기 묶음 어디에나 나온다
+  if (t.includes("경기") && !/경기\s?(남부|동부|북부)/.test(t) && !g.zones.some(z => t.includes(z))) return true;
+  return g.zones.some(z => t.includes(z));
+}
 
 // 일정 변경 잠금 상태 (사장님 spec — Mig 144 RPC 와 동일):
 //   진행중 / 완료 / 취소 / visit_only / 정산완료.
@@ -181,23 +218,78 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     : 0;
   const nowLabel = `${pad(nowH)}:${pad(nowM)}`;
 
-  // 2026-07-09 — 사장님 spec 정정: 타임라인에서 취소 작업 밴드 제외.
-  //   · 데이터 삭제 아님, 화면 표시만 필터. 정산/이력/통계 화면은 취소 그대로 유지.
-  //   · lane 그룹핑도 자동 반영 (todayTasks 파생) → 취소만 있던 기사 lane 자체 미노출.
-  //   · 검색 결과 (searchResults) 는 apiTasks 전체 대상 유지 (취소도 검색 매칭).
-  //   · TaskBar 안 isCanceled 분기 (dashed / 대각선) 는 dead code 로 남음 —
-  //     이후 재복구 대비 그대로 두되 실제 실행 경로에서는 안 도달.
+  // 2026-10-07 — 필터 · 정렬 · 접힘
+  const subIdx = useSubcontractorIndex();
+  const [catFilter, setCatFilter]       = useState("");      // 종목 key
+  const [regionFilter, setRegionFilter] = useState("");      // zoneGroups key
+  const [affFilter, setAffFilter]       = useState("");      // "" | "direct" | "sub:<id>"
+  const [sortMode, setSortMode]         = useState("count"); // count(오늘 건수 적은 순) | name
+  const [showCanceled, setShowCanceled] = useState(false);   // 취소 막대(줄무늬) 표시 — 기본은 숨김(2026-07-09 결정 유지)
+  const [fold, setFold] = useState(() => loadFold());
+  const toggleFold = useCallback((key) => {
+    setFold(prev => { const next = { ...prev, [key]: !prev[key] }; saveFold(next); return next; });
+  }, []);
+  // 끌어다 놓기 미리보기 — 놓을 자리의 점선 막대 + 말풍선 { laneKey, startMin, durMin, label, tip, bad }
+  const [dropPreview, setDropPreview] = useState(null);
+
+  // 협력사가 맡는 종목 (미배정 카드의 "○○로 넘기기") — 종목 code → [협력사 id]
+  const [subCats, setSubCats] = useState(() => new Map());
+  useEffect(() => {
+    let alive = true;
+    listSubcontractorCategories().then(res => {
+      if (!alive || !res.ok) return;
+      const m = new Map();
+      for (const r of (Array.isArray(res.by_sub) ? res.by_sub : [])) {
+        if (!m.has(r.code)) m.set(r.code, []);
+        m.get(r.code).push(r.subcontractor_id);
+      }
+      setSubCats(m);
+    });
+    return () => { alive = false; };
+  }, []);
+
+  const engOf = (t) => ({
+    eid:   t.assignedEngineerId || t.assigned_engineer_id || t.engineerId || t.engineer_id || null,
+    ename: String(t.assignedEngineer || t.engineer || "").trim(),
+  });
+  const matchCat = useCallback((t) => !catFilter || getCategoryMeta(t).key === catFilter, [catFilter]);
+
+  // 그 날 타임라인에 올라가는 작업 (담당 기사가 있는 것만 — 미배정은 왼쪽 목록).
+  //   취소 작업은 기본으로 숨긴다 (2026-07-09 결정). [취소 표시] 를 켜면 줄무늬 막대로 보인다.
   const todayTasks = useMemo(() => {
     return (apiTasks || []).filter(t => {
-      if (!t || isEffectivelyCanceled(t)) return false;  // 2026-07-11 — 전항목 취소 도 제외
+      if (!t) return false;
+      if (isEffectivelyCanceled(t) && !showCanceled) return false;
       const scheduled = t.scheduledAt || t.scheduled_at;
       if (!scheduled) return false;
-      return toKstYmd(scheduled) === selectedDate;
+      if (toKstYmd(scheduled) !== selectedDate) return false;
+      const { eid, ename } = engOf(t);
+      if (!eid && !ename) return false;
+      return matchCat(t);
     });
-  }, [apiTasks, selectedDate]);
+  }, [apiTasks, selectedDate, showCanceled, matchCat]);
+
+  // 왼쪽 미배정 목록 — 끝나지 않았고 담당 기사가 없는 작업. 협력사로 넘긴 작업은 그 협력사 관리자 몫이라 뺀다.
+  const unassigned = useMemo(() => {
+    const list = (apiTasks || []).filter(t => {
+      if (!t || isEffectivelyCanceled(t) || DONE_STATUSES.has(t.status) || t.status === "진행중") return false;
+      const { eid, ename } = engOf(t);
+      if (eid || ename) return false;
+      if (t.subcontractorId || t.subcontractor_id) return false;
+      if (!matchCat(t)) return false;
+      if (regionFilter && !textInRegion(`${t.address || ""} ${t.region || ""} ${t.district || ""}`, regionFilter)) return false;
+      return true;
+    });
+    const when = (t) => {
+      const at = t.scheduledAt || t.scheduled_at;
+      if (at) return new Date(at).getTime();
+      if (t.requestedDate) return new Date(`${t.requestedDate}T${/^\d{1,2}:\d{2}/.test(t.requestedTime || "") ? t.requestedTime.slice(0, 5).padStart(5, "0") : "23:59"}:00`).getTime();
+      return Infinity;
+    };
+    return list.sort((a, b) => when(a) - when(b));
+  }, [apiTasks, matchCat, regionFilter]);
 
   // 2026-07-08 — 그 날 전 기사 휴무 fetch (name → offs[]).
-  //   Lane 이 lane.name 으로 lookup → 회색 밴드 (종일) 또는 시간 밴드 (hourly) 렌더.
   const { byNameDate: offByNameDate } = useOffDaysInRange(selectedDate, selectedDate);
   const offsByLaneName = useMemo(() => {
     const m = new Map();
@@ -208,97 +300,95 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     return m;
   }, [offByNameDate, selectedDate]);
 
-  const lanes = useMemo(() => {
-    const byEng = new Map();
-    for (const t of todayTasks) {
-      // 2026-06-19 — eid 추출 강화 (4 키 fallback). 정규화 경로마다 키 이름이 달라
-      //   한 두 곳만 보면 일부 task 의 lane.eid 가 null 로 떨어져 cross-lane drop 시
-      //   target.eid 없음 → 거부 분기 진입 (사장님 보고 사고 원인).
-      const eid   = t.assignedEngineerId || t.assigned_engineer_id
-                 || t.engineerId         || t.engineer_id || null;
-      const ename = t.assignedEngineer || t.engineer || "";
-      const key = eid || ename || "(미배정)";
-      if (!byEng.has(key)) byEng.set(key, { key, eid, ename, tasks: [] });
-      // 첫 task 가 eid 없이 들어왔어도 이후 task 에 eid 있으면 lane.eid 보강.
-      const laneRef = byEng.get(key);
-      if (!laneRef.eid && eid) laneRef.eid = eid;
-      laneRef.tasks.push(t);
-    }
-    // 2026-06-19 — engineerUserId(UUID) 필드 분리 (사장님 진단 사고 정정).
-    //   apiEngineers 의 e.id 는 시트 code(E001 등) 일 수 있어 lane.eid 에 code 가
-    //   섞임 → RPC p_engineer_id(uuid) 에 그대로 전달되면
-    //   "invalid input syntax for type uuid: 'E002'" 에러.
-    //   해결: engineerUserId 별도 필드에 UUID 만 담음. lane.eid 는 표시/매칭용
-    //   그대로(code 가능). RPC 호출 시 engineerUserId 사용.
+  // 줄(기사) — 오늘 작업이 있는 기사 + 오늘 일 없는 기사(전체 기사 목록에서). 묶음 = 직영 / 협력사별.
+  const { groups, allLanes } = useMemo(() => {
     const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-    function pickUuid(...candidates) {
-      for (const v of candidates) {
-        if (typeof v === "string" && UUID_RE.test(v)) return v;
-      }
-      return null;
-    }
-    const list = Array.from(byEng.values()).map(lane => {
-      let eng = null;
-      if (lane.eid) {
-        eng = (apiEngineers || []).find(e => e.id === lane.eid);
-      }
-      if (!eng && lane.ename) {
-        eng = (apiEngineers || []).find(e => e.name === lane.ename);
-      }
-      // task 첫 행의 모든 가능한 UUID 키 + apiEngineers 매칭 결과의 user_id/uuid 등.
-      const firstTask = lane.tasks[0] || {};
-      const engineerUserId = pickUuid(
-        firstTask.assignedEngineerUserId,
-        firstTask.engineerUserId,
-        firstTask.assigned_engineer_user_id,
-        firstTask.assignedEngineerId,
-        firstTask.assigned_engineer_id,
-        firstTask.engineer_id,
-        eng?.user_id,
-        eng?.userId,
-        eng?.uuid,
-        eng?.userUuid,
-        eng?.id,
-        lane.eid,
-      );
-      return {
-        ...lane,
-        eid:  lane.eid || eng?.id || null,
-        engineerUserId,                  // UUID 만 (없으면 null)
-        engineerCode: eng?.code || (UUID_RE.test(lane.eid || "") ? null : lane.eid),
-        name: eng?.name || lane.ename || "(미배정)",
-      };
-    });
-    list.sort((a, b) => b.tasks.length - a.tasks.length || a.name.localeCompare(b.name));
-    return list;
-  }, [todayTasks, apiEngineers]);
+    const pickUuid = (...c) => { for (const v of c) if (typeof v === "string" && UUID_RE.test(v)) return v; return null; };
+    const engs = (apiEngineers || []).filter(e => e && e.name);
+    const findEng = (eid, ename) =>
+      (eid && engs.find(e => e.userId === eid || e.id === eid || e.engineerId === eid))
+      || (ename && engs.find(e => e.name === ename)) || null;
 
-  // 2026-07-08 — 그 날 작업 배정 없이 휴무만 있는 기사도 lane 으로 노출.
-  //   기존 lanes 는 todayTasks 파생 → 배정 0 기사 안 뜸.
-  //   offsByLaneName 이름 중 기존 lanes 에 이름 있는 것은 skip, 나머지는 orphan lane 추가.
-  const lanesWithOff = useMemo(() => {
-    if (offsByLaneName.size === 0) return lanes;
-    const existingNames = new Set(lanes.map(l => l.name));
-    const orphans = [];
-    for (const [name] of offsByLaneName.entries()) {
-      if (!name || existingNames.has(name)) continue;
-      // apiEngineers 에서 이름 매칭 → eid / engineerCode / engineerUserId 채움 (재배정 대상 lane 유지)
-      const eng = (apiEngineers || []).find(e => e.name === name) || null;
-      orphans.push({
-        key:  `__off-only__${name}`,
-        eid:  eng?.id || null,
-        ename: name,
-        tasks: [],
-        engineerUserId: eng?.user_id || eng?.userId || eng?.uuid || eng?.userUuid || null,
-        engineerCode:   eng?.code    || null,
-        name,
-      });
+    const byKey = new Map();
+    const laneFor = (eng, eid, ename, firstTask) => {
+      const name = (eng && eng.name) || ename || "";
+      const key = (eng && (eng.userId || eng.id)) || eid || name;
+      if (!key) return null;
+      if (!byKey.has(key)) {
+        const subId = subcontractorOfEngineer(eng || name, subIdx)
+          || (firstTask && (firstTask.subcontractorId || firstTask.subcontractor_id)) || null;
+        byKey.set(key, {
+          key, name, tasks: [],
+          eid: (eng && eng.id) || eid || null,
+          engineerUserId: pickUuid(eng && eng.userId, eng && eng.user_id, eid,
+            firstTask && firstTask.assignedEngineerId, firstTask && firstTask.assigned_engineer_id),
+          engineerCode: (eng && (eng.engineerId || eng.id)) || (eid && !UUID_RE.test(eid) ? eid : null),
+          region: (eng && eng.region) || "",
+          active: eng ? eng.active !== false : true,
+          subId,
+          groupKey: subId ? `sub:${subId}` : "direct",
+          readOnly: !!subId,                       // 협력사 묶음 = 보기 전용 (배정은 협력사 관리자)
+        });
+      }
+      return byKey.get(key);
+    };
+
+    for (const t of todayTasks) {
+      const { eid, ename } = engOf(t);
+      const lane = laneFor(findEng(eid, ename), eid, ename, t);
+      if (lane) lane.tasks.push(t);
     }
-    if (orphans.length === 0) return lanes;
-    // 휴무만 있는 기사 lane 은 tasks=0 → 정렬상 하위. 이름 alpha 로 정렬 후 뒤에 붙임.
-    orphans.sort((a, b) => a.name.localeCompare(b.name));
-    return [...lanes, ...orphans];
-  }, [lanes, offsByLaneName, apiEngineers]);
+    // 오늘 일 없는 기사도 줄로 (쉬는 기사 = 비활성 계정은 뺀다)
+    for (const e of engs) {
+      if (e.active === false) continue;
+      laneFor(e, null, e.name, null);
+    }
+
+    let lanes = [...byKey.values()];
+    if (regionFilter) lanes = lanes.filter(l => l.tasks.length > 0 ? (textInRegion(l.region, regionFilter) || !l.region) : textInRegion(l.region, regionFilter));
+    if (affFilter)    lanes = lanes.filter(l => l.groupKey === affFilter);
+    const live = (l) => l.tasks.filter(t => !isEffectivelyCanceled(t)).length;
+    lanes.sort((a, b) => sortMode === "name"
+      ? a.name.localeCompare(b.name, "ko")
+      : (live(a) - live(b)) || a.name.localeCompare(b.name, "ko"));
+
+    const gmap = new Map();
+    for (const l of lanes) {
+      if (!gmap.has(l.groupKey)) {
+        gmap.set(l.groupKey, {
+          key: l.groupKey, subId: l.subId, readOnly: l.readOnly,
+          label: l.subId ? subcontractorName(l.subId, subIdx) : "직영",
+          busy: [], idle: [], taskCount: 0,
+        });
+      }
+      const g = gmap.get(l.groupKey);
+      const hasOff = offsByLaneName.has(l.name);
+      // 일이 있거나 휴무 띠가 있는 기사는 바로 보이는 줄, 나머지는 "오늘 일 없는 기사" 아래
+      if (l.tasks.length > 0 || hasOff) g.busy.push(l); else g.idle.push(l);
+      g.taskCount += live(l);
+    }
+    const glist = [...gmap.values()].sort((a, b) => (a.subId ? 1 : 0) - (b.subId ? 1 : 0) || a.label.localeCompare(b.label, "ko"));
+    return { groups: glist, allLanes: lanes };
+  }, [todayTasks, apiEngineers, subIdx, regionFilter, affFilter, sortMode, offsByLaneName]);
+
+  const laneCount = allLanes.length;
+  const busyCount = allLanes.filter(l => l.tasks.length > 0).length;
+
+  // 필터 선택지 — 종목: 오늘 막대 + 미배정에 실제로 있는 것 / 소속: 직영 + 협력사
+  const catOptions = useMemo(() => {
+    const seen = new Map();
+    for (const t of (apiTasks || [])) {
+      if (!t) continue;
+      const at = t.scheduledAt || t.scheduled_at;
+      const { eid, ename } = engOf(t);
+      const mine = (at && toKstYmd(at) === selectedDate) || (!eid && !ename && !DONE_STATUSES.has(t.status));
+      if (!mine) continue;
+      const m = getCategoryMeta(t);
+      if (!seen.has(m.key)) seen.set(m.key, m);
+    }
+    return [...seen.values()];
+  }, [apiTasks, selectedDate]);
+  const subOptions = useMemo(() => [...subIdx.names.values()].filter(x => x.active !== false), [subIdx]);
 
   // 드래그 드롭 → 확인 모달.
   //   confirmInfo = { task, oldTime, newTime, newIso, onAccept, onCancel } | null
@@ -321,8 +411,9 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     newMinutes, durationMinutes,
     siblings, laneName,
     onAcceptUI, onCancelUI,
+    isAssign = false,
   }) {
-    const isReassign = !!(targetLaneKey && sourceLaneKey && targetLaneKey !== sourceLaneKey);
+    const isReassign = !!isAssign || !!(targetLaneKey && sourceLaneKey && targetLaneKey !== sourceLaneKey);
 
     // 도착 lane 정보 lookup (재배정 시 새 기사 + target siblings 추출)
     let targetLane = null;
@@ -331,7 +422,12 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     let newEngineerName   = laneName;
     let targetSiblings    = siblings || [];
     if (isReassign) {
-      targetLane = lanes.find(l => l.key === targetLaneKey);
+      targetLane = allLanes.find(l => l.key === targetLaneKey);
+      if (targetLane && targetLane.readOnly) {
+        showToast("error", `${subcontractorName(targetLane.subId, subIdx)} 줄은 보기 전용입니다 — 배정은 ${subcontractorName(targetLane.subId, subIdx)} 관리자가 합니다`);
+        onCancelUI && onCancelUI();
+        return;
+      }
       if (!targetLane) {
         showToast("error", "대상 기사 lane 식별 실패 — 새로고침 후 다시 시도");
         onCancelUI && onCancelUI();
@@ -366,7 +462,7 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       const dt = new Date(at);
       if (isNaN(dt.getTime())) continue;
       const s = dt.getHours() * 60 + dt.getMinutes();
-      const e = s + dur;
+      const e = s + taskDurationMin(t);          // 상대 막대의 실제 소요 시간
       if (newStart < e && s < newEnd) {
         conflicts.push({ task: t, start: s });
       }
@@ -384,9 +480,11 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       };
     }
 
+    setDropPreview(null);
     setConfirmInfo({
       task,
-      isReassign,
+      isAssign: !!isAssign,                 // 왼쪽 미배정 카드를 끌어다 놓은 경우
+      isReassign: isReassign || !!isAssign,
       oldEngineerName: laneName,
       newEngineerName,
       newEngineerUserId,     // UUID 또는 null
@@ -401,10 +499,77 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     });
   }
 
+  // 화면 좌표 → 놓을 줄 · 시각 (30분 단위). 줄 밖이면 null, 보기 전용 줄이면 { ro: true }.
+  function locateDrop(x, y) {
+    const el = document.elementFromPoint(x, y);
+    const laneEl = el && el.closest ? el.closest("[data-lane-key]") : null;
+    if (!laneEl) return null;
+    const lane = allLanes.find(l => l.key === laneEl.dataset.laneKey);
+    if (!lane) return null;
+    if (lane.readOnly) return { ro: true, lane };
+    const rect = laneEl.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+    let min = START_HOUR * 60 + ((x - rect.left) / rect.width) * TOTAL_HOURS * 60;
+    min = Math.round(min / SNAP_MINUTES) * SNAP_MINUTES;
+    min = Math.max(START_HOUR * 60, Math.min((END_HOUR - 1) * 60 + 30, min));
+    return { lane, min };
+  }
+  function handleCardDragMove(task, x, y) {
+    const hit = locateDrop(x, y);
+    if (!hit) { setDropPreview(null); return; }
+    if (hit.ro) {
+      setDropPreview({ laneKey: hit.lane.key, bad: true, tip: `🔒 보기 전용 — 배정은 ${subcontractorName(hit.lane.subId, subIdx)} 관리자` });
+      return;
+    }
+    setDropPreview({
+      laneKey: hit.lane.key, startMin: hit.min, durMin: taskDurationMin(task),
+      label: `${getCategoryMeta(task).icon} ${task.customer || ""}`,
+      tip: `← ${hm(hit.min)} ${hit.lane.name} 배정 (놓으면 확인창)`,
+    });
+  }
+  function handleCardDrop(task, x, y) {
+    const hit = locateDrop(x, y);
+    setDropPreview(null);
+    if (!hit) return;
+    if (hit.ro) {
+      showToast("error", `${subcontractorName(hit.lane.subId, subIdx)} 줄에는 놓을 수 없습니다 — 배정은 ${subcontractorName(hit.lane.subId, subIdx)} 관리자가 합니다`);
+      return;
+    }
+    const at = task.scheduledAt || task.scheduled_at;
+    const oldTime = at ? `${toKstYmd(at) === selectedDate ? "" : toKstYmd(at).slice(5).replace("-", "/") + " "}${hm(new Date(at).getHours() * 60 + new Date(at).getMinutes())}`
+      : (task.requestedTime ? `희망 ${task.requestedTime}` : "시간 미정");
+    const newDate = new Date(`${selectedDate}T${hm(hit.min)}:00`);
+    handleTaskDragCommit({
+      task, isAssign: true,
+      sourceLaneKey: "__unassigned__", targetLaneKey: hit.lane.key,
+      oldIso: at || null, newIso: newDate.toISOString(),
+      oldTime, newTime: hm(hit.min),
+      newMinutes: hit.min, durationMinutes: taskDurationMin(task),
+      siblings: [], laneName: "미배정",
+    });
+  }
+  async function handleHandOver(task, subId) {
+    const name = subcontractorName(subId, subIdx);
+    if (!window.confirm(`이 작업을 ${name}로 넘깁니다.\n배정은 ${name} 관리자가 합니다.\n\n${task.customer || ""}`)) return;
+    const res = await adminAssignTaskToSubcontractor(task.id, subId);
+    if (!res.ok) { showToast("error", res.error || "넘기지 못했습니다"); return; }
+    showToast("success", `${task.customer || "작업"} → ${name}로 넘김`);
+    if (typeof onRefresh === "function") onRefresh();
+  }
+  // 종목을 맡는 협력사 (미배정 카드의 "○○로 넘기기") — 없으면 null
+  const handOverTarget = (task) => {
+    const m = getCategoryMeta(task);
+    for (const code of [m.key, ...(m.codes || [])]) {
+      const ids = subCats.get(code);
+      if (ids && ids.length > 0) return ids[0];
+    }
+    return null;
+  };
+
   async function handleConfirmYes() {
     if (!confirmInfo || busy) return;
     setBusy(true);
-    const { task, isReassign, newEngineerUserId, newEngineerCode, newEngineerName, newIso, newTime, onAcceptUI, onCancelUI } = confirmInfo;
+    const { task, isAssign, isReassign, newEngineerUserId, newEngineerCode, newEngineerName, newIso, newTime, onAcceptUI, onCancelUI } = confirmInfo;
     try {
       let res;
       if (isReassign) {
@@ -450,7 +615,18 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
           console.warn("[clearReassignRequest]", e?.message || e);
         }
       }
-      const msg = isReassign
+      // 미배정 카드를 끌어다 놓은 경우: 배정 + 일정 확정 (재배정 함수는 상태를 건드리지 않으므로 여기서 확정으로)
+      if (isAssign && (task.status === "미배정" || task.status === "배정" || !task.status)) {
+        try {
+          const ur = await updateTaskDb(task.id, { status: "확정" });
+          if (!ur?.ok) console.warn("[timeline assign] 상태 확정 실패", ur?.error);
+        } catch (e) {
+          console.warn("[timeline assign] 상태 확정 실패", e?.message || e);
+        }
+      }
+      const msg = isAssign
+        ? `${task.customer || "작업"} 배정 완료 (${newEngineerName} · ${newTime})`
+        : isReassign
         ? `${task.customer || "작업"} 재배정 완료 (${newEngineerName} · ${newTime})`
         : `${task.customer || "작업"} 일정 변경 완료 (${newTime})`;
       showToast("success", msg);
@@ -475,22 +651,28 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     setConfirmInfo(null);
   }
 
+  const selStyle = {
+    border: "1px solid var(--border)", borderRadius: 9, padding: "6px 10px", fontSize: 13, fontWeight: 600,
+    background: "var(--bg-elevated)", color: "var(--text-primary)", fontFamily: "inherit", cursor: "pointer", minHeight: 34,
+  };
   return (
-    <div style={{
-      padding: "20px 24px 24px",
-      display: "flex", flexDirection: "column",
-      gap: 14,
-    }}>
-      <div style={{
-        display: "flex", alignItems: "center", justifyContent: "space-between",
-        gap: 12, flexWrap: "wrap",
-      }}>
-        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
-          <div style={{
-            fontSize: 18, fontWeight: 800,
-            color: "var(--text-primary)",
-            letterSpacing: "-0.4px",
-          }}>타임라인 (시간축)</div>
+    <div style={{ display: "flex", alignItems: "stretch", minHeight: "100%" }}>
+      {/* 왼쪽 미배정 목록 (타임라인 맨 위 "(미배정)" 줄 대신) */}
+      <UnassignedPanel
+        tasks={unassigned}
+        selectedDate={selectedDate}
+        onOpen={onTaskClick}
+        onDragMove={handleCardDragMove}
+        onDrop={handleCardDrop}
+        onDragCancel={() => setDropPreview(null)}
+        handOverTarget={handOverTarget}
+        handOverName={(id) => subcontractorName(id, subIdx)}
+        onHandOver={handleHandOver}
+      />
+
+      <div style={{ flex: 1, minWidth: 0, padding: "16px 18px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.4px", marginRight: 4 }}>타임라인</div>
           <AdminPcDateNav
             selectedDate={selectedDate}
             onPrev={() => handleManualDate(d => shiftDate(d, -1))}
@@ -498,33 +680,71 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
             onToday={() => handleManualDate(today)}
             isToday={isToday}
           />
-          <span style={{
-            fontSize: 12, color: "var(--text-secondary)", fontWeight: 600,
-          }}>{lanes.length}명 · {todayTasks.length}건</span>
+          <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
+            기사 {laneCount}명 중 {busyCount}명 · {todayTasks.filter(t => !isEffectivelyCanceled(t)).length}건
+          </span>
+          <span style={{ flex: 1 }}/>
+          {/* 2026-06-19 — 검색창 */}
+          <SearchBox
+            query={searchQuery}
+            onQueryChange={setSearchQuery}
+            results={searchResults}
+            showResults={showResults}
+            setShowResults={setShowResults}
+            onSelect={handleSelectResult}
+          />
         </div>
 
-        {/* 2026-06-19 — 검색창 (헤더 우측) */}
-        <SearchBox
-          query={searchQuery}
-          onQueryChange={setSearchQuery}
-          results={searchResults}
-          showResults={showResults}
-          setShowResults={setShowResults}
-          onSelect={handleSelectResult}
+        {/* 필터 · 정렬 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <select value={catFilter} onChange={e => setCatFilter(e.target.value)} style={selStyle} aria-label="종목">
+            <option value="">종목 전체</option>
+            {catOptions.map(c => <option key={c.key} value={c.key}>{c.icon} {c.label}</option>)}
+          </select>
+          <select value={regionFilter} onChange={e => setRegionFilter(e.target.value)} style={selStyle} aria-label="지역">
+            <option value="">지역 전체</option>
+            {ZONE_GROUPS.map(g => <option key={g.key} value={g.key}>{g.label}</option>)}
+          </select>
+          <select value={affFilter} onChange={e => setAffFilter(e.target.value)} style={selStyle} aria-label="소속">
+            <option value="">소속 전체</option>
+            <option value="direct">직영</option>
+            {subOptions.map(x => <option key={x.id} value={`sub:${x.id}`}>{x.name}</option>)}
+          </select>
+          <select value={sortMode} onChange={e => setSortMode(e.target.value)} style={selStyle} aria-label="정렬">
+            <option value="count">정렬: 오늘 건수 적은 순</option>
+            <option value="name">정렬: 이름순</option>
+          </select>
+          <label style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", cursor: "pointer" }}>
+            <input type="checkbox" checked={showCanceled} onChange={e => setShowCanceled(e.target.checked)}/> 취소 표시
+          </label>
+          {(catFilter || regionFilter || affFilter) && (
+            <button type="button" onClick={() => { setCatFilter(""); setRegionFilter(""); setAffFilter(""); }} style={{ ...selStyle, color: "var(--accent, #FF1B8D)", fontWeight: 700 }}>필터 지우기</button>
+          )}
+        </div>
+
+        <TimeAxisView
+          wrapperRef={scrollWrapperRef}
+          groups={groups}
+          fold={fold}
+          onToggleFold={toggleFold}
+          offsByLaneName={offsByLaneName}
+          onTaskClick={onTaskClick}
+          onTaskDragCommit={handleTaskDragCommit}
+          onDragPreview={(pv) => {
+            if (!pv) { setDropPreview(null); return; }
+            const lane = allLanes.find(l => l.key === pv.laneKey);
+            setDropPreview({
+              ...pv,
+              tip: lane ? (pv.cross ? `← ${hm(pv.startMin)} ${lane.name} 배정 (놓으면 확인창)` : `${hm(pv.startMin)} 로 변경 (놓으면 확인창)`) : "",
+            });
+          }}
+          dropPreview={dropPreview}
+          showNowLine={showNowLine}
+          nowPct={nowPct}
+          nowLabel={nowLabel}
+          highlightTaskId={highlightTaskId}
         />
       </div>
-
-      <TimeAxisView
-        wrapperRef={scrollWrapperRef}
-        lanes={lanesWithOff}
-        offsByLaneName={offsByLaneName}
-        onTaskClick={onTaskClick}
-        onTaskDragCommit={handleTaskDragCommit}
-        showNowLine={showNowLine}
-        nowPct={nowPct}
-        nowLabel={nowLabel}
-        highlightTaskId={highlightTaskId}
-      />
 
       {confirmInfo && (
         <ConfirmDialog
@@ -556,7 +776,7 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
 
 function ConfirmDialog({ info, busy, onYes, onNo }) {
   const customer = info.task.customer || info.task.고객명 || "작업";
-  const headerLabel = info.isReassign ? "🔄 재배정 확인" : "📅 일정 변경 확인";
+  const headerLabel = info.isAssign ? "📌 배정 확인" : info.isReassign ? "🔄 재배정 확인" : "📅 일정 변경 확인";
   return (
     <div style={{
       position: "fixed",
@@ -611,7 +831,7 @@ function ConfirmDialog({ info, busy, onYes, onNo }) {
           <span style={{ color: "var(--text-secondary)" }}>{info.oldTime}</span>
           <span style={{ margin: "0 8px", color: "var(--text-secondary)" }}>→</span>
           <span style={{ color: "#FF1B8D", fontWeight: 800 }}>{info.newTime}</span>
-          <span style={{ marginLeft: 8, color: "var(--text-secondary)" }}>으로 변경할까요?</span>
+          <span style={{ marginLeft: 8, color: "var(--text-secondary)" }}>{info.isAssign ? "에 배정하고 일정을 확정할까요?" : "으로 변경할까요?"}</span>
         </div>
         {info.conflict && (
           <div style={{
@@ -662,15 +882,15 @@ function ConfirmDialog({ info, busy, onYes, onNo }) {
               fontFamily: "inherit",
               opacity: busy ? 0.7 : 1,
             }}
-          >{busy ? "변경 중…" : "변경"}</button>
+          >{busy ? (info.isAssign ? "배정 중…" : "변경 중…") : (info.isAssign ? "배정" : "변경")}</button>
         </div>
       </div>
     </div>
   );
 }
 
-function TimeAxisView({ wrapperRef, lanes, offsByLaneName, onTaskClick, onTaskDragCommit, showNowLine, nowPct, nowLabel, highlightTaskId }) {
-  if (lanes.length === 0) {
+function TimeAxisView({ wrapperRef, groups, fold, onToggleFold, offsByLaneName, onTaskClick, onTaskDragCommit, onDragPreview, dropPreview, showNowLine, nowPct, nowLabel, highlightTaskId }) {
+  if (groups.length === 0) {
     return (
       <div style={{
         padding: "60px 20px",
@@ -680,9 +900,32 @@ function TimeAxisView({ wrapperRef, lanes, offsByLaneName, onTaskClick, onTaskDr
         background: "var(--bg-elevated)",
         border: "1px solid var(--border)",
         borderRadius: 14,
-      }}>예정 작업 없음</div>
+      }}>조건에 맞는 기사가 없습니다</div>
     );
   }
+  const renderLane = (lane, idle) => (
+    <Lane
+      key={lane.key}
+      lane={lane}
+      idle={idle}
+      offs={offsByLaneName.get(lane.name) || []}
+      onTaskClick={onTaskClick}
+      onTaskDragCommit={onTaskDragCommit}
+      onDragPreview={onDragPreview}
+      dropPreview={dropPreview && dropPreview.laneKey === lane.key ? dropPreview : null}
+      highlightTaskId={highlightTaskId}
+    />
+  );
+  // 묶음 머리 · 접힌 줄 — 두 칸을 다 차지하고, 가로로 밀어도 글자는 왼쪽에 붙어 있다
+  const fullRow = (key, style, children, onClick) => (
+    <div key={key} onClick={onClick} style={{
+      gridColumn: "1 / -1", borderBottom: "1px solid var(--border)", cursor: onClick ? "pointer" : "default", ...style,
+    }}>
+      <div style={{ position: "sticky", left: 0, display: "inline-flex", alignItems: "center", gap: 8, height: "100%", padding: "0 14px", boxSizing: "border-box", maxWidth: "min(100%, 900px)" }}>
+        {children}
+      </div>
+    </div>
+  );
 
   return (
     <div
@@ -708,7 +951,6 @@ function TimeAxisView({ wrapperRef, lanes, offsByLaneName, onTaskClick, onTaskDr
           fontSize: 11, fontWeight: 700,
           color: "var(--text-secondary)",
           letterSpacing: 0.5,
-          textTransform: "uppercase",
           // 가로 스크롤 시 기사 컬럼 헤더 고정.
           position: "sticky",
           left: 0,
@@ -737,16 +979,34 @@ function TimeAxisView({ wrapperRef, lanes, offsByLaneName, onTaskClick, onTaskDr
           })}
         </div>
 
-        {lanes.map(lane => (
-          <Lane
-            key={lane.key}
-            lane={lane}
-            offs={offsByLaneName.get(lane.name) || []}
-            onTaskClick={onTaskClick}
-            onTaskDragCommit={onTaskDragCommit}
-            highlightTaskId={highlightTaskId}
-          />
-        ))}
+        {groups.map(g => {
+          const closed = !!fold[`g:${g.key}`];
+          const idleOpen = !!fold[`i:${g.key}`];
+          return [
+            fullRow(`h:${g.key}`, { height: 34, background: "var(--bg-secondary)", fontSize: 13, fontWeight: 800, color: "var(--text-primary)", position: "relative", zIndex: 4 }, (
+              <>
+                <span style={{ width: 12 }}>{closed ? "▶" : "▼"}</span>
+                <span>{g.label}</span>
+                <small style={{ fontWeight: 600, color: "var(--text-secondary)", fontSize: 12 }}>{g.busy.length + g.idle.length}명 · 오늘 {g.taskCount}건</small>
+                {g.readOnly && (
+                  <span style={{ marginLeft: 8, fontSize: 11.5, fontWeight: 700, color: "#7C5CFA", background: "rgba(124,92,250,0.14)", padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>
+                    🔒 보기 전용 · 배정은 {g.label} 관리자
+                  </span>
+                )}
+              </>
+            ), () => onToggleFold(`g:${g.key}`)),
+            ...(closed ? [] : g.busy.map(l => renderLane(l, false))),
+            ...(closed || g.idle.length === 0 ? [] : [
+              fullRow(`f:${g.key}`, { height: 32, background: "var(--bg-elevated)", fontSize: 12.5, fontWeight: 700, color: "var(--text-secondary)", position: "relative", zIndex: 4 }, (
+                <>
+                  <span style={{ width: 12 }}>{idleOpen ? "▼" : "▶"}</span>
+                  <span>오늘 일 없는 기사 {g.idle.length}명{!idleOpen && !g.readOnly ? " (펼치면 끌어다 배정 가능)" : ""}</span>
+                </>
+              ), () => onToggleFold(`i:${g.key}`)),
+              ...(idleOpen ? g.idle.map(l => renderLane(l, true)) : []),
+            ]),
+          ];
+        })}
       </div>
 
       {showNowLine && (
@@ -788,7 +1048,7 @@ function TimeAxisView({ wrapperRef, lanes, offsByLaneName, onTaskClick, onTaskDr
   );
 }
 
-function Lane({ lane, offs = [], onTaskClick, onTaskDragCommit, highlightTaskId }) {
+function Lane({ lane, idle = false, offs = [], onTaskClick, onTaskDragCommit, onDragPreview, dropPreview, highlightTaskId }) {
   // 시간 영역 폭 측정용 ref — 드래그 거리(px → 분) 환산에 사용.
   const laneRef = useRef(null);
   // 2026-07-08 — 이 lane 그 날 휴무 (offs) 분류.
@@ -797,42 +1057,50 @@ function Lane({ lane, offs = [], onTaskClick, onTaskDragCommit, highlightTaskId 
   const fullDayOffs = offs.filter(o => o.type === "single" || o.type === "range" || o.type === "repeat" || o.type === "휴무종일");
   const hourlyOffs  = offs.filter(o => o.type === "hourly" || o.type === "휴무부분");
   const hasFullDayOff = fullDayOffs.length > 0;
+  const liveCount = lane.tasks.filter(t => !isEffectivelyCanceled(t)).length;
+  const isDropTarget = !!dropPreview && !dropPreview.bad;
+  const baseBg = hasFullDayOff ? "rgba(148, 163, 184, 0.10)" : lane.readOnly ? "rgba(124, 92, 250, 0.04)" : "var(--bg-elevated)";
   return (
     <>
       <div style={{
-        padding: "8px 14px",
+        padding: "6px 14px",
         borderRight: "1px solid var(--border)",
         borderBottom: "1px solid var(--border)",
         background: hasFullDayOff ? "rgba(148, 163, 184, 0.14)" : "var(--bg-elevated)",
-        fontSize: 12, fontWeight: 700, color: "var(--text-primary)",
-        display: "flex", alignItems: "center", gap: 6,
-        minHeight: LANE_HEIGHT,
+        display: "flex", flexDirection: "column", justifyContent: "center",
+        minHeight: LANE_HEIGHT, boxSizing: "border-box",
         // 가로 스크롤 시 각 행의 기사 셀도 고정 (헤더와 동일).
         position: "sticky",
         left: 0,
-        zIndex: 2,
+        zIndex: 6,
       }}>
         <span style={{
-          flex: 1, minWidth: 0,
+          fontSize: 13, fontWeight: 700,
+          color: idle ? "var(--text-secondary)" : "var(--text-primary)",
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>
           {hasFullDayOff && <span style={{ marginRight: 4 }}>🏖️</span>}
           {lane.name}
         </span>
-        <span className="mono" style={{
-          fontSize: 10, color: "var(--text-secondary)", fontWeight: 700,
-          flexShrink: 0,
-        }}>{lane.tasks.length}</span>
+        <small style={{
+          fontSize: 11, color: "var(--text-secondary)", fontWeight: 600,
+          overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+        }}>{[lane.region, `${liveCount}건`].filter(Boolean).join(" · ")}</small>
       </div>
 
       <div
         ref={laneRef}
         data-lane-key={lane.key}
+        data-lane-ro={lane.readOnly ? "1" : undefined}
+        title={lane.readOnly ? "보기 전용 — 배정은 협력사 관리자가 합니다" : undefined}
         style={{
           position: "relative",
           borderBottom: "1px solid var(--border)",
           minHeight: LANE_HEIGHT,
-          background: hasFullDayOff ? "rgba(148, 163, 184, 0.10)" : "var(--bg-elevated)",
+          background: isDropTarget ? "var(--accent-bg, rgba(255,27,141,0.07))" : baseBg,
+          outline: isDropTarget ? "2px dashed var(--accent, #FF1B8D)" : "none",
+          outlineOffset: -2,
+          opacity: idle && !isDropTarget ? 0.75 : 1,
         }}>
         {/* 2026-07-08 — 종일 휴무 표시 배너 (가로 100% 회색 밴드 + 라벨).
             2026-07-09 — 클릭 → 사유 팝업 (memo 없어도 타입/시간 라벨). */}
@@ -856,11 +1124,7 @@ function Lane({ lane, offs = [], onTaskClick, onTaskDragCommit, highlightTaskId 
             🏖️ {formatOffDayType(fullDayOffs[0].type)}
           </div>
         )}
-        {/* 2026-07-08 — 시간 휴무 밴드 (하나 이상 겹칠 수 있음).
-            2026-07-09 — 클릭 → 사유 팝업.
-            2026-07-09 — 밴드 안 시간 텍스트 제거 (좁은 밴드에서 잘림 방지).
-                          밴드 위치 자체가 시간대 표현 → 아이콘만 남김.
-                          정확한 시간+사유는 클릭 팝업으로 확인. */}
+        {/* 2026-07-08 — 시간 휴무 밴드. 클릭 → 사유 팝업. 밴드 위치가 시간대를 뜻하므로 아이콘만. */}
         {hourlyOffs.map((o, idx) => {
           const s = _hmToMinutes(o.startTime);
           const e = _hmToMinutes(o.endTime);
@@ -908,7 +1172,6 @@ function Lane({ lane, offs = [], onTaskClick, onTaskDragCommit, highlightTaskId 
         {lane.tasks.map(task => {
           // 2026-06-19 — 같은 lane 의 다른 막대들 (자기 자신 제외) 을 TaskBar 에
           //   전달 → 드래그 commit 시 부모가 겹침 검사에 사용 (source lane 한정).
-          //   cross-lane 재배정 시 target lane siblings 는 부모가 lanes lookup 으로 추출.
           const tid = task.id || task.taskCode;
           const siblings = lane.tasks.filter(t => (t.id || t.taskCode) !== tid);
           return (
@@ -917,20 +1180,54 @@ function Lane({ lane, offs = [], onTaskClick, onTaskDragCommit, highlightTaskId 
               task={task}
               laneRef={laneRef}
               sourceLaneKey={lane.key}
+              readOnly={lane.readOnly}
               siblings={siblings}
               laneName={lane.name}
               onClick={() => onTaskClick?.(task)}
               onDragCommit={onTaskDragCommit}
+              onDragPreview={onDragPreview}
               highlightTaskId={highlightTaskId}
             />
           );
         })}
+        {/* 2026-10-07 — 놓을 자리 미리보기: 점선 막대 + 말풍선 */}
+        {dropPreview && !dropPreview.bad && (() => {
+          const totalMin = TOTAL_HOURS * 60;
+          const leftPct  = Math.max(0, (dropPreview.startMin - START_HOUR * 60) / totalMin * 100);
+          const widthPct = Math.min(100 - leftPct, (dropPreview.durMin / totalMin) * 100);
+          const tipRight = leftPct + widthPct > 70;      // 오른쪽 끝에서는 말풍선을 막대 왼쪽에
+          return (
+            <>
+              <div style={{
+                position: "absolute", top: 5, height: LANE_HEIGHT - 10, left: `${leftPct}%`, width: `${widthPct}%`,
+                borderRadius: 8, border: "2px dashed var(--accent, #FF1B8D)", background: "rgba(255,27,141,0.12)",
+                color: "var(--accent, #FF1B8D)", fontSize: 11.5, fontWeight: 800, boxSizing: "border-box",
+                display: "flex", alignItems: "center", padding: "0 8px", whiteSpace: "nowrap", overflow: "hidden",
+                pointerEvents: "none", zIndex: 40,
+              }}>{dropPreview.label || ""}</div>
+              {dropPreview.tip && (
+                <div style={{
+                  position: "absolute", top: 10,
+                  ...(tipRight ? { right: `calc(${100 - leftPct}% + 8px)` } : { left: `calc(${leftPct + widthPct}% + 8px)` }),
+                  background: "#1A1A1A", color: "#fff", fontSize: 12, fontWeight: 700, padding: "6px 10px", borderRadius: 8,
+                  whiteSpace: "nowrap", pointerEvents: "none", zIndex: 60, boxShadow: "0 2px 8px rgba(0,0,0,0.3)",
+                }}>{tipRight ? dropPreview.tip.replace(/^← /, "") + " →" : dropPreview.tip}</div>
+              )}
+            </>
+          );
+        })()}
+        {dropPreview && dropPreview.bad && (
+          <div style={{
+            position: "absolute", top: 10, left: 12, background: "#1A1A1A", color: "#fff", fontSize: 12, fontWeight: 700,
+            padding: "6px 10px", borderRadius: 8, whiteSpace: "nowrap", pointerEvents: "none", zIndex: 60,
+          }}>{dropPreview.tip}</div>
+        )}
       </div>
     </>
   );
 }
 
-function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, onDragCommit, highlightTaskId }) {
+function TaskBar({ task, laneRef, sourceLaneKey, readOnly = false, siblings, laneName, onClick, onDragCommit, onDragPreview, highlightTaskId }) {
   // 2026-06-20 trace — TaskBar 렌더 확인 (조건부 return 위).
   console.log('[TaskBar RENDER]', task.id || task.taskCode, 'status=', task.status, 'isLocked=', LOCKED_STATUSES.has(task.status), 'hasOnClick=', !!onClick);
   const scheduled = task.scheduledAt || task.scheduled_at;
@@ -946,8 +1243,10 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   const baseMinutes = d.getMinutes();
   const baseTotalMin = baseHours * 60 + baseMinutes;
 
-  // 잠금
-  const isLocked = LOCKED_STATUSES.has(task.status);
+  // 잠금 — 상태 잠금 + 협력사 묶음(보기 전용: 배정은 협력사 관리자)
+  const isLocked = LOCKED_STATUSES.has(task.status) || readOnly;
+  // 막대 길이 = 서비스별 소요 시간 (협력사 타임라인과 같은 표)
+  const durMin = taskDurationMin(task);
 
   // 표시 시각 (드래그 중이면 currentMinutes, 아니면 base)
   const shownTotalMin = drag ? drag.currentMinutes : baseTotalMin;
@@ -957,7 +1256,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   // px 위치
   const hoursOffset = (shownTotalMin / 60) - START_HOUR;
   let leftPct  = (hoursOffset / TOTAL_HOURS) * 100;
-  let widthPct = (1 / TOTAL_HOURS) * 100;
+  let widthPct = ((durMin / 60) / TOTAL_HOURS) * 100;
 
   if (leftPct < 0) {
     widthPct += leftPct;
@@ -990,7 +1289,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   const baseOpacity = isDimmed ? 0.3
                     : isCanceled  ? 0.65
                     : isVisitOnly ? 0.5
-                    : isDone      ? 0.5
+                    : isDone      ? 0.4
                     : 1;
   const opacity = drag && drag.dragging ? 0.85 : baseOpacity;
 
@@ -1014,6 +1313,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
       : kind === "leak"     ? leakDisplayLabel(task)
       : "",
     task.status || "",
+    readOnly ? "보기 전용 — 배정은 협력사 관리자 (누르면 상세)" : "",
   ].filter(Boolean);
   const title = titleParts.join(" · ");
 
@@ -1078,7 +1378,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
       const el = document.elementFromPoint(barCenterX, barCenterY);
       if (el) {
         const laneEl2 = el.closest && el.closest("[data-lane-key]");
-        if (laneEl2 && laneEl2.dataset && laneEl2.dataset.laneKey) {
+        if (laneEl2 && laneEl2.dataset && laneEl2.dataset.laneKey && laneEl2.dataset.laneRo !== "1") {
           targetLaneKey = laneEl2.dataset.laneKey;
         }
       }
@@ -1091,6 +1391,14 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
       targetLaneKey,
       dragging,
     } : null);
+    // 놓을 자리 미리보기 (점선 막대 + 말풍선) — 줄을 옮기는 중일 때만. 같은 줄 안에서는 막대 자체가 움직인다.
+    if (dragging && onDragPreview) {
+      if (targetLaneKey !== sourceLaneKey) {
+        onDragPreview({ laneKey: targetLaneKey, startMin: newMin, durMin, cross: true, label: `${getCategoryMeta(task).icon || ""} ${customer}` });
+      } else {
+        onDragPreview(null);
+      }
+    }
   }
 
   function handlePointerUp(e) {
@@ -1112,6 +1420,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
     }
     const wasDragging = drag.dragging;
     const movedTime  = drag.currentMinutes !== drag.baseMinutes;
+    if (onDragPreview) onDragPreview(null);
 
     // 2026-06-19 — pointerup 시점에도 막대 box center 로 target lane 재추출.
     //   pointermove 와 같은 기준 사용 → 시각/판정 일치 보장 + stale closure 안전망.
@@ -1123,7 +1432,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
       const el = document.elementFromPoint(barCenterX, barCenterY);
       if (el) {
         const laneEl2 = el.closest && el.closest("[data-lane-key]");
-        if (laneEl2 && laneEl2.dataset && laneEl2.dataset.laneKey) {
+        if (laneEl2 && laneEl2.dataset && laneEl2.dataset.laneKey && laneEl2.dataset.laneRo !== "1") {
           finalTargetLaneKey = laneEl2.dataset.laneKey;
         }
       }
@@ -1145,7 +1454,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
         oldTime: baseTimeStr,
         newTime: `${pad(newH)}:${pad(newM)}`,
         newMinutes: drag.currentMinutes,
-        durationMinutes: 60,
+        durationMinutes: durMin,
         siblings,
         laneName,
         onAcceptUI: () => setDrag(null),
@@ -1160,6 +1469,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
   function handlePointerCancel() {
     if (!drag) return;
     setDrag(null);
+    if (onDragPreview) onDragPreview(null);
   }
 
   return (
@@ -1197,7 +1507,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
         borderRadius: 5,
         color: textCol,
         fontFamily: "inherit",
-        cursor: isLocked ? "default" : (drag && drag.dragging ? "grabbing" : "grab"),
+        cursor: readOnly ? "pointer" : isLocked ? "default" : (drag && drag.dragging ? "grabbing" : "grab"),
         padding: "4px 8px",
         display: "flex",
         alignItems: "center",
@@ -1235,7 +1545,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
           lineHeight: 1.1,
           // 2026-07-09 — 취소 시 취소선.
           textDecoration: isCanceled ? "line-through" : "none",
-        }}>{isCanceled ? "취소 · " : isVisitOnly ? "출장 · " : ""}{customer}</span>
+        }}>{isCanceled ? "취소 · " : isVisitOnly ? "출장 · " : isDone ? "✓ " : `${getCategoryMeta(task).icon || ""} `}{customer}</span>
         {showPreview ? (
           <span style={{
             fontSize: 9, fontWeight: 800,
@@ -1260,6 +1570,162 @@ function TaskBar({ task, laneRef, sourceLaneKey, siblings, laneName, onClick, on
         flexShrink: 0,
       }}/>
     </button>
+  );
+}
+
+// ──────────────────────────────────────────────────────────────────
+// 2026-10-07 — 왼쪽 미배정 목록 (시안 v1). 카드를 기사 줄의 원하는 시간에 끌어다 놓으면 배정 + 일정 확정.
+// ──────────────────────────────────────────────────────────────────
+function cardWhen(task, selectedDate) {
+  const at = task.scheduledAt || task.scheduled_at;
+  if (at) {
+    const d = new Date(at);
+    if (!isNaN(d.getTime())) {
+      const ymd = toKstYmd(at);
+      return { has: true, text: `${ymd === selectedDate ? "" : `${d.getMonth() + 1}/${d.getDate()} `}${pad(d.getHours())}:${pad(d.getMinutes())}` };
+    }
+  }
+  const rd = String(task.requestedDate || "").slice(0, 10);
+  const rt = /^\d{1,2}:\d{2}/.test(String(task.requestedTime || "")) ? String(task.requestedTime).slice(0, 5) : "";
+  if (rd && rt) {
+    const [, m, dd] = rd.split("-");
+    return { has: true, text: `${rd === selectedDate ? "" : `${Number(m)}/${Number(dd)} `}${rt}` };
+  }
+  if (rd) {
+    const [, m, dd] = rd.split("-");
+    return { has: false, text: `${Number(m)}/${Number(dd)} 시간 미정` };
+  }
+  return { has: false, text: "시간 미정" };
+}
+function cardItems(task) {
+  const items = Array.isArray(task.workItems) ? task.workItems.filter(w => w && !(w.isCanceled || w.is_canceled)) : [];
+  const names = items.map(w => {
+    const ap = w.appliance && w.appliance !== "(공통)" ? w.appliance : "";
+    const nm = String(w.workType || w.name || "").replace(/_\(공통\)$/, "");
+    const q = Number(w.qty) > 1 ? ` ${w.qty}대` : "";
+    return ap ? `${ap}${q}` : `${nm}${q}`;
+  }).filter(Boolean);
+  const first = names.length > 0 ? (names.length > 1 ? `${names[0]} 외 ${names.length - 1}` : names[0])
+    : String(task.workType || "").replace(/_\(공통\)$/, "");
+  const est = Number(task.estimateTotal || task.productPrice || 0);
+  return [first, est > 0 ? `견적 ₩${est.toLocaleString("ko-KR")}` : ""].filter(Boolean).join(" · ");
+}
+
+function UnassignedPanel({ tasks, selectedDate, onOpen, onDragMove, onDrop, onDragCancel, handOverTarget, handOverName, onHandOver }) {
+  const [tab, setTab] = useState("all");            // all / none(시간 미정) / has(시간 있음)
+  const [dragging, setDragging] = useState(null);   // { id, x, y, label, color }
+  const start = useRef(null);
+
+  const rows = useMemo(() => tasks.map(t => ({ t, when: cardWhen(t, selectedDate) })), [tasks, selectedDate]);
+  const nNone = rows.filter(r => !r.when.has).length;
+  const nHas  = rows.length - nNone;
+  const shown = rows.filter(r => tab === "all" || (tab === "has" ? r.when.has : !r.when.has));
+
+  const tabBtn = (key, text) => (
+    <button key={key} type="button" onClick={() => setTab(key)} style={{
+      fontSize: 12, fontWeight: 700, padding: "5px 10px", borderRadius: 99, cursor: "pointer", fontFamily: "inherit", whiteSpace: "nowrap",
+      border: tab === key ? "1px solid var(--text-primary)" : "1px solid var(--border)",
+      background: tab === key ? "var(--text-primary)" : "transparent",
+      color: tab === key ? "var(--bg-primary)" : "var(--text-secondary)",
+    }}>{text}</button>
+  );
+
+  return (
+    <div style={{
+      width: UNASSIGNED_COL, flexShrink: 0, background: "var(--bg-elevated)", borderRight: "1px solid var(--border)",
+      display: "flex", flexDirection: "column", position: "sticky", top: 0, alignSelf: "flex-start", height: "100vh", boxSizing: "border-box",
+    }}>
+      <div style={{ padding: "16px 16px 10px", borderBottom: "1px solid var(--border)" }}>
+        <b style={{ fontSize: 16, color: "var(--text-primary)" }}>미배정</b>
+        <span style={{
+          display: "inline-grid", placeItems: "center", minWidth: 22, height: 22, borderRadius: 99, marginLeft: 6, padding: "0 6px",
+          background: rows.length > 0 ? "var(--danger, #E5484D)" : "var(--border)", color: "#fff", fontSize: 12, fontWeight: 800, boxSizing: "border-box",
+        }}>{rows.length}</span>
+        <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
+          {tabBtn("all", `전체 ${rows.length}`)}
+          {tabBtn("none", `시간 미정 ${nNone}`)}
+          {tabBtn("has", `시간 있음 ${nHas}`)}
+        </div>
+      </div>
+
+      <div style={{ padding: "10px 12px", overflowY: "auto", flex: 1, minHeight: 0 }}>
+        {shown.length === 0 && (
+          <div style={{ fontSize: 12.5, color: "var(--text-secondary)", textAlign: "center", padding: "28px 0" }}>미배정 작업이 없습니다</div>
+        )}
+        {shown.map(({ t, when }) => {
+          const cat = getCategoryMeta(t);
+          const id = t.id || t.taskCode;
+          const town = t.region || t.district || "";
+          const subTarget = handOverTarget(t);
+          const isDrag = dragging && dragging.id === id;
+          return (
+            <div
+              key={id}
+              onPointerDown={(e) => {
+                if (e.button !== 0) return;
+                if (e.target.closest && e.target.closest("[data-no-drag]")) return;
+                try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_e) { /* 무시 */ }
+                start.current = { id, x: e.clientX, y: e.clientY, moved: false, pointerId: e.pointerId };
+              }}
+              onPointerMove={(e) => {
+                const st = start.current;
+                if (!st || st.id !== id) return;
+                if (!st.moved && Math.abs(e.clientX - st.x) < DRAG_THRESHOLD_PX && Math.abs(e.clientY - st.y) < DRAG_THRESHOLD_PX) return;
+                st.moved = true;
+                setDragging({ id, x: e.clientX, y: e.clientY, label: `${cat.icon} ${t.customer || ""}`, color: cat.color });
+                onDragMove(t, e.clientX, e.clientY);
+              }}
+              onPointerUp={(e) => {
+                const st = start.current;
+                start.current = null;
+                try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (_e) { /* 무시 */ }
+                if (!st || st.id !== id) return;
+                setDragging(null);
+                if (st.moved) onDrop(t, e.clientX, e.clientY);
+                else if (onOpen) onOpen(t);                  // 끌지 않고 누르면 상세
+              }}
+              onPointerCancel={() => { start.current = null; setDragging(null); onDragCancel(); }}
+              style={{
+                border: isDrag ? "1px dashed var(--border)" : "1px solid var(--border)", borderRadius: 12, padding: "10px 12px 10px 14px", marginBottom: 8,
+                position: "relative", background: "var(--bg-elevated)", cursor: isDrag ? "grabbing" : "grab",
+                opacity: isDrag ? 0.35 : 1, userSelect: "none", touchAction: "none",
+              }}>
+              <span style={{ position: "absolute", left: 0, top: 8, bottom: 8, width: 4, borderRadius: "0 4px 4px 0", background: cat.color }}/>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 6, fontSize: 12, color: "var(--text-secondary)", fontWeight: 700 }}>
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ display: "inline-block", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 6, marginRight: 4, background: categoryTint(cat.color, 0.16), color: cat.color }}>{cat.icon} {cat.short || cat.label}</span>
+                  {town}
+                </span>
+                <em style={{ fontStyle: "normal", color: when.has ? "var(--accent, #FF1B8D)" : "var(--text-secondary)", flexShrink: 0 }}>{when.text}</em>
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 800, margin: "3px 0 2px", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.customer || "—"}</div>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {cardItems(t)}{t.principal && t.principal !== "올데이케어" ? ` · 원청 ${t.principal}` : ""}
+              </div>
+              {subTarget && (
+                <button type="button" data-no-drag="1" onClick={(e) => { e.stopPropagation(); onHandOver(t, subTarget); }} style={{
+                  marginTop: 6, background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 12, fontWeight: 800, color: cat.color,
+                }}>{handOverName(subTarget)}로 넘기기 ›</button>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)", fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.5, background: "var(--bg-secondary)" }}>
+        카드를 오른쪽 기사 줄의 원하는 시간에 <strong>끌어다 놓으면</strong> 배정 + 시간이 한 번에 정해집니다. 누르면 상세.
+      </div>
+
+      {/* 끌고 있는 카드 (커서를 따라다니는 작은 표식) */}
+      {dragging && (
+        <div style={{
+          position: "fixed", left: dragging.x + 12, top: dragging.y + 12, zIndex: 2000, pointerEvents: "none",
+          background: dragging.color, color: "#fff", fontSize: 12, fontWeight: 800, padding: "6px 10px", borderRadius: 8,
+          boxShadow: "0 6px 18px rgba(0,0,0,0.35)", whiteSpace: "nowrap", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis",
+        }}>{dragging.label}</div>
+      )}
+    </div>
   );
 }
 

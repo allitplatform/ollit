@@ -629,6 +629,7 @@ function _v14NormalizeTask(t) {
     principalId: t.principalId || t.principal_id || null,
     // 2026-10-06 Mig 212 — 작업 수행 협력사 (NULL = 직영). 3곳 매핑.
     subcontractorId: t.subcontractorId || t.subcontractor_id || null,
+    subChangeRequest: t.subChangeRequest || t.sub_change_request || null,   // Mig 242
     // Mig 215 — 협력사 작업 공급가액(부가세 제외). 3곳 매핑.
     supplyAmount: t.supplyAmount ?? t.supply_amount ?? null,
     supplyShortfallReason: t.supplyShortfallReason ?? t.supply_shortfall_reason ?? null,

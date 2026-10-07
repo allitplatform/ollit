@@ -58,6 +58,7 @@ import { formatWorkTypeLabel } from "../utils/receptionForm.js";
 import { fmtWon } from "../utils/money.js";
 import SubAssignSheet from "./SubAssignSheet.jsx";
 import CancelBanner from "./CancelBanner.jsx";
+import { SubChangeRequestBand, SubExceptionCard } from "./SubExceptionParts.jsx";
 
 // 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (0 이면 테두리 선이 화면 끝에서 잘려 12 로 — 2026-10-06 실화면 확인).
 //   여백을 다시 주고 싶으면 이 숫자 하나만 바꾸면 된다 (운영자·협력사 모드 공통).
@@ -382,6 +383,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       )}
       {/* 카드 1 — 상태 + 작업 종류 측 catch (변경 X) */}
       <MainCard task={task} onStatusChange={subMode ? undefined : onStatusChange}/>
+      {/* 2026-10-07 Mig 242 — 올데이케어 변경 요청 띠 (운영자: "변경 요청 중" / 협력사 관리자: 내용 + [처리 완료]) */}
+      <SubChangeRequestBand task={task} subMode={subMode} onChanged={reloadTask} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
       {/* 카드 2 — 2026-05-26 D-2: 작업 정보 통합 (연락처/주소/일정 + 배정 프로 + 측 측 측 측)
             옛 QuickActions(3 버튼) + EngineerCard 측 WorkInfoCard 측 catch 합침.
             핸들러 측 catch (onAssign/onEdit/onScheduleChange/callCustomer). */}
@@ -447,6 +450,10 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       {/* 카드 7 — 작업 사진 */}
       <PhotoSection taskId={task.id} taskType={task.type} photoLoader={photoLoader}/>
       <CompletionNotice task={task} subMode={subMode}/>
+      {/* 2026-10-07 Mig 242 — 협력사 작업 예외 처리 (운영자 전용): 변경 요청 · 올데이케어로 회수 */}
+      {!subMode && task.subcontractorId && (
+        <SubExceptionCard task={task} onChanged={reloadTask} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
+      )}
       {/* 2026-06-17 — visit_only → 정상 작업 되돌리기 (운영자 전용 — RPC 가드 동일). */}
       {!subMode && task && task.status === "visit_only" && (
         <div style={{

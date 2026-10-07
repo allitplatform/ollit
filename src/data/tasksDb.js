@@ -122,6 +122,7 @@ export function rowToTask(row) {
     principalId:  row.principal_id,
     // 2026-10-06 Mig 212 — 작업 수행 협력사 (NULL = 직영). 3곳 매핑.
     subcontractorId: row.subcontractor_id || null,
+    subChangeRequest: row.sub_change_request || null,   // Mig 242 — 운영자의 변경 요청 (열려 있을 때만)
     // Mig 215 — 협력사 작업 공급가액(부가세 제외). 3곳 매핑.
     supplyAmount: row.supply_amount ?? null,
     supplyShortfallReason: row.supply_shortfall_reason || null,
