@@ -817,7 +817,7 @@ function TaskTable({ t, tasks, onTaskClick }) {
             <Td t={t} align="left">{task.principal || task.principalName || "—"}</Td>
             <Td t={t} align="left">{task.assignedEngineer || task.engineer || "—"}</Td>
             <Td t={t} align="center"><KindBadge kind={kind}/></Td>
-            <Td t={t} align="right" mono>{fmtKRW(total)}</Td>
+            <Td t={t} align="right" mono>{fmtKRW(total)}{task._vat > 0 && <span style={{ display: "block", fontSize: 10, color: t.textMuted, fontWeight: 600 }}>부가세 {fmtKRW(task._vat)} 별도</span>}</Td>
             <Td t={t} align="right" mono green>{fmtKRW(owner)}</Td>
           </button>
         );
@@ -915,7 +915,7 @@ function TaskCardList({ t, tasks, onTaskClick }) {
               <span className="mono" style={{
                 fontSize: 11, fontWeight: 600, color: t.textMuted,
                 letterSpacing: "-0.3px",
-              }}>매출 {fmtKRW(total)}</span>
+              }}>매출 {fmtKRW(total)}{task._vat > 0 ? ` · 부가세 ${fmtKRW(task._vat)} 별도` : ""}</span>
             </div>
           </button>
         );

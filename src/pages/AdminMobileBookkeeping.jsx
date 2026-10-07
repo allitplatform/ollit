@@ -31,6 +31,7 @@ import {
 import { getUsolnSettleBoardSummary } from "../lib/usolnSettleBoardDb.js";
 import {
   computeRevenueByYmRange,
+  revenueView,
   getMonthRange,
 } from "../utils/revenueStats.js";
 
@@ -158,6 +159,7 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
   const engShare     = Number(revenueStat?.engineer)  || 0;   // 기사 몫
   const prinShare    = Number(revenueStat?.principal) || 0;   // 원청 수수료
   const incomeTrackA = Number(revenueStat?.owner)     || 0;   // 회사 몫 (일정산)
+  const vatView = revenueView(revenueStat);      // 부가세 포함으로 받은 작업 건수 · 합계 (안내 줄용)
 
   // ── 유솔N 자동 (track B, Mig 123)
   const [usolNB, setUsolNB] = useState(0);
@@ -680,6 +682,12 @@ export default function AdminMobileBookkeeping({ t, user, apiTasks = [], onBack,
         <div style={{ fontSize: 12, fontWeight: 800, color: t.text, marginBottom: 9 }}>
           💸 이번 달 돈의 흐름
         </div>
+        {/* 2026-10-07 — 부가세 포함으로 받은 작업 (수입에 들어 있지 않은 금액 — 직접 적는다) */}
+        {vatView.vatCount > 0 && (
+          <div style={{ fontSize: 11.5, color: t.textSecondary, marginBottom: 9, padding: "7px 9px", borderRadius: 8, border: `1px dashed ${t.border}`, lineHeight: 1.5 }}>
+            🧾 부가세 포함으로 받은 작업 <b style={{ color: t.text }}>{vatView.vatCount}건</b> · 부가세 <b style={{ color: t.text }}>₩{vatView.vat.toLocaleString("ko-KR")}</b> — 수입에 들어 있지 않습니다
+          </div>
+        )}
 
         {grossTotal <= 0 && incomeTotal <= 0 ? (
           <div style={{ fontSize: 11, color: t.textMuted, textAlign: "center", padding: "10px 0" }}>

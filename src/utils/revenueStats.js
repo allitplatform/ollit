@@ -14,6 +14,30 @@ import { toKstYmd } from "./dateLabel.js";
 import { isTrackARemittance } from "./remitFilter.js";
 import { canSeeField } from "../data/permissions.js";
 import { getCategoryMetaOfRow, CATEGORY_META, SERVICE_EXCEPTIONS } from "../lib/serviceCatalog.js";
+import { subcontractorName } from "../lib/subcontractorsDb.js";
+
+// 2026-10-07 — 직영 작업을 부가세 포함으로 받았을 때의 부가세 (지금은 직영 주방후드만 해당). 매출 · 몫 어디에도 넣지 않는다.
+function _vatOfDirect(t) {
+  if (!t || !(t.vatIncluded === true || t.vat_included === true) || t.subcontractorId || t.subcontractor_id) return 0;
+  const amt = Number(t.totalAmount || t.총금액 || t.estimateTotal || 0);
+  return amt > 0 ? Math.max(0, amt - Math.round(amt / 1.1)) : 0;
+}
+const _share = (t) => Math.max(0, Number(t.sub_principal_share || 0));
+// 협력사 작업(완료 + track S + 기간 안) → { supply 받은 공급가, fee 수수료, share 원청 몫 }
+function _subRowsInRange(apiTasks, startYmd, endYmd) {
+  const out = [];
+  for (const t of (apiTasks || [])) {
+    if (!t || t.status !== "완료") continue;
+    if ((t.track || t.payment?.track) !== "S") continue;
+    const completed = t.completedAt || t.completed_at;
+    if (!completed) continue;
+    const ymd = toKstYmd(completed);
+    if (!ymd || ymd < startYmd || ymd > endYmd) continue;
+    const supply = Number(t.supplyAmount ?? t.supply_amount ?? 0) || Number(t.receivedTotal ?? t.received_total ?? 0) || 0;
+    out.push({ t, supply, fee: Number(t.owner_amount || 0), share: _share(t) });
+  }
+  return out;
+}
 
 const EMPTY = {
   total: 0, engineer: 0, principal: 0, owner: 0,
@@ -341,7 +365,11 @@ function _filterTrackADoneInRange(apiTasks, startYmd, endYmd) {
 export function getTasksByYmRange(apiTasks, startYmd, endYmd, user) {
   if (!canSeeField(user, "task.total_amount")) return [];
   if (!startYmd || !endYmd) return [];
-  return _filterTrackADoneInRange(apiTasks, startYmd, endYmd);
+  // 2026-10-07 — 부가세 포함으로 받은 직영 작업은 부가세를 뺀 금액으로 보여 주고, 부가세는 _vat 에 따로 싣는다.
+  return _filterTrackADoneInRange(apiTasks, startYmd, endYmd).map(t => {
+    const v = _vatOfDirect(t);
+    return v > 0 ? { ...t, totalAmount: Number(t.totalAmount || 0) - v, _vat: v } : t;
+  });
 }
 
 // 2026-10-07 — 매출 상세 "작업별" 에 같이 넣는 협력사 작업 줄 (완료 + track S + 완료일이 기간 안).
@@ -396,8 +424,17 @@ export function computeRevenueByPrincipal(apiTasks, startYmd, endYmd, user) {
     }
     const row = map.get(key);
     row.count += 1;
-    row.total += Number(t.totalAmount || t.총금액 || t.estimateTotal || 0);
-    row.owner += Number(t.owner_amount || 0);
+    // 2026-10-07 — 부가세 제외 · 회사 몫 = 수수료 − 원청 몫 (대시보드 · 가계부와 같은 기준)
+    row.total += Number(t.totalAmount || t.총금액 || t.estimateTotal || 0) - _vatOfDirect(t);
+    row.owner += Number(t.owner_amount || 0) - _share(t);
+  }
+  // 2026-10-07 — 협력사 작업은 협력사 이름 줄로 (총액 = 받은 공급가)
+  for (const { t, supply, fee, share } of _subRowsInRange(apiTasks, startYmd, endYmd)) {
+    const sid = t.subcontractorId || t.subcontractor_id || "";
+    const key = `sub:${sid}`;
+    if (!map.has(key)) map.set(key, { code: key, name: `${subcontractorName(sid) || "협력사"} (협력사)`, count: 0, total: 0, owner: 0, isSub: true });
+    const row = map.get(key);
+    row.count += 1; row.total += supply; row.owner += fee - share;
   }
   return [...map.values()].sort((a, b) => b.total - a.total);
 }
@@ -423,8 +460,16 @@ export function computeRevenueByEngineer(apiTasks, startYmd, endYmd, user) {
     const row = map.get(key);
     row.count    += 1;
     row.engineer += Number(t.engineer_amount || 0);
-    row.total    += Number(t.totalAmount || t.총금액 || t.estimateTotal || 0);
-    row.owner    += Number(t.owner_amount || 0);
+    row.total    += Number(t.totalAmount || t.총금액 || t.estimateTotal || 0) - _vatOfDirect(t);
+    row.owner    += Number(t.owner_amount || 0) - _share(t);
+  }
+  // 2026-10-07 — 협력사 작업은 협력사 한 묶음으로 ("기사 정산" 칸 = 협력사 정산 = 받은 공급가 − 수수료)
+  for (const { t, supply, fee, share } of _subRowsInRange(apiTasks, startYmd, endYmd)) {
+    const sid = t.subcontractorId || t.subcontractor_id || "";
+    const key = `sub:${sid}`;
+    if (!map.has(key)) map.set(key, { id: key, name: `${subcontractorName(sid) || "협력사"} (협력사)`, count: 0, engineer: 0, total: 0, owner: 0, isSub: true });
+    const row = map.get(key);
+    row.count += 1; row.engineer += Math.max(0, supply - fee); row.total += supply; row.owner += fee - share;
   }
   return [...map.values()].sort((a, b) => b.engineer - a.engineer);
 }

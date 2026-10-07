@@ -31,6 +31,7 @@ import {
 import { getUsolnAdjustment } from "../lib/bookkeepingUsolnAdjustmentDb.js";
 import {
   computeRevenueByYmRange,
+  revenueView,
   getMonthRange,
 } from "../utils/revenueStats.js";
 // 2026-06-29 — 정산 현황판 통합 (블록 ②현금 / ③천장).
@@ -140,6 +141,7 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
     [apiTasks, monthRange.start, monthRange.end, user]
   );
   const incomeTrackA = Number(revenueStat?.owner) || 0;
+  const vatView = revenueView(revenueStat);      // 부가세 포함으로 받은 작업 건수 · 합계 (안내 줄용)
 
   // 유솔N track B margin (자동, Mig 123 RPC)
   const [usolNB, setUsolNB] = useState(0);
@@ -399,6 +401,13 @@ export default function AdminPcBookkeeping({ t, user, apiTasks = [] }) {
       {tab === "pl" && (
       <div style={{ maxWidth: 860, margin: "0 auto" }}>
 
+      {/* 2026-10-07 — 부가세 포함으로 받은 작업: 정산 · 수입에 넣지 않은 금액이라 가계부에는 직접 적는다 (빠뜨리지 않게 안내) */}
+      {vatView.vatCount > 0 && (
+        <div style={{ fontSize: 13, color: t.textSecondary, margin: "0 0 12px", padding: "9px 12px", borderRadius: 10, border: `1px dashed ${t.border}` }}>
+          🧾 이 달 부가세 포함으로 받은 작업 <b style={{ color: t.text }}>{vatView.vatCount}건</b> · 부가세 합계 <b style={{ color: t.text }}>₩{vatView.vat.toLocaleString("ko-KR")}</b>
+          <span style={{ color: t.textMuted }}> — 아래 수입에 들어 있지 않습니다. 필요하면 직접 적어 주세요.</span>
+        </div>
+      )}
       <ProfitCard t={t}
         incomeTrackA={incomeTrackA}
         usolNB={usolNTotal}
