@@ -67,7 +67,8 @@ import { RelocationBlocks } from "./RelocationParts.jsx";
 // 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (0 이면 테두리 선이 화면 끝에서 잘려 12 로 — 2026-10-06 실화면 확인).
 //   여백을 다시 주고 싶으면 이 숫자 하나만 바꾸면 된다 (운영자·협력사 모드 공통).
 const DETAIL_GUTTER = 12;
-import { useSubcontractorIndex, subcontractorAssigneeLabel, adminAssignTaskToSubcontractor } from "../lib/subcontractorsDb.js";
+import { useSubcontractorIndex, subcontractorAssigneeLabel, adminAssignTaskToSubcontractor, listSubcontractorCategories } from "../lib/subcontractorsDb.js";
+import { updateTaskAdapter } from "../data/tasksDb.js";
 // 2026-06-17 — visit_only 되돌리기 다이얼로그 (Mig 138 unmark_visit_only RPC).
 import { UnmarkVisitOnlyDialog } from "./admin/UnmarkVisitOnlyDialog.jsx";
 
@@ -400,6 +401,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
         onScheduleChange={onScheduleChange}
         onSendMessage={subMode ? undefined : () => setShowMessageModal(true)}
         subMode={subMode}
+        onReload={reloadTask}
       />
       {/* 2026-10-06 Mig 212~214 — 협력사로 넘기기 / 직영으로 회수 */}
       {!subMode && <SubcontractorCard task={task} onChanged={reloadTask}/>}
@@ -837,7 +839,7 @@ function engineerContactBtnStyle(active) {
 // 2026-05-26 D-2 — 작업 정보 카드 (연락처/주소/일정 + 배정 프로 + 고객 통화·일정 변경)
 //   유솔앱 PrincipalApp.jsx:983~ 패턴 측 catch. 핸들러 100% 측 catch (onAssign / onEdit /
 //   onScheduleChange / callCustomer 측 catch — 측 측 측 측 측 측 측 X).
-function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange, onSendMessage, subMode = false }) {
+function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange, onSendMessage, subMode = false, onReload = null }) {
   // 2026-10-06 Mig 212 — 협력사 작업이면 담당을 "협력사 · 직원명" 으로 표기
   const subIdx = useSubcontractorIndex();
   function callCustomer() {
@@ -903,9 +905,16 @@ function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange, onS
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
           <D2LabelRow label="연락처" value={task.phone || "—"} mono/>
-          <D2LabelRow label={isRelocationTask(task) ? "철거 주소" : "주소"} value={task.address || "—"} wrap/>
-          {/* 2026-10-07 Mig 259 — 이전설치: 철거(출발) / 설치(도착) 두 블록 + 지도 열기 */}
-          {isRelocationTask(task) && <RelocationBlocks task={task} showFees={!subMode}/>}
+          {/* 2026-10-07 Mig 259 — 이전설치: 주소 줄 대신 철거(출발) / 설치(도착) 두 블록 (지도 열기 · 설치 주소 수정).
+              철거비 · 설치비는 아래 "작업 항목별" 에 나오므로 여기서는 보여 주지 않는다. */}
+          {isRelocationTask(task)
+            ? <RelocationBlocks task={task}
+                onSaveDest={subMode ? null : async (addr, memo) => {
+                  const res = await updateTaskAdapter(task.id, { destAddress: addr, destDetail: memo });
+                  if (res && res.ok !== false && typeof onReload === "function") onReload();
+                  return res;
+                }}/>
+            : <D2LabelRow label="주소" value={task.address || "—"} wrap/>}
           <D2LabelRow label="일정"   value={scheduledDisplay} highlight/>
           {/* 2026-05-29 — 결제 방식 라벨 (선택값 있을 때만 / NULL 숨김) */}
           {task.paymentMethod && (
@@ -1049,14 +1058,29 @@ function D2LabelRow({ label, value, mono, wrap, highlight }) {
 //   등록된 협력사가 없으면 카드 자체를 그리지 않는다.
 function SubcontractorCard({ task, onChanged }) {
   const idx = useSubcontractorIndex();
-  const subs = [...idx.names.values()].filter(s => s.active !== false);
+  const allSubs = [...idx.names.values()].filter(s => s.active !== false);
   const [pick, setPick] = useState("");
   const [busy, setBusy] = useState(false);
   const [picking, setPicking] = useState(false);
   const closed = ["완료", "취소", "visit_only", "정산완료"].includes(task?.status);
   const subId = task?.subcontractorId || null;
-  if (!task || (subs.length === 0 && !subId)) return null;
+  // 2026-10-07 — 협력사가 맡는 종목(Mig 235)에 이 작업의 종목이 있을 때만 [넘기기] 를 보여 준다.
+  //   (예: 화이트코어 = 주방후드만 → 설치 · 세척 작업에는 버튼이 나오지 않는다)
+  //   종목 표를 읽지 못했거나 비어 있으면 전처럼 전부 보여 준다.
+  const [subCatRows, setSubCatRows] = useState(null);      // null = 아직 읽는 중
+  useEffect(() => {
+    let alive = true;
+    listSubcontractorCategories().then(res => { if (alive) setSubCatRows(res.ok && Array.isArray(res.by_sub) ? res.by_sub : []); });
+    return () => { alive = false; };
+  }, []);
+  const _meta = getCategoryMetaOfRow(task || {});
+  const _codes = new Set([_meta.key, ...(_meta.codes || [])]);
+  const subs = (subCatRows && subCatRows.length > 0)
+    ? allSubs.filter(s => subCatRows.some(x => x.subcontractor_id === s.id && _codes.has(String(x.code || ""))))
+    : allSubs;
+  if (!task || (allSubs.length === 0 && !subId)) return null;
   if (closed && !subId) return null;
+  if (!subId && (subCatRows === null || subs.length === 0)) return null;     // 넘길 수 있는 협력사가 없으면 카드 자체를 숨긴다
 
   const chosen = pick || (subs[0] && subs[0].id) || "";
 

@@ -2,7 +2,21 @@
 //   RelocationFields : 접수 화면 — 설치 주소(+ 메모) · 철거비 · 설치비 입력 (위의 기존 주소 칸 = 철거 주소)
 //   RelocationBlocks : 작업 상세 · 기사 작업 화면 — 철거(출발) / 설치(도착) 두 블록 + 지도 열기 · 주소 복사
 import { useState } from "react";
-import { mapSearchLinks, relocationFees } from "../utils/relocation.js";
+import { mapSearchLinks, mapAppLinks, relocationFees } from "../utils/relocation.js";
+
+// 2026-10-07 — 기사 앱의 기존 지도 버튼과 같은 방식: 앱으로 먼저 열고, 1.5초 안에 안 넘어가면 웹 검색으로.
+//   PC(터치 기기가 아님)에서는 앱이 없으므로 웹을 바로 연다. 좌표가 없어 주소 검색으로 연다.
+function openMap(kind, address) {
+  const web = mapSearchLinks(address)[kind];
+  const app = mapAppLinks(address)[kind];
+  const isPhone = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+  if (!isPhone || !app) { window.open(web, "_blank"); return; }
+  const start = Date.now();
+  window.location.href = app;
+  setTimeout(() => {
+    if (Date.now() - start < 2000 && document.visibilityState === "visible") window.open(web, "_blank");
+  }, 1500);
+}
 
 const won = (n) => `₩${(Math.round(Number(n) || 0)).toLocaleString("ko-KR")}`;
 const digits = (v) => { const d = String(v || "").replace(/\D/g, ""); return d ? parseInt(d, 10) : 0; };
@@ -46,10 +60,9 @@ export function RelocationFields({ value, onChange, error = "" }) {
   );
 }
 
-function Block({ tone, title, address, detail, fee }) {
+function Block({ tone, title, address, detail, fee, onEdit }) {
   const [copied, setCopied] = useState(false);
   const has = !!String(address || "").trim();
-  const links = mapSearchLinks(address);
   const linkBtn = {
     display: "inline-block", padding: "7px 11px", borderRadius: 8, fontSize: 12.5, fontWeight: 700, textDecoration: "none",
     border: "1px solid var(--border)", color: "var(--text-primary)", background: "var(--bg-elevated)", fontFamily: "inherit", cursor: "pointer",
@@ -70,24 +83,38 @@ function Block({ tone, title, address, detail, fee }) {
       {detail && <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>{detail}</div>}
       {has && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
-          <a href={links.kakao} target="_blank" rel="noreferrer" style={linkBtn}>카카오맵</a>
-          <a href={links.tmap} target="_blank" rel="noreferrer" style={linkBtn}>티맵</a>
-          <a href={links.naver} target="_blank" rel="noreferrer" style={linkBtn}>네이버지도</a>
+          <button type="button" onClick={() => openMap("kakao", address)} style={linkBtn}>카카오맵</button>
+          <button type="button" onClick={() => openMap("tmap", address)} style={linkBtn}>티맵</button>
+          <button type="button" onClick={() => openMap("naver", address)} style={linkBtn}>네이버지도</button>
           <button type="button" onClick={copy} style={linkBtn}>{copied ? "복사됨 ✓" : "주소 복사"}</button>
         </div>
+      )}
+      {onEdit && (
+        <button type="button" onClick={onEdit} style={{ ...linkBtn, marginTop: 8, color: "#6366F1", borderColor: "#6366F1" }}>설치 주소 · 메모 수정</button>
       )}
     </div>
   );
 }
 
 // showFees: 철거비 · 설치비를 같이 보여 줄지 (기사 화면에서는 끈다 — 기사에게는 내 몫만 보인다)
-export function RelocationBlocks({ task, showFees = false, style = {} }) {
+//   onSaveDest: (주소, 메모) => Promise<{ok, error}> — 주면 설치 블록에 [설치 주소 · 메모 수정] 이 나온다 (운영자 작업 상세)
+export function RelocationBlocks({ task, showFees = false, style = {}, onSaveDest = null }) {
   if (!task) return null;
   const fees = showFees ? relocationFees(task) : null;
+  async function editDest() {
+    const cur = String(task.destAddress || task.dest_address || "");
+    const addr = window.prompt("설치(도착) 주소를 입력해 주세요.", cur);
+    if (addr == null) return;
+    if (!String(addr).trim()) { window.alert("설치 주소는 비울 수 없습니다."); return; }
+    const memo = window.prompt("설치 주소 메모 (층 · 엘리베이터 · 실외기 위치). 없으면 비워 두세요.", String(task.destDetail || task.dest_detail || ""));
+    if (memo == null) return;
+    const res = await onSaveDest(String(addr).trim(), String(memo).trim());
+    if (res && res.ok === false) window.alert(res.error || "저장하지 못했습니다.");
+  }
   return (
     <div style={style}>
       <Block tone="#F97316" title="① 철거 (출발)" address={task.fullAddress || task.address} fee={fees ? fees.removeFee : null}/>
-      <Block tone="#6366F1" title="② 설치 (도착)" address={task.destAddress || task.dest_address} detail={task.destDetail || task.dest_detail} fee={fees ? fees.installFee : null}/>
+      <Block tone="#6366F1" title="② 설치 (도착)" address={task.destAddress || task.dest_address} detail={task.destDetail || task.dest_detail} fee={fees ? fees.installFee : null} onEdit={onSaveDest ? editDest : null}/>
     </div>
   );
 }

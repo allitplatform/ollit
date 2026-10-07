@@ -68,6 +68,16 @@ export function relocationLine(task) {
   return `철거 ${from || "?"} → 설치 ${to || "미정"}`;
 }
 
+// 지도 앱을 바로 여는 주소 (주소 검색). 기사 앱의 기존 티맵 · 카카오맵 버튼과 같은 스킴.
+export function mapAppLinks(address) {
+  const q = encodeURIComponent(String(address || "").trim());
+  return {
+    kakao: `kakaomap://search?q=${q}`,
+    tmap:  `tmap://search?name=${q}`,
+    naver: `nmap://search?query=${q}&appname=app.ollit`,
+  };
+}
+
 // 좌표 없이 주소 검색으로 여는 지도 링크 (웹). 2단계에서 좌표·길안내로 바꾼다.
 export function mapSearchLinks(address) {
   const q = encodeURIComponent(String(address || "").trim());

@@ -30,6 +30,7 @@ import { isAllItemsVisit, hasAnyVisitItem } from "../../utils/visitFeeDetect.js"
 import { VisitBadge } from "../common/VisitBadge.jsx";
 // 2026-06-09 — 주소 잘림 사고 차단 (구/군/시 키워드 추출).
 import { regionOrDistrictFromAddress } from "../../utils/districtKeyword.js";
+import { relocationLine } from "../../utils/relocation.js";
 
 const CLEAN_COLOR       = "#378ADD";
 const REFRIGERANT_COLOR = "#EF9F27";
@@ -264,7 +265,8 @@ export function TaskRowOperator({ task, onClick, principalBadge = null, timeStrO
 
   // 지역 — district 우선, 비면 address 측 구/군/시 키워드 추출.
   //   2026-06-09 — 옛 split(/\s+/)[0] 폴백은 주소에 공백 없으면 전체 반환 → 카드 한 줄 잘림 사고.
-  const region = regionOrDistrictFromAddress(task.district, task.address);
+  // 2026-10-07 Mig 259 — 이전설치는 "철거 ○○구 → 설치 ○○구"
+  const region = relocationLine(task) || regionOrDistrictFromAddress(task.district, task.address);
 
   // 시간 — timeStrOverride 우선 (AllTasksScreen "MM.DD HH:mm" 등), 없으면 scheduled_at + formatYmdHm.
   const timeStr = (timeStrOverride !== undefined)

@@ -363,8 +363,9 @@ export function taskToRow(task, partial = false) {
   if (task.phone    !== undefined) row.phone         = typeof task.phone === "string" ? task.phone.trim() : task.phone;
   if (task.address  !== undefined) row.address       = task.address;
   // Mig 259 — 값이 있을 때만 싣는다 (259 실행 전에도 이전설치가 아닌 접수는 그대로 저장되게)
-  if (task.destAddress) row.dest_address = String(task.destAddress).trim();
-  if (task.destDetail)  row.dest_detail  = String(task.destDetail).trim();
+  //   수정(partial)일 때는 빈 값도 저장한다 (메모 지우기).
+  if (task.destAddress || (partial && task.destAddress !== undefined)) row.dest_address = String(task.destAddress || "").trim() || null;
+  if (task.destDetail  || (partial && task.destDetail  !== undefined)) row.dest_detail  = String(task.destDetail  || "").trim() || null;
   if (task.region   !== undefined) row.district      = task.region;
 
   // 2026-06-05 — channel write 활성화 (Mig 098 가드용).
