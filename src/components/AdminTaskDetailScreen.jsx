@@ -63,7 +63,7 @@ import { SubPrincipalSplitCard } from "./SubPrincipalParts.jsx";
 import { getCategoryMetaOfRow } from "../lib/serviceCatalog.js";
 import { isRelocationTask } from "../utils/relocation.js";
 import { useIsPc } from "../utils/useIsPc.js";
-import { usePanelWidth, PcStatusStrip, PcCustomerCard, PcPlaceCard, PcExceptionCard, PcSection } from "./AdminTaskDetailPcParts.jsx";
+import { usePanelWidth, PcStatusStrip, PcCustomerCard, PcPlaceCard, PcExceptionCard, PcSection, PcPerformerCard } from "./AdminTaskDetailPcParts.jsx";
 import { RelocationBlocks } from "./RelocationParts.jsx";
 
 // 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (0 이면 테두리 선이 화면 끝에서 잘려 12 로 — 2026-10-06 실화면 확인).
@@ -337,7 +337,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
             }}>기종 변경</button>
           );
         })()}
-        <button onClick={() => setEditingBasic(true)} style={{
+        {!pcLayout && <button onClick={() => setEditingBasic(true)} style={{
           padding: "6px 14px",
           background: "transparent",
           border: `1px solid ${t?.accent || "#FF1B8D"}`,
@@ -345,7 +345,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
           color: t?.accent || "#FF1B8D",
           fontSize: 12, fontWeight: 700,
           cursor: "pointer", fontFamily: "inherit",
-        }}>수정</button>
+        }}>수정</button>}
       </div>
       {/* 2026-07-11 — 홈페이지 접수 (기종 미정) 배너. 클릭 → 기종 선택 팝업.
             사장님 spec: 예약확정/배정 단계에서 기종 선택 → lookupRate → 금액 자동. */}
@@ -399,8 +399,9 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       {pcLayout ? (
         <>
           {/* 2026-10-07 — 운영자 PC 작업 상세 개편 1차 (시안 v2). 배치만 바꾼다 — 각 카드 · 저장 함수는 기존 것 그대로. */}
-          <MainCard task={task} onStatusChange={onStatusChange}/>
+          <MainCard task={task} onStatusChange={onStatusChange} pc>
           <PcStatusStrip
+            embedded
             task={task}
             canceled={isEffectivelyCanceled(task)}
             onAssign={task.subcontractorId ? () => setSubPick(true) : onAssign}
@@ -411,6 +412,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
             onEngineerCall={() => handleMenuAction("engineer_call", task)}
             onMessage={() => setShowMessageModal(true)}
           />
+          </MainCard>
+          <div style={{ height: 12 }}/>
           <SubChangeRequestBand task={task} subMode={false} onChanged={reloadTask} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
           <CancelBanner task={task} force={isEffectivelyCanceled(task)} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
           <div style={{ display: "grid", gridTemplateColumns: twoCol ? "minmax(0, 1fr) minmax(0, 1fr)" : "minmax(0, 1fr)", alignItems: "start", gap: 0 }}>
@@ -427,17 +430,14 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
                   <UsolNSettlementCycleCard taskId={task.id} paymentMethod={task.paymentMethod || task.payment_method || null}/>
                 )}
               </PcSection>
-              <PcSection title="수행">
-                <SubcontractorCard task={task} onChanged={reloadTask}/>
-                {!task.subcontractorId && (
-                  <div style={{ margin: `0 ${DETAIL_GUTTER + 4}px 12px`, fontSize: 13, color: "var(--text-secondary)" }}>
-                    올데이케어 직영 · {task.assignedEngineer || task.engineer || "담당 없음"}
-                  </div>
-                )}
-              </PcSection>
+              <PcPerformerCard task={task}/>
+              {/* 직영 작업을 협력사로 넘기는 기존 카드 (그 협력사가 맡는 종목일 때만 나온다) */}
+              {!task.subcontractorId && <SubcontractorCard task={task} onChanged={reloadTask}/>}
             </div>
             <div style={{ order: twoCol ? 1 : 2, minWidth: 0 }}>
-              <PcCustomerCard task={task} onEdit={() => setEditingBasic(true)}/>
+              <PcCustomerCard task={task} onEdit={() => setEditingBasic(true)}>
+                <RequestMemoCard task={task} memos={memos} onMemoAdd={onMemoAdd} embedded/>
+              </PcCustomerCard>
               <PcPlaceCard task={task} onSaveDest={async (addr, memo) => {
                 const res = await updateTaskAdapter(task.id, { destAddress: addr, destDetail: memo });
                 if (res && res.ok !== false) reloadTask();
@@ -457,13 +457,14 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
               )}
               <PcExceptionCard
                 task={task}
-                onVisitOnly={() => handleMenuAction("visit_only", task)}
-                onCancel={() => handleMenuAction("cancel", task)}
-                onGoItems={() => { if (moneyRef.current) moneyRef.current.scrollIntoView({ behavior: "smooth", block: "start" }); }}
-              />
+                onVisitOnly={() => setShowVisitOnlyDialog(true)}
+                onCancel={() => setShowCancelDialog(true)}
+                onPartialCancel={() => setShowPartialCancelDialog(true)}
+              >
+                {task.subcontractorId && <SubExceptionCard task={task} onChanged={reloadTask} style={{ margin: "6px 0 0" }}/>}
+              </PcExceptionCard>
               <PhotoSection taskId={task.id} taskType={task.type} photoLoader={photoLoader}/>
               <CompletionNotice task={task} subMode={false}/>
-              <RequestMemoCard task={task} memos={memos} onMemoAdd={onMemoAdd}/>
               {/* 변경 이력 — 한 줄로 접어 둔다 */}
               <details style={{ margin: `0 ${DETAIL_GUTTER}px 12px`, border: "1px solid var(--border)", borderRadius: 14, background: "var(--bg-elevated)" }}>
                 <summary style={{ padding: "12px 16px", fontSize: 13, fontWeight: 800, color: "var(--text-secondary)", cursor: "pointer" }}>변경 이력 · 작업 시간 (펼치기)</summary>
@@ -562,7 +563,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
         />
       )}
       {/* 2026-10-07 Mig 242 — 협력사 작업 예외 처리 (운영자 전용): 변경 요청 · 올데이케어로 회수 */}
-      {!subMode && task.subcontractorId && (
+      {!subMode && !pcLayout && task.subcontractorId && (
         <SubExceptionCard task={task} onChanged={reloadTask} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
       )}
       {/* 2026-06-17 — visit_only → 정상 작업 되돌리기 (운영자 전용 — RPC 가드 동일). */}
@@ -622,7 +623,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
           >되돌리기 →</button>
         </div>
       )}
-      {showException && !subMode && (
+      {showException && !subMode && !pcLayout && (
         <ExceptionActions
           expanded={exceptionExpanded}
           onToggle={() => setExceptionExpanded(!exceptionExpanded)}
@@ -761,7 +762,8 @@ function DetailHeader({ task, onBack, onMenuAction, hideMenu = false }) {
 //   되돌릴 때 completedAt 클리어 (완료 아닌 상태로 변경 시).
 const STATUS_MENU_OPTIONS = ["미배정", "배정", "확정", "완료"];
 
-function MainCard({ task, onStatusChange }) {
+//   pc: 운영자 PC 새 배치 — 작업코드 · 접수 시각을 위에, 주소 · 시각 줄은 아래 띠(children)가 대신한다
+function MainCard({ task, onStatusChange, pc = false, children = null }) {
   const stateInfo = getStateInfo(task);
   const serviceType = detectServiceType(task);
   const isExternal = task.type === "external";
@@ -858,7 +860,13 @@ function MainCard({ task, onStatusChange }) {
           </>
         )}
 
-        {/* 작업 종류 칩 — V14: active=true 박기 (색 박힘) */}
+        {pc && (
+          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6, paddingRight: 90 }}>
+            <span className="mono" style={{ fontWeight: 700 }}>{task.taskCode || task.taskNo || ""}</span>
+            {(task.receivedAt || task.createdAt) ? ` · 접수 ${formatDateTimeKST(task.receivedAt || task.createdAt)}` : ""}
+            {task.channel ? ` · ${task.channel}` : ""}
+          </div>
+        )}
         {!isExternal && (
           <Chip
             icon={serviceType.icon}
@@ -878,7 +886,7 @@ function MainCard({ task, onStatusChange }) {
         </div>
 
         {/* 주소 */}
-        {task.address && (
+        {!pc && task.address && (
           <div style={{
             fontSize: 11, color: "var(--text-secondary)",
             marginTop: 6, lineHeight: 1.5,
@@ -889,10 +897,10 @@ function MainCard({ task, onStatusChange }) {
 
         {/* 시간 + 작업 (V14 2B-1 fix — 기종 박기 / 작업유형은 별도 칩) */}
         <div style={{ fontSize: 10, color: "var(--text-tertiary)", marginTop: 4 }}>
-          🕐 {task.time || "—"}
-          {task.state === "active" && task.startedAt && <> · 시작 {formatTimeOnly(task.startedAt)}</>}
+          {!pc && <>🕐 {task.time || "—"}</>}
+          {!pc && task.state === "active" && task.startedAt && <> · 시작 {formatTimeOnly(task.startedAt)}</>}
           {Array.isArray(task.workItems) && task.workItems.length > 0 && (
-            <> · {task.workItems.map(w => {
+            <>{pc ? "" : " · "}{task.workItems.map(w => {
               // 기종이 없는 종목(주방후드·출장비 등)은 "(공통)" 대신 작업 이름을 보여 준다.
               const _nm = (w.appliance && w.appliance !== "(공통)") ? w.appliance : formatWorkTypeLabel(w.workType);
               const base = `${_nm || w.appliance || "—"}${w.qty ? ` ×${w.qty}` : ""}`;
@@ -903,6 +911,7 @@ function MainCard({ task, onStatusChange }) {
             <> · {task.appliance || formatWorkTypeLabel(task.workType)}{task.qty ? ` ×${task.qty}` : ""}</>
           )}
         </div>
+        {children}
       </div>
     </div>
   );
@@ -2567,21 +2576,22 @@ function _fmtMemoTimeKst(v) {
   return `${p.month}-${p.day} ${p.hour}:${p.minute}`;
 }
 
-function RequestMemoCard({ task, memos, onMemoAdd }) {
+//   embedded: 고객 카드 안에 넣을 때 — 자기 카드 테두리와 "요청사항" 본문은 빼고 협의 메모 · 메모 목록 · [+ 메모 추가] 만
+function RequestMemoCard({ task, memos, onMemoAdd, embedded = false }) {
   // 요청사항 본문 — task.requestNote (DB request_note 매핑) 우선, 옛 task.memo fallback.
   const requestText      = task.requestNote      || task.memo || "";
   const callMemo         = task.callMemo         || "";
   const rescheduleReason = task.rescheduleReason || "";
   const rescheduledAt    = task.rescheduledAt    || "";
   return (
-    <div style={{ padding: D1_OUTER_PAD }}>
-      <div style={D1_CARD_STYLE}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 10 }}>
+    <div style={embedded ? {} : { padding: D1_OUTER_PAD }}>
+      <div style={embedded ? {} : D1_CARD_STYLE}>
+        {!embedded && <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-secondary)", marginBottom: 10 }}>
           📝 요청사항
-        </div>
-        <div style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.6, fontWeight: 500 }}>
+        </div>}
+        {!embedded && <div style={{ fontSize: 13, color: "var(--text-primary)", lineHeight: 1.6, fontWeight: 500 }}>
           {requestText || "없음"}
-        </div>
+        </div>}
 
         {callMemo && (
           <div style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" }}>

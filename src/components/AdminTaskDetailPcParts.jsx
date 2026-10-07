@@ -59,7 +59,8 @@ function whenText(task) {
   return "일정 미정";
 }
 
-export function PcStatusStrip({ task, canceled = false, onAssign, onScheduleChange, onComplete, onShowMoney, onCall, onMessage, onEngineerCall }) {
+//   embedded: 맨 위 카드 안에 넣을 때 (자기 카드 테두리 없이)
+export function PcStatusStrip({ task, embedded = false, canceled = false, onAssign, onScheduleChange, onComplete, onShowMoney, onCall, onMessage, onEngineerCall }) {
   const stage = stageOfTask(task);
   const isSub = !!task.subcontractorId;
   const steps = [
@@ -101,7 +102,7 @@ export function PcStatusStrip({ task, canceled = false, onAssign, onScheduleChan
   }
 
   return (
-    <div style={{ ...cardBox, marginTop: 10 }}>
+    <div style={embedded ? { marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--border)" } : { ...cardBox, marginTop: 10 }}>
       <div style={{ display: "flex", flexWrap: "wrap", gap: "6px 16px", fontSize: 14, fontWeight: 700, color: "var(--text-primary)" }}>
         <span>📅 {whenText(task)}</span>
         <span>👷 {eng}</span>
@@ -136,7 +137,8 @@ export function PcStatusStrip({ task, canceled = false, onAssign, onScheduleChan
   );
 }
 
-export function PcCustomerCard({ task, onEdit }) {
+//   children: 요청사항 상자 아래에 넣을 내용 (메모 목록 · [+ 메모 추가])
+export function PcCustomerCard({ task, onEdit, children = null }) {
   const note = String(task.requestNote || task.memo || "").trim();
   const row = (label, value) => (
     <div style={{ display: "flex", justifyContent: "space-between", gap: 12, padding: "5px 0", fontSize: 14 }}>
@@ -152,12 +154,15 @@ export function PcCustomerCard({ task, onEdit }) {
       </div>
       {row("이름", task.customer || "—")}
       {row("연락처", task.phone || "—")}
-      {note && (
+      {note ? (
         <div style={{ marginTop: 10, padding: "10px 12px", borderRadius: 10, background: "rgba(251,191,36,0.14)", border: "1px solid rgba(251,191,36,0.5)" }}>
           <div style={{ fontSize: 12, fontWeight: 800, color: "#B45309", marginBottom: 3 }}>📝 요청사항</div>
           <div style={{ fontSize: 14, color: "var(--text-primary)", lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>{note}</div>
         </div>
+      ) : (
+        <div style={{ marginTop: 8, fontSize: 13, color: "var(--text-tertiary)" }}>요청사항 없음</div>
       )}
+      {children}
     </div>
   );
 }
@@ -202,7 +207,8 @@ export function PcPlaceCard({ task, onSaveDest }) {
 }
 
 // 기존 동작을 그대로 부른다: 출장비만 정산 · 작업 전체 취소(사유 입력 창) / 품목별 취소는 금액 카드의 항목 줄에서.
-export function PcExceptionCard({ task, onVisitOnly, onCancel, onGoItems, children = null }) {
+//   children: 협력사 작업의 [변경 요청] [직영으로 회수] (기존 부품)
+export function PcExceptionCard({ task, onVisitOnly, onCancel, onPartialCancel, children = null }) {
   const closed = ["완료", "정산완료", "취소", "visit_only"].includes(String(task.status || ""));
   const item = (emoji, title, desc, onClick, danger) => (
     <button type="button" onClick={onClick} disabled={!onClick} style={{
@@ -225,9 +231,25 @@ export function PcExceptionCard({ task, onVisitOnly, onCancel, onGoItems, childr
         <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-tertiary)" }}>드물게 쓰는 기능 · 누르면 사유 입력</span>
       </div>
       {item("💸", "출장비만 정산", "현장에 갔지만 작업을 못 한 경우", closed ? null : onVisitOnly, false)}
-      {item("✂️", "품목별 취소", "일부 항목만 취소 — 금액 카드의 항목 줄에서 처리", onGoItems, false)}
+      {item("✂️", "품목별 취소", "일부 항목만 취소 (예: 설치만 취소)", closed ? null : onPartialCancel, false)}
       {item("🚫", "작업 전체 취소", "사유 필수 · 고객 사정 / 일정 조율 실패 / 현장 불가 / 기타", task.status === "취소" ? null : onCancel, true)}
       {item("🗑", "오접수 처리", "실수 접수 · 통계에서 빠짐 (기록은 남음) — 취소 사유에서 '오접수'를 고릅니다", task.status === "취소" ? null : onCancel, true)}
+      {children}
+    </div>
+  );
+}
+
+// 수행 — 누가 하는지 (상태만). children: 직영 작업을 협력사로 넘기는 기존 카드
+export function PcPerformerCard({ task, children = null }) {
+  const isSub = !!task.subcontractorId;
+  return (
+    <div style={cardBox}>
+      <div style={cardTitle}><span>수행</span></div>
+      <div style={{ fontSize: 15, fontWeight: 800, color: "var(--text-primary)" }}>
+        {isSub ? "협력사" : "올데이케어 직영"}
+        <span style={{ fontWeight: 600, color: "var(--text-secondary)" }}> · {engineerDisplayName(task, "담당 없음")}</span>
+      </div>
+      {isSub && <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginTop: 4 }}>변경 요청 · 직영으로 회수는 아래 "예외 처리"에 있습니다</div>}
       {children}
     </div>
   );
