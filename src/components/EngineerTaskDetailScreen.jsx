@@ -1129,8 +1129,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
                 </label>
                 <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.5 }}>
                   {hoodVat && got > 0
-                    ? `공급가 ₩${supply.toLocaleString("ko-KR")} / 부가세 ₩${(got - supply).toLocaleString("ko-KR")} · 내 몫은 공급가의 65%`
-                    : "주방후드 견적은 부가세 별도입니다. 부가세까지 받았으면 체크해 주세요. 내 몫은 공급가의 65%"}
+                    ? `공급가 ₩${supply.toLocaleString("ko-KR")} / 부가세 ₩${(got - supply).toLocaleString("ko-KR")} · 수익은 공급가의 65%`
+                    : "주방후드 견적은 부가세 별도입니다. 부가세까지 받았으면 체크해 주세요. 수익은 공급가의 65%"}
                 </div>
               </div>
             );
@@ -1746,7 +1746,7 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
         }}>
           {/* 2026-10-07 — 항목 옆에는 기사 몫을 적지 않는다 (고객에게 받을 돈과 헷갈림).
                 항목 2개 이상: 종목 한 줄 + 칩 + 오른쪽 고객 견적 (새 배정 상세와 같은 부품)
-                항목 1개: 항목 한 줄 + 오른쪽 고객 견적.  기사 몫은 아래 작은 줄 "내 몫 예상" 으로만.
+                항목 1개: 항목 한 줄 + 오른쪽 고객 견적.  기사 몫은 아래 작은 줄 "예상 수익" 으로만.
                 유솔N 은 항목별 정산금이 필요해 예전 모양 (금액 위에 "내 정산금" 이라고 적는다). */}
           {(() => {
             const isUsolN = task.principalCode === "usol_n" || task.principalId === "usol_n";
@@ -1781,7 +1781,7 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
                   : rows("고객 견적", (item, idx) => (idx === 0 && !quoteBelow && est > 0 && !item.isCanceled ? est : null))}
                 {myShare > 0 && (
                   <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: "var(--text-tertiary)" }}>
-                    내 몫 예상 {myShare.toLocaleString("ko-KR")}원{pct > 0 && pct <= 100 ? ` (${pct}%)` : ""}
+                    예상 수익 {myShare.toLocaleString("ko-KR")}원{pct > 0 && pct <= 100 ? ` (${pct}%)` : ""}
                   </div>
                 )}
               </>
@@ -2082,7 +2082,7 @@ function TaskItemsList({ task, itemEngineerAmounts = {} }) {
             appliance={item.name}
             qty={item.qty}
             price={item.price}
-            priceLabel={item.price != null ? ((task.principalCode === "usol_n" || task.principalId === "usol_n") ? "내 정산금" : "내 몫") : null}
+            priceLabel={item.price != null ? ((task.principalCode === "usol_n" || task.principalId === "usol_n") ? "내 정산금" : (["완료", "정산완료"].includes(String(task.status || "")) ? "수익" : "예상 수익")) : null}
             client={task.client}
             dividerTop={idx > 0}
             isCanceled={item.isCanceled}
@@ -3356,14 +3356,6 @@ function CancelScreen({ task, itemEngineerAmounts = {}, onBack, onConfirm }) {
                 <div style={{ fontSize: 12, fontWeight: 700, color: "var(--text-primary)" }}>
                   {item.name} ×{item.qty}
                 </div>
-              </div>
-              <div style={{
-                fontSize: 12,
-                fontFamily: "inherit",
-                color: item.checked ? "#FF3D5A" : "var(--text-secondary)",
-                fontWeight: item.checked ? 700 : 400,
-              }}>
-                ₩{(item.price || 0).toLocaleString("ko-KR")}
               </div>
             </div>
           ))}

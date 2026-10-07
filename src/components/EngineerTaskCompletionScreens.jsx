@@ -584,7 +584,7 @@ function EarningOnlyCard({ amount, color = "#FF1B8D", subText, loading = false }
         fontWeight: 700, marginBottom: 10,
         display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
       }}>
-        <span style={{ fontSize: 15 }}>💰</span> 내 수익
+        <span style={{ fontSize: 15 }}>💰</span> 예상 수익
       </div>
       <div style={{
         fontSize: loading ? 20 : 44,
