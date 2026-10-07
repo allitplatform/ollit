@@ -35,9 +35,13 @@ function _computeInitialWorkTypes(engineer) {
   const isAllPrincipal = sp => sp === "(전체)" || sp === "전체";
   const cleaningSkill    = skills.find(s => isAllPrincipal(s.principal) && s.workType === "세척");
   const refrigerantSkill = skills.find(s => isAllPrincipal(s.principal) && s.workType === "냉매충전");
+  // 2026-10-07 — 설치 기술 (등급만. 지역은 기사당 한 벌이라 세척·냉매 지역을 같이 쓴다)
+  const installSkill = skills.find(s => isAllPrincipal(s.principal) && s.workType === "설치");
+  const installRole = installSkill ? ((mapSheetSkillToWorkType(installSkill) || {}).role || "none") : "none";
   return {
     cleaning:    cleaningSkill    ? mapSheetSkillToWorkType(cleaningSkill)    : { ...baseCleaning },
     refrigerant: refrigerantSkill ? mapSheetSkillToWorkType(refrigerantSkill) : { ...baseRefrigerant },
+    install:     { role: installRole, zones: [], appliances: [] },
   };
 }
 
@@ -282,6 +286,17 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
     else skillFail += 1;
     if (await syncSkill("냉매충전", form.workTypes.refrigerant)) skillOk += 1;
     else skillFail += 1;
+    // 2026-10-07 — 설치 기술. 지역은 기사당 한 벌이므로, 방금 저장된 지역(냉매 → 없으면 세척)을 그대로 넘겨
+    //   지역이 바뀌지 않게 한다. 세척·냉매가 둘 다 "안 함" 이면 지역 없이 저장된다 (= 전지역).
+    {
+      const _ins = form.workTypes.install || { role: "none" };
+      const _ref = form.workTypes.refrigerant || {};
+      const _cln = form.workTypes.cleaning || {};
+      const _zones = (_ref.role && _ref.role !== "none") ? (_ref.zones || [])
+                   : (_cln.role && _cln.role !== "none") ? (_cln.zones || []) : [];
+      if (await syncSkill("설치", { role: _ins.role || "none", zones: _zones, appliances: [] })) skillOk += 1;
+      else skillFail += 1;
+    }
 
     setBusy(false);
 
@@ -410,6 +425,22 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
         onToggleZone={(z) => updateWork("cleaning", "zones", toggleZoneItem(form.workTypes.cleaning.zones, z))}
         onToggleAppliance={(a) => updateWork("cleaning", "appliances", toggleArrayItem(form.workTypes.cleaning.appliances, a))}
       />
+    </Section>
+  );
+
+  // 2026-10-07 — 설치 기술 (메인 / 백업 / 안 함). 설치 작업의 추천은 이 기술을 가진 기사만 본다.
+  const _insRole = (form.workTypes.install && form.workTypes.install.role) || "none";
+  const installSection = (
+    <Section label="🛠 설치">
+      <RadioRow
+        options={Object.entries(ROLE_OPTIONS).map(([k, v]) => ({ key: k, label: v }))}
+        value={_insRole}
+        onChange={(v) => updateWork("install", "role", v)}
+      />
+      <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginTop: 8, lineHeight: 1.5 }}>
+        설치 작업은 이 칸이 메인·백업인 기사만 추천됩니다. 지역은 따로 두지 않고 위 세척·냉매의 가능 지역을 같이 씁니다
+        (둘 다 "안 함" 이면 전지역).
+      </div>
     </Section>
   );
 
@@ -642,6 +673,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
             <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
               <PcCard stripeColor="#0EA5E9">{cleaningSection}</PcCard>
               <PcCard stripeColor="#FFB800">{refrigerantSection}</PcCard>
+              <PcCard stripeColor="#6366F1">{installSection}</PcCard>
             </div>
           </div>
           {/* 하단 2단 — 단가 / 메모 */}
@@ -675,6 +707,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
           {statusSection}
           {cleaningSection}
           {refrigerantSection}
+          {installSection}
           {ratesSection}
           {/* 2026-10-06 Mig 212 — 소속 협력사 (운영자 전용, 독립 저장) */}
           {!isNew && targetUserId && (

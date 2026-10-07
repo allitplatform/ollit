@@ -9786,6 +9786,8 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
 
   // V14 2B-3 — 진짜 시트 catch (옛 ENGINEERS_MASTER + ZONE_MAPPINGS mock 폐기)
   const [apiCandidates, setApiCandidates] = useState({ main: [], sub: [], capable: [] });
+  // 2026-10-07 — 추천 안내 (설치 기술 기사가 없어 냉매 기사 풀로 대신한 경우)
+  const [recommendNotice, setRecommendNotice] = useState("");
   const [apiLoading, setApiLoading] = useState(false);
   const [apiError, setApiError] = useState("");
   const [apiDebug, setApiDebug] = useState(null);
@@ -9812,6 +9814,7 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
           setApiDebug({ phase: 'error', res });
           return;
         }
+        setRecommendNotice(res.notice || "");
         // 응답 shape catch 다양성 (recommended / data / engineers / 그룹별 분리 등)
         const main    = res.main    || res.recommended?.main    || [];
         const sub     = res.sub     || res.recommended?.sub     || [];
@@ -9987,6 +9990,16 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
       <div style={{ padding: "14px 16px 20px" }}>
         {/* 2026-08-03 — 날짜 탭 (일정 미정 접수가 다수 — "언제로 잡아줄까"부터).
               희망 일정이 있으면 그 날짜 고정 표시. */}
+        {recommendNotice && (
+          <div style={{
+            marginBottom: 12, padding: "8px 12px", borderRadius: 8,
+            background: "rgba(249,115,22,0.10)", border: "1px solid rgba(249,115,22,0.5)",
+            fontSize: 11.5, fontWeight: 700, color: "#F97316", lineHeight: 1.5,
+          }}>
+            ⚠ {recommendNotice}
+            <div style={{ fontWeight: 600, color: t.textSecondary, marginTop: 2 }}>기사 관리 → 기사 수정 → "🛠 설치" 를 메인·백업으로 저장하면 그 기사만 추천됩니다.</div>
+          </div>
+        )}
         {_dateLocked ? (
           <div style={{
             marginBottom: 12, padding: "8px 12px",

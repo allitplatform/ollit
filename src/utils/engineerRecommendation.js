@@ -303,7 +303,8 @@ export async function recommendEngineersGroupedAdapter(workType, principal, regi
   const main    = list.filter(e => e.regionHit === "zone" && e.level === "main");
   const sub     = list.filter(e => e.regionHit === "zone" && e.level === "sub");
   const capable = list.filter(e => e.regionHit !== "zone");
-  return { ok: true, main, sub, capable };
+  // notice: 설치 기술 기사가 없어 냉매 기사 풀로 대신했을 때의 안내 문구 (없으면 undefined)
+  return { ok: true, main, sub, capable, notice: list.notice || "" };
 }
 
 // ============================================================
@@ -321,17 +322,32 @@ function _pickServiceCode(task) {
   for (const it of items) {
     const c = String(it?.serviceCode || it?.service_code || "").toLowerCase();
     if (c === "cleaning" || c === "refrigerant") return c;
-    // 2026-07-20 — 설치/누설 serviceCode → 냉매 기사 풀 (사장님 규칙)
-    if (c === "install" || c === "leak") return "refrigerant";
+    // 2026-10-07 — 사장님 결정: 설치는 설치 기술 기사만. (누설·누수는 지금처럼 냉매 기사 풀)
+    if (c === "install") return "install";
+    // 2026-07-20 — 누설 serviceCode → 냉매 기사 풀 (사장님 규칙)
+    if (c === "leak") return "refrigerant";
   }
+  if (getServiceKind(task) === "install") return "install";
   return serviceKindToRecKey(getServiceKind(task));
 }
 
+// 설치 기술 기사가 한 명도 등록되지 않았을 때 화면에 보여 줄 안내 (추천은 예전처럼 냉매 기사 풀)
+export const INSTALL_FALLBACK_NOTICE = "설치 기술 기사가 등록되지 않아 냉매 기사로 추천합니다";
+
 export async function recommendEngineersFromDb(task) {
+  // 2026-10-07 — 설치 작업: 설치 기술(메인·백업)을 가진 활성 직영 기사가 1명이라도 있으면 그 기사들만.
+  //   0명이면(아직 아무도 등록하지 않음) 예전처럼 냉매 기사 풀로 추천하고 안내를 붙인다 — 배포 직후 추천이 비지 않게.
+  if (_pickServiceCode(task) === "install" && !task?._svcOverride) {
+    const own = await recommendEngineersFromDb({ ...task, _svcOverride: "install", _keepAllRegions: true });
+    if (own.length > 0) return recommendEngineersFromDb({ ...task, _svcOverride: "install" });
+    const fb = await recommendEngineersFromDb({ ...task, _svcOverride: "refrigerant" });
+    fb.notice = INSTALL_FALLBACK_NOTICE;
+    return fb;
+  }
   const region  = String(task?.region || "").trim();
   // 2026-07-26 — 동 단위 승격: "죽전동" 접수 → ["죽전동","용인시"] 로 zones 대조.
   const rCands  = resolveRegionCandidates(task?.region, task?.address);
-  const svcCode = _pickServiceCode(task);
+  const svcCode = task?._svcOverride || _pickServiceCode(task);
 
   // [1] epp + users JOIN (활성 기사 + 해당 serviceCode 메인/백업)
   const { data: eppRows, error: eppErr } = await supabase
@@ -407,6 +423,8 @@ export async function recommendEngineersFromDb(task) {
     const hit = zones.find(z => rCands.some(c2 => zoneCoversRegion(z, c2)));   // 2026-07-26 — 동→구 승격 포함
     if (hit) {
       filtered.push({ ...c, regionHit: "zone", matchedZone: hit, zones });
+    } else if (task?._keepAllRegions) {
+      filtered.push({ ...c, regionHit: "none", zones });      // "이 기술 기사가 있는지" 만 셀 때 (지역 밖도 포함)
     }
   }
 

@@ -42,12 +42,14 @@ const TENANT_ID = "11111111-1111-1111-1111-111111111111";
 function serviceCodeToWorkType(sc) {
   if (sc === "cleaning")    return "세척";
   if (sc === "refrigerant") return "냉매충전";
+  if (sc === "install")     return "설치";        // 2026-10-07 — 설치 기술 분리
   return sc || "";
 }
 
 function workTypeToServiceCode(wt) {
   if (wt === "세척")     return "cleaning";
   if (wt === "냉매충전") return "refrigerant";
+  if (wt === "설치")     return "install";        // 2026-10-07 — 설치 기술 분리
   return wt || "";
 }
 
