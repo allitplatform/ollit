@@ -129,6 +129,9 @@ export const CATEGORY_META = [
   { key: "movein", codes: ["movein", "move_in", "move_in_cleaning"], label: "입주청소",  short: "입주",   icon: "🧹", color: "#22C55E" },
 ];
 export const CATEGORY_OTHER = { key: "etc", codes: [], label: "그 밖", short: "그 밖", icon: "🔧", color: "#9CA3AF" };
+// 2026-10-07 — 종목 미정: 작업 항목도 작업 이름도 없는 접수(문의 전환 직후 등).
+//   저장된 종목 값이 "에어컨" 이어도 그것은 기본값일 뿐이라 에어컨으로 가정하지 않는다. 회색 🔧 "미정".
+export const CATEGORY_UNKNOWN = { key: "unknown", codes: [], label: "종목 미정", short: "미정", icon: "🔧", color: "#9CA3AF" };
 
 // 서비스 단위 예외 — 종목보다 먼저 본다. (2026-10-06 사장님 결정: 냉매는 ⚡ 노랑 유지)
 //   판정 순서: 서비스 예외 → 종목 → 그 밖.
@@ -139,6 +142,17 @@ export const SERVICE_EXCEPTIONS = [
     key: "refrigerant", label: "냉매", short: "냉매", icon: "⚡", color: "#FFB800", textOnColor: "#1A1A1A",
     codes: ["refrigerant", "refrigerant_check"],
     names: ["냉매충전", "냉매점검", "냉매점검(YS-N)", "냉매점검(서울 경기북부만 가능)"],
+  },
+  // 2026-10-07 사장님 결정 — 에어컨 안에서 설치 · 누수도 세척(❄)과 구분한다. (후드설치는 주방후드 🔥 그대로)
+  {
+    key: "install", label: "설치", short: "설치", icon: "🛠", color: "#6366F1",
+    codes: ["install"],
+    names: ["설치", "신규설치", "이전설치", "이전", "철거", "실외기중고교체", "기계중고교체"],
+  },
+  {
+    key: "leak", label: "누수", short: "누수", icon: "💧", color: "#14B8A6",
+    codes: ["leak", "water_leak"],
+    names: ["누설", "누수"],
   },
 ];
 function _exceptionOfItem(item) {
@@ -232,8 +246,9 @@ function _categoryCodeOfItem(item) {
 //   · 항목이 여러 개면 "공통(출장비 등)" 을 뺀 첫 항목의 종목.
 //   · 항목으로 못 정하면 작업의 종목(category) 값, 그래도 없으면 "그 밖".
 export function getCategoryMeta(input) {
-  if (!input) return CATEGORY_OTHER;
+  if (!input) return CATEGORY_UNKNOWN;
   if (typeof input === "string") {
+    if (!input.trim()) return CATEGORY_UNKNOWN;          // 이름이 비어 있으면 "미정" (에어컨으로 가정하지 않는다)
     const ex = _exceptionOfItem(input);
     if (ex) return ex;
     const c = _categoryCodeOfItem(input);
@@ -256,6 +271,10 @@ export function getCategoryMeta(input) {
     if (self) return categoryMetaByCode(self);
   }
   const direct = String(input.categoryCode || input.category_code || "").trim() || _catById.get(input.categoryId || input.category_id) || "";
+  // 2026-10-07 — 항목도 작업 이름도 전혀 없는 접수: 저장된 종목이 에어컨이면 그것은 기본값일 뿐이다 → "미정".
+  //   (에어컨이 아닌 종목 값은 누군가 정한 것이므로 그대로 따른다)
+  const nothing = items.length === 0 && !String(selfItem.workType || "").trim() && !String(selfItem.serviceCode || "").trim();
+  if (nothing && (!direct || direct === "aircon")) return CATEGORY_UNKNOWN;
   // 항목이 공통(출장비)뿐인 작업은 작업 자체의 종목 값을 따른다 (DB 를 읽은 뒤에만 알 수 있다)
   return direct ? categoryMetaByCode(direct) : CATEGORY_OTHER;
 }
@@ -292,9 +311,10 @@ export function categoriesInTasks(tasks) {
   for (const t of (tasks || [])) { const m = getCategoryMeta(t); if (!seen.has(m.key)) seen.set(m.key, m); }
   // 순서: 종목 표 순서, 서비스 예외(냉매)는 에어컨 바로 뒤, 표에 없는 새 종목은 그 뒤, "그 밖" 은 맨 끝
   const order = (m) => {
-    if (SERVICE_EXCEPTIONS.some(x => x.key === m.key)) return 0.5;
+    const xi = SERVICE_EXCEPTIONS.findIndex(x => x.key === m.key);
+    if (xi >= 0) return 0.5 + xi * 0.1;                  // 냉매 · 설치 · 누수 순으로 에어컨 바로 뒤
     const i = CATEGORY_META.findIndex(x => x.key === m.key);
-    return i < 0 ? (m.key === "etc" ? 999 : 500) : i;
+    return i < 0 ? (m.key === "etc" || m.key === "unknown" ? 999 : 500) : i;
   };
   return [...seen.values()].sort((a, b) => order(a) - order(b));
 }
