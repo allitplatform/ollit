@@ -11,6 +11,12 @@
 --                                             남은 줄로 다시 맞춤. 일자 · 보고 금액 · 가계부 · 기사 보고는 그대로 둠
 --                                             (결과 표 "4 주의" 에 날짜가 나옵니다 - 보고 금액과 계산 값이 달라질 수 있음)
 --
+--   · (2026-10-07 보완) 기사 -> 협력사 보고 기록: 이 작업을 지운 뒤 그 기사가 그 날짜에 "보고 이전에 완료한" 작업이
+--       하나도 남지 않으면 그 보고 기록(받음 포함)도 지운다. 남기면 그 날짜가 잠긴 채로 남아, 나중에 같은 날짜에
+--       완료된 작업의 [보냄] 이 기사 화면에 나오지 않는다. 다른 작업이 남아 있으면 기록은 두고 "4 주의" 에 표시.
+--   · (2026-10-07 보완) 원청 송금 줄: 이 작업의 줄이 빠진 뒤 금액을 남은 줄로 다시 맞춘다. 남은 줄이 없으면 그 줄도 지운다.
+--       이미 "송금 완료" 한 줄에 이 작업이 들어 있으면 지우지 않고 멈춘다 (먼저 화면에서 [되돌리기]).
+--
 -- 지우기 전에 대상 행을 전부 _backup_one_<작업번호>_<표이름> 표에 복사합니다 (앱에서는 읽을 수 없게 잠금).
 -- 사진 파일 자체(저장소)는 SQL 로 지울 수 없어 기록(photos 행)만 지웁니다.
 --
@@ -63,6 +69,11 @@ DECLARE
   n_event  int := 0;
   n_remit  int := 0;
   n_cash   int := 0;
+  v_cdate  date;        -- 이 작업의 완료 날짜 (한국 시간)
+  v_srem   uuid[] := ARRAY[]::uuid[];   -- 지울 기사 보고 기록
+  v_prem   uuid[] := ARRAY[]::uuid[];   -- 이 작업이 들어 있는 원청 송금 줄
+  n_srem   int := 0;
+  n_prem   int := 0;
 BEGIN
   SELECT btrim(task_no), run, allow_real INTO v_no, v_run, v_real FROM _in LIMIT 1;
   v_tag := '_backup_one_' || lower(regexp_replace(v_no, '[^A-Za-z0-9]', '', 'g')) || '_';
@@ -133,6 +144,39 @@ BEGIN
          '정산 일자 · 보고 금액 · 가계부 · 기사 보고는 그대로 둡니다. 정리 뒤 이 날짜의 금액을 확인해 주세요.'
     FROM unnest(v_mixed) AS d;
 
+  -- (2026-10-07 보완) 기사 -> 협력사 보고 기록 · 원청 송금 줄
+  v_cdate := (v_task.completed_at AT TIME ZONE 'Asia/Seoul')::date;
+  IF v_sub IS NOT NULL AND v_eng IS NOT NULL AND v_cdate IS NOT NULL THEN
+    -- 이 작업을 빼고도 "보고 이전에 완료한" 작업이 남는 기록은 지우지 않는다
+    SELECT COALESCE(array_agg(m.id), ARRAY[]::uuid[]) INTO v_srem
+      FROM subcontractor_staff_remits m
+     WHERE m.subcontractor_id = v_sub AND m.engineer_id = v_eng AND m.settle_date = v_cdate AND m.carried_to IS NULL
+       AND NOT EXISTS (SELECT 1 FROM tasks t
+                        WHERE t.id <> v_id AND t.subcontractor_id = v_sub AND t.assigned_engineer_id = v_eng
+                          AND t.status = '완료' AND (t.completed_at AT TIME ZONE 'Asia/Seoul')::date = v_cdate
+                          AND t.completed_at <= m.reported_at);
+    SELECT v_srem || COALESCE(array_agg(c.id), ARRAY[]::uuid[]) INTO v_srem
+      FROM subcontractor_staff_remits c
+     WHERE c.subcontractor_id = v_sub AND c.engineer_id = v_eng AND c.carried_to = v_cdate
+       AND COALESCE(array_length(v_srem, 1), 0) > 0;
+    INSERT INTO _out
+    SELECT CASE WHEN m.id = ANY (v_srem) THEN '3 정산' ELSE '4 주의' END,
+           CASE WHEN m.id = ANY (v_srem) THEN '기사 보고 기록 (삭제)' ELSE '기사 보고 기록 - 같은 날짜에 다른 작업이 있어 그대로 둠' END,
+           m.settle_date, m.amount,
+           CASE WHEN m.received_at IS NOT NULL THEN '받음' ELSE '보냄' END
+             || CASE WHEN m.id = ANY (v_srem) THEN '' ELSE ' · 이 작업 몫만큼 차액이 생깁니다. 정리 뒤 기사 정산 화면을 확인해 주세요.' END
+      FROM subcontractor_staff_remits m
+     WHERE m.subcontractor_id = v_sub AND m.engineer_id = v_eng AND (m.settle_date = v_cdate OR m.carried_to = v_cdate);
+  END IF;
+  SELECT COALESCE(array_agg(DISTINCT pl.remit_id), ARRAY[]::uuid[]) INTO v_prem
+    FROM principal_remit_lines pl WHERE pl.task_id = v_id;
+  INSERT INTO _out
+  SELECT CASE WHEN pr.paid_at IS NOT NULL THEN '4 주의' ELSE '3 정산' END,
+         CASE WHEN pr.paid_at IS NOT NULL THEN '원청 송금 줄 - 이미 송금 완료 (정리하면 멈춥니다)' ELSE '원청 송금 줄 (이 작업 몫을 빼고 다시 맞춤)' END,
+         pr.settle_date, pr.amount,
+         '이 작업 몫 ' || COALESCE((SELECT SUM(pl.delta) FROM principal_remit_lines pl WHERE pl.remit_id = pr.id AND pl.task_id = v_id), 0)
+    FROM principal_remits pr WHERE pr.id = ANY (v_prem);
+
   -- (b) 교육용 · 시험용인지
   IF NOT (COALESCE(v_task.customer_name, '') ~ '(교육|테스트|시험)' OR v_phone = '01000000000') THEN
     INSERT INTO _out VALUES ('4 주의', '실작업일 수 있음', NULL, NULL,
@@ -155,6 +199,13 @@ BEGIN
    WHERE l.task_id = v_id AND l.subcontractor_id IS DISTINCT FROM v_sub;
   IF v_bad IS NOT NULL THEN
     RAISE EXCEPTION '이 작업의 정산 줄이 다른 협력사에 걸려 있습니다: %. 아무것도 지우지 않고 중단합니다.', v_bad;
+  END IF;
+
+  -- (d) 이 작업이 이미 "송금 완료" 한 원청 송금 줄에 들어 있으면 중단
+  SELECT string_agg(to_char(pr.settle_date, 'MM/DD'), ', ') INTO v_bad
+    FROM principal_remits pr WHERE pr.id = ANY (v_prem) AND pr.paid_at IS NOT NULL;
+  IF v_bad IS NOT NULL THEN
+    RAISE EXCEPTION '이 작업이 원청 송금 완료 줄(%)에 들어 있습니다. 협력사 수수료 화면에서 [되돌리기] 한 뒤 다시 실행해 주세요. 아무것도 지우지 않았습니다.', v_bad;
   END IF;
 
   -- ── 복사해 두기 ──
@@ -232,6 +283,27 @@ BEGIN
   -- 결제 행이 지워지면서 조정 줄이 새로 생겼다면 그것도 없앤다
   DELETE FROM subcontractor_settlement_lines WHERE task_id = v_id;
 
+  -- (2026-10-07 보완) 기사 보고 기록: 가리키던 작업이 하나도 남지 않은 것만 지운다 (복사본을 먼저 남긴다)
+  IF COALESCE(array_length(v_srem, 1), 0) > 0 THEN
+    EXECUTE format('CREATE TABLE IF NOT EXISTS %I AS SELECT * FROM subcontractor_staff_remits WHERE false', v_tag || 'subcontractor_staff_remits');
+    EXECUTE format('INSERT INTO %I SELECT * FROM subcontractor_staff_remits WHERE id = ANY ($1)', v_tag || 'subcontractor_staff_remits') USING v_srem;
+    EXECUTE format('ALTER TABLE %I ENABLE ROW LEVEL SECURITY', v_tag || 'subcontractor_staff_remits');
+    EXECUTE format('REVOKE ALL ON TABLE %I FROM anon, authenticated', v_tag || 'subcontractor_staff_remits');
+    DELETE FROM subcontractor_staff_remits WHERE id = ANY (v_srem);
+    GET DIAGNOSTICS n_srem = ROW_COUNT;
+  END IF;
+
+  -- (2026-10-07 보완) 원청 송금 줄: 이 작업의 줄은 작업과 함께 지워졌다 → 금액을 남은 줄로 다시 맞추고, 빈 줄은 지운다
+  IF COALESCE(array_length(v_prem, 1), 0) > 0 THEN
+    UPDATE principal_remits pr
+       SET amount = COALESCE((SELECT SUM(pl.delta) FROM principal_remit_lines pl WHERE pl.remit_id = pr.id), 0)::int + pr.carried_in
+     WHERE pr.id = ANY (v_prem) AND pr.paid_at IS NULL;
+    DELETE FROM principal_remits pr
+     WHERE pr.id = ANY (v_prem) AND pr.paid_at IS NULL AND pr.carried_in = 0
+       AND NOT EXISTS (SELECT 1 FROM principal_remit_lines pl WHERE pl.remit_id = pr.id);
+    GET DIAGNOSTICS n_prem = ROW_COUNT;
+  END IF;
+
   -- ── 섞인 날짜: 잠긴 정산 일자의 계산 값을 남은 줄로 다시 맞춘다 ──
   IF v_sub IS NOT NULL AND COALESCE(array_length(v_mixed, 1), 0) > 0 THEN
     UPDATE subcontractor_daily_settlements s
@@ -251,6 +323,8 @@ BEGIN
     ('9 확인', '지운 처리 기록',   NULL, n_event, NULL),
     ('9 확인', '지운 기사 보고',   NULL, n_remit, NULL),
     ('9 확인', '지운 가계부 줄',   NULL, n_cash,  NULL),
+    ('9 확인', '지운 기사 보고 (작업 단위)', NULL, n_srem, NULL),
+    ('9 확인', '지운 원청 송금 줄 (빈 줄)',  NULL, n_prem, '줄이 남은 원청 송금 줄은 금액만 다시 맞춤'),
     ('9 확인', '남은 작업 (이 번호)', NULL, (SELECT COUNT(*)::int FROM tasks WHERE task_no = v_no), '기대 0'),
     ('9 확인', '남은 정산 줄 (이 작업)', NULL, (SELECT COUNT(*)::int FROM subcontractor_settlement_lines WHERE task_id = v_id), '기대 0');
   IF v_sub IS NOT NULL THEN
