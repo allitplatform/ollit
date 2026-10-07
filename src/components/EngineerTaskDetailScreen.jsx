@@ -1,6 +1,8 @@
 import { subStaffSetReceived, engineerSetHoodVat } from "../lib/subcontractorsDb.js";
 import { getCategoryMetaOfRow } from "../lib/serviceCatalog.js";
-import { isRelocationTask, chooseRouteAddress } from "../utils/relocation.js";
+import { isRelocationTask, chooseRouteAddress, sortRelocationOrder } from "../utils/relocation.js";
+import { workItemName } from "../utils/workItemName.js";
+import { ItemChipsHeader } from "./common/ItemChipsHeader.jsx";
 // V13-FINAL — 기사 PWA 작업 상세 (3 상태 + 부분 취소 + 일정 변경 + 출장비만)
 // V14 — 사진 분류 X / 완료 분기 3가지 (완료 / 부분 / 출장비만)
 // 진입: 오늘 화면 / 새 배정 리스트 / 다음 일정
@@ -170,7 +172,8 @@ function getTaskItems(task, itemEngineerAmounts = {}) {
     const distRatio = (sumSubtotal > 0 && engineerAmount > 0)
       ? (engineerAmount / sumSubtotal)
       : (_isHoodTask ? 0.65 : 0.6);
-    return task.workItems.map((wi, i) => {
+    // 2026-10-07 — 이전설치는 철거 → 이전설치 순서로. 이름은 공용 규칙(workItemName): 기종 → 설명(철거 · 이전설치) → 작업 이름.
+    return sortRelocationOrder(task.workItems).map((wi, i) => {
       const isCanceled = !!(wi.isCanceled ?? wi.is_canceled);
       const subtotal = Number(wi.subtotal || wi.unitPrice || wi.unit_price || 0) * (wi.subtotal ? 1 : (wi.qty || 1));
       // 1순위 — RPC 결과 (task_item.id 매칭)
@@ -187,7 +190,7 @@ function getTaskItems(task, itemEngineerAmounts = {}) {
               : Math.floor(subtotal * distRatio));
       return {
         id: `${task.id}-${i}`,
-        name: wi.appliance || wi.workType || "",
+        name: workItemName(wi, "") || wi.workType || "",
         qty: wi.qty || 1,
         price: engPrice,
         serviceType: { workType: wi.workType || task.workType },
@@ -1741,20 +1744,49 @@ function WorkMainCard({ task, itemEngineerAmounts = {} }) {
           borderTop: `0.5px solid ${dividerColor}`,
           paddingTop: 11, marginBottom: 11,
         }}>
-          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-            {items.map((item, idx) => (
-              <WorkItemRow
-                key={item.id}
-                workType={(item.serviceType || task).workType}
-                appliance={item.name}
-                qty={item.qty}
-                price={item.price}
-                client={task.client}
-                dividerTop={idx > 0}
-                isCanceled={item.isCanceled}
-              />
-            ))}
-          </div>
+          {/* 2026-10-07 — 항목 옆에는 기사 몫을 적지 않는다 (고객에게 받을 돈과 헷갈림).
+                항목 2개 이상: 종목 한 줄 + 칩 + 오른쪽 고객 견적 (새 배정 상세와 같은 부품)
+                항목 1개: 항목 한 줄 + 오른쪽 고객 견적.  기사 몫은 아래 작은 줄 "내 몫 예상" 으로만.
+                유솔N 은 항목별 정산금이 필요해 예전 모양 (금액 위에 "내 정산금" 이라고 적는다). */}
+          {(() => {
+            const isUsolN = task.principalCode === "usol_n" || task.principalId === "usol_n";
+            const rows = (label, priceOf) => (
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {items.map((item, idx) => (
+                  <WorkItemRow
+                    key={item.id}
+                    workType={(item.serviceType || task).workType}
+                    appliance={item.name}
+                    qty={item.qty}
+                    price={priceOf(item, idx)}
+                    priceLabel={priceOf(item, idx) != null ? label : null}
+                    client={task.client}
+                    dividerTop={idx > 0}
+                    isCanceled={item.isCanceled}
+                  />
+                ))}
+              </div>
+            );
+            if (isUsolN) return rows("내 정산금", (item) => item.price);
+            const est = Number(task.estimateTotal || 0);
+            const kind = getServiceKind(task);
+            const quoteBelow = kind === "refrigerant" || kind === "leak";   // 냉매 · 누설은 아래 "고객 견적금액" 줄이 따로 있다
+            const liveWi = sortRelocationOrder((task.workItems || []).filter(w => !(w.isCanceled ?? w.is_canceled)));
+            const myShare = items.reduce((s, i) => s + (i.isCanceled ? 0 : (Number(i.price) || 0)), 0);
+            const pct = est > 0 && myShare > 0 ? Math.round((myShare / est) * 100) : 0;
+            return (
+              <>
+                {liveWi.length >= 2
+                  ? <ItemChipsHeader task={task} liveItems={liveWi} showQuote={!quoteBelow}/>
+                  : rows("고객 견적", (item, idx) => (idx === 0 && !quoteBelow && est > 0 && !item.isCanceled ? est : null))}
+                {myShare > 0 && (
+                  <div style={{ marginTop: 8, fontSize: 12, fontWeight: 600, color: "var(--text-tertiary)" }}>
+                    내 몫 예상 {myShare.toLocaleString("ko-KR")}원{pct > 0 && pct <= 100 ? ` (${pct}%)` : ""}
+                  </div>
+                )}
+              </>
+            );
+          })()}
         </div>
       )}
 
@@ -2050,6 +2082,7 @@ function TaskItemsList({ task, itemEngineerAmounts = {} }) {
             appliance={item.name}
             qty={item.qty}
             price={item.price}
+            priceLabel={item.price != null ? ((task.principalCode === "usol_n" || task.principalId === "usol_n") ? "내 정산금" : "내 몫") : null}
             client={task.client}
             dividerTop={idx > 0}
             isCanceled={item.isCanceled}
@@ -2602,7 +2635,9 @@ function ReceivedTotalInput({ value, onChange, onAdd, baseAmount = 0 }) {
     </div>
   );
 }
-function PerItemReceivedCards({ items = [], receivedById = {}, onItemChange, onAddToItem }) {
+function PerItemReceivedCards({ items: rawItems = [], receivedById = {}, onItemChange, onAddToItem }) {
+  // 2026-10-07 — 이전설치는 철거 → 이전설치 순서. 이름은 공용 규칙 (전에는 두 칸 모두 "설치 설치" 로 나왔다)
+  const items = sortRelocationOrder(rawItems);
   const nonCanceled = items.filter(it => !it.isCanceled);
   // 합계 (canceled 제외 — 입력란도 0 강제)
   const sumReceived = nonCanceled.reduce((s, it) => {
@@ -2612,7 +2647,7 @@ function PerItemReceivedCards({ items = [], receivedById = {}, onItemChange, onA
   const breakdown = nonCanceled.map(it => {
     const v  = parseInt(receivedById[it.id] || "0", 10) || 0;
     const wt = getWorkTypeColors(it.workType);
-    return `${wt.name} ${v.toLocaleString("ko-KR")}`;
+    return `${workItemName(it, wt.name)} ${v.toLocaleString("ko-KR")}`;
   }).join(' + ');
 
   return (
@@ -2632,7 +2667,9 @@ function PerItemReceivedCards({ items = [], receivedById = {}, onItemChange, onA
         const receivedNum = parseInt(value || "0", 10) || 0;
         const autoExtra = Math.max(receivedNum - subtotal, 0);
         const isCanceled = !!it.isCanceled;
-        const applianceLabel = it.appliance || colors.name;
+        const applianceLabel = workItemName(it, colors.name);
+        // 종류 이름(세척 · 설치 …)은 기종이 따로 있을 때만 앞에 적는다 ("세척 벽걸이"). 기종이 없으면 이름 하나만 ("철거").
+        const showKind = !!(it.appliance && it.appliance !== "(공통)") && applianceLabel !== colors.name;
 
         return (
           <div key={it.id} style={{
@@ -2650,10 +2687,10 @@ function PerItemReceivedCards({ items = [], receivedById = {}, onItemChange, onA
               flexWrap: "wrap",
             }}>
               <span style={{ fontSize: 18, filter: isCanceled ? "grayscale(1)" : "none" }}>{colors.icon}</span>
-              <span style={{
+              {showKind && <span style={{
                 fontSize: 13, fontWeight: 800,
                 color: isCanceled ? "#9CA3AF" : colors.main,
-              }}>{colors.name}</span>
+              }}>{colors.name}</span>}
               <span style={{
                 fontSize: 13, fontWeight: 700,
                 color: isCanceled ? "#9CA3AF" : "var(--text-primary)",
@@ -2704,23 +2741,16 @@ function PerItemReceivedCards({ items = [], receivedById = {}, onItemChange, onA
                 }}>
                   받은 돈
                 </div>
-                <input
-                  type="number"
-                  inputMode="numeric"
+                {/* 2026-10-07 — 기본 숫자 입력칸 → 받은 돈 전용 키패드 (받은 돈 1칸 화면 · 부분 완료 화면과 같은 것).
+                      아이폰에서 이 칸의 숫자가 고쳐지지 않는다는 제보. 이 화면만 기본 입력칸을 쓰고 있었다. */}
+                <MoneyPadInput
                   value={value}
-                  placeholder={String(subtotal)}
-                  onChange={(e) => onItemChange && onItemChange(it.id, e.target.value)}
-                  style={{
-                    width: "100%", padding: 10,
-                    background: "var(--card-bg)",
-                    border: `1px solid ${colors.main}`,
-                    borderRadius: 8,
-                    color: "var(--text-primary)",
-                    fontSize: 15, boxSizing: "border-box",
-                    outline: "none", marginBottom: 8,
-                    fontFamily: "inherit",
-                    fontWeight: 700,
-                  }}
+                  onChange={(v) => onItemChange && onItemChange(it.id, v)}
+                  quoteAmount={Number(subtotal || 0)}
+                  placeholder={`견적 ₩${Number(subtotal || 0).toLocaleString("ko-KR")}`}
+                  accentColor={colors.main}
+                  label={`받은 돈 — ${applianceLabel}`}
+                  style={{ marginBottom: 8, padding: "12px 12px", fontSize: 16 }}
                 />
 
                 {/* 빠른 입력 — row 측 받은 돈에 더하기 */}

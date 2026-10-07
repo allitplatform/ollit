@@ -145,3 +145,11 @@ export function chooseRouteAddress(task) {
     document.body.appendChild(wrap);
   });
 }
+
+// 2026-10-07 — 이전설치 작업의 항목 순서: 철거 → 이전설치 (다른 항목 · 다른 작업은 원래 순서 그대로).
+export function sortRelocationOrder(items) {
+  const list = Array.isArray(items) ? items : [];
+  if (!list.some(it => _isInstallSvc(it) && _txt(it).includes(RELOC_INSTALL))) return list;
+  const rank = (it) => (_isInstallSvc(it) && _txt(it).includes(RELOC_INSTALL) ? 1 : 0);
+  return list.map((it, i) => [it, i]).sort((a, b) => (rank(a[0]) - rank(b[0])) || (a[1] - b[1])).map(x => x[0]);
+}

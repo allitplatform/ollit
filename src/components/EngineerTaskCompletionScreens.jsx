@@ -8,6 +8,8 @@ import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 import { VISIT_FEE, VISIT_REASONS } from "../data/visitFee.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
+import { workItemName } from "../utils/workItemName.js";
+import { sortRelocationOrder } from "../utils/relocation.js";
 import { calculateCommissionMultiRpc, PRINCIPAL_NAME_TO_CODE } from "../lib/commissionPoliciesDb.js";
 import { supabase } from "../lib/supabase.js";
 // 2026-07-28 (Mig 198/199) — 설치 자재비 저장 RPC 어댑터
@@ -220,7 +222,9 @@ function PartialReceivedSummary({ baseAmount = 0, origAmount = 0, receivedTotal 
 //     · 받은 돈 입력 (살아있는 row 측만) + 빠른 입력 + 자동 추가금 (초록 #0F6E56)
 //     · 취소 카드 (act=0 또는 wi.isCanceled): 회색 + grayscale + "받은 돈 ₩0"
 //   하단 합계 카드: 핑크 #D4537E + 분해 표시.
-function PartialPerItemCards({ items = [], actualQtyById = {}, onItemQtyChange, receivedById = {}, onReceivedChange, onAddToItem }) {
+function PartialPerItemCards({ items: rawItems = [], actualQtyById = {}, onItemQtyChange, receivedById = {}, onReceivedChange, onAddToItem }) {
+  // 2026-10-07 — 이전설치는 철거 → 이전설치 순서, 이름은 공용 규칙(workItemName)
+  const items = sortRelocationOrder(rawItems);
   // 합계 (canceled / act=0 제외)
   const sumReceived = items.reduce((s, it) => {
     const act = Number(actualQtyById[it.id] ?? it.qty) || 0;
@@ -236,7 +240,7 @@ function PartialPerItemCards({ items = [], actualQtyById = {}, onItemQtyChange, 
     .map(it => {
       const v  = parseInt(receivedById[it.id] || "0", 10) || 0;
       const wt = getWorkTypeColors(it.workType);
-      return `${wt.name} ${v.toLocaleString("ko-KR")}`;
+      return `${workItemName(it, wt.name)} ${v.toLocaleString("ko-KR")}`;
     })
     .join(' + ');
 
@@ -266,7 +270,8 @@ function PartialPerItemCards({ items = [], actualQtyById = {}, onItemQtyChange, 
         const value     = receivedById[it.id] != null ? receivedById[it.id] : "";
         const receivedNum = parseInt(value || "0", 10) || 0;
         const autoExtra = Math.max(receivedNum - subtotal, 0);
-        const applianceLabel = it.appliance || colors.name;
+        const applianceLabel = workItemName(it, colors.name);
+        const showKind = !!(it.appliance && it.appliance !== "(공통)") && applianceLabel !== colors.name;
         const orderTypeLabel = it.orderType || it.order_type || "";
 
         return (
@@ -285,10 +290,10 @@ function PartialPerItemCards({ items = [], actualQtyById = {}, onItemQtyChange, 
               flexWrap: "wrap",
             }}>
               <span style={{ fontSize: 18, filter: cancelled ? "grayscale(1)" : "none" }}>{colors.icon}</span>
-              <span style={{
+              {showKind && <span style={{
                 fontSize: 13, fontWeight: 800,
                 color: cancelled ? "#9CA3AF" : colors.main,
-              }}>{colors.name}</span>
+              }}>{colors.name}</span>}
               <span style={{
                 fontSize: 13, fontWeight: 700,
                 color: cancelled ? "#9CA3AF" : "var(--text-primary)",
@@ -1398,7 +1403,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
       const ord = Number(wi.qty) || 0;
       const act = Number(actualQtyById[wi.id] ?? wi.qty) || 0;
       if (act < ord) cancelCount += (ord - act);
-      const name = wi.appliance || wi.workType || wi.workItem || "항목";
+      const name = workItemName(wi, "") || wi.workItem || "항목";
       if (act !== ord) lines.push(`${name} 주문${ord}→실제${act}`);
     }
     const head = lines.length ? `부분완료 — ${lines.join(", ")}` : "부분완료";
@@ -1492,7 +1497,7 @@ export function TaskPartialScreen({ task, photos = [], onBack, onConfirm }) {
           const ord = Number(wi.qty) || 0;
           const act = Number(actualQtyById[wi.id] ?? wi.qty) || 0;
           const cancelled = act === 0;
-          const name = wi.appliance || wi.workType || wi.workItem || "항목";
+          const name = workItemName(wi, "") || wi.workItem || "항목";
           const orderTypeLabel = wi.orderType || wi.order_type || "";
           const colors = getWorkTypeColors(wi.workType);
           return (
