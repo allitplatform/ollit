@@ -124,7 +124,8 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
     const rows = [];
     for (let d = 1; d <= days; d++) {
       const ymd = `${y}-${String(m).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      const r = computeRevenueByYmRange(apiTasks, ymd, ymd, user);
+      // 2026-10-07 — 위 4카드와 같은 기준(revenueView): 협력사 받은 공급가 포함 · 부가세 제외
+      const r = revenueView(computeRevenueByYmRange(apiTasks, ymd, ymd, user));
       rows.push({ ymd, day: d, total: r.total || 0, count: r.count || 0, owner: r.owner || 0 });
     }
     return rows;
@@ -395,6 +396,13 @@ export default function AdminPcRevenueReport({ t, apiTasks = [], user }) {
           </div>
         </div>
 
+        {/* 2026-10-07 — 부가세 포함으로 받은 작업 (가계부에는 직접 적는다 — 빠뜨리지 않게 여기 한 줄로 보여 준다) */}
+        {monthView.vatCount > 0 && (
+          <div style={{ fontSize: 13, color: t.textSecondary, margin: "0 0 12px", padding: "9px 12px", borderRadius: 10, border: `1px dashed ${t.border}` }}>
+            🧾 이 달 부가세 포함으로 받은 작업 <b style={{ color: t.text }}>{monthView.vatCount}건</b> · 부가세 합계 <b style={{ color: t.text }}>₩{monthView.vat.toLocaleString("ko-KR")}</b>
+            <span style={{ color: t.textMuted }}> — 거래액 · 마진 · 정산에 넣지 않은 금액입니다. 가계부에는 직접 적어 주세요.</span>
+          </div>
+        )}
         {/* 월 4카드 */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 18 }}>
           <BigCard t={t} label="월 총 거래액" amount={monthView.total}     color={t.text}           emphasis="mid"/>

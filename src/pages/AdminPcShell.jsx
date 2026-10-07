@@ -49,6 +49,8 @@ export function AdminPcShell({ t, pcCtx, asideNode, children }) {
         }}>
           <CloseButton onClose={onClose}/>
           {asideNode}
+          {/* 2026-10-07 — 맨 아래 카드가 잘리지 않게 여백 (화면 높이가 작은 노트북 포함) */}
+          <div aria-hidden="true" style={{ height: 160 }}/>
         </aside>
       )}
 
@@ -75,6 +77,8 @@ export function AdminPcShell({ t, pcCtx, asideNode, children }) {
           }}>
             <CloseButton onClose={onClose}/>
             {asideNode}
+            {/* 2026-10-07 — 맨 아래 카드가 잘리지 않게 여백 (화면 높이가 작은 노트북 포함) */}
+            <div aria-hidden="true" style={{ height: 160 }}/>
           </aside>
         </>
       )}

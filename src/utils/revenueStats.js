@@ -66,7 +66,7 @@ const _FIXED_CODES = new Set(["cleaning", "refrigerant", "install", "leak"]);
 const _FIXED_META_KEYS = new Set(["aircon", "etc", "unknown", "refrigerant", "install", "leak"]);
 function _extras(apiTasks, startYmd, endYmd) {
   const cats = {};
-  let subKeep = 0, subSupply = 0, directExtra = 0, vat = 0;
+  let subKeep = 0, subSupply = 0, directExtra = 0, vat = 0, vatCount = 0;
   const add = (meta, amt, owner) => {
     const c = cats[meta.key] || (cats[meta.key] = { key: meta.key, label: meta.label, icon: meta.icon, color: meta.color, total: 0, count: 0, owner: 0 });
     c.total += amt; c.count += 1; c.owner += owner;
@@ -98,8 +98,9 @@ function _extras(apiTasks, startYmd, endYmd) {
     add(meta, amt - v, Number(t.owner_amount || 0) - share);
     directExtra += amt;        // "기타" 칸에 들어 있던 금액(부가세 포함)을 그대로 뺀다
     vat += v;
+    if (v > 0) vatCount += 1;
   }
-  return { cats, subKeep, subSupply, directExtra, vat };
+  return { cats, subKeep, subSupply, directExtra, vat, vatCount };
 }
 
 // 집계 결과 → 매출 현황 화면에 그릴 값. 종목 줄은 기준표 순서, 0원은 뺀다.
@@ -131,6 +132,7 @@ export function revenueView(rev) {
   return {
     total,
     vat,
+    vatCount: Number(x.vatCount) || 0,
     count: (Number(r.count) || 0) + (Number(r.subCount) || 0),
     engineer: Number(r.engineer) || 0,
     subKeep: x.subKeep,
@@ -340,6 +342,28 @@ export function getTasksByYmRange(apiTasks, startYmd, endYmd, user) {
   if (!canSeeField(user, "task.total_amount")) return [];
   if (!startYmd || !endYmd) return [];
   return _filterTrackADoneInRange(apiTasks, startYmd, endYmd);
+}
+
+// 2026-10-07 — 매출 상세 "작업별" 에 같이 넣는 협력사 작업 줄 (완료 + track S + 완료일이 기간 안).
+//   화면의 칸에 맞춰 값을 옮겨 담는다: 총액 = 받은 공급가 / 기사 칸 = 협력사 정산(공급가 − 수수료) / 회사 칸 = 수수료.
+//   원청 몫은 sub_principal_share 그대로 → 화면이 "수수료 − 원청 몫" 으로 회사 몫을 낸다 (대시보드와 같은 기준).
+export function getSubTasksByYmRange(apiTasks, startYmd, endYmd, user) {
+  if (!canSeeField(user, "task.total_amount")) return [];
+  if (!startYmd || !endYmd) return [];
+  const out = [];
+  for (const t of (apiTasks || [])) {
+    if (!t || t.status !== "완료") continue;
+    const track = t.track || t.payment?.track;
+    if (track !== "S") continue;
+    const completed = t.completedAt || t.completed_at;
+    if (!completed) continue;
+    const ymd = toKstYmd(completed);
+    if (!ymd || ymd < startYmd || ymd > endYmd) continue;
+    const supply = Number(t.supplyAmount ?? t.supply_amount ?? 0) || Number(t.receivedTotal ?? t.received_total ?? 0) || 0;
+    const fee = Number(t.owner_amount || 0);
+    out.push({ ...t, _subRow: true, totalAmount: supply, engineer_amount: Math.max(0, supply - fee), owner_amount: fee, principal_amount: 0 });
+  }
+  return out;
 }
 
 // 2026-06-26 — 특정 기사 + 기간 작업 리스트.

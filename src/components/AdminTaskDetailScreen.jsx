@@ -3,7 +3,7 @@
 // + ExceptionActions (접힘: 출장비 / 수동완료 / 취소)
 // 메인 "완료" 버튼 X (기사가 완료 처리 → 자동 업데이트)
 
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { ArrowLeft } from "lucide-react";
 // 2026-06-06 — 기본 정보 편집 (5 필드 — update_task_basic RPC, Mig 099).
 import { TaskBasicEditScreen } from "./TaskBasicEditScreen.jsx";
@@ -1056,6 +1056,12 @@ function D2LabelRow({ label, value, mono, wrap, highlight }) {
 //     (운영자가 협력사 직원을 직접 배정해도 수행처는 자동으로 그 협력사가 된다 — Mig 213)
 //   · 협력사 작업: [직영으로 회수].
 //   등록된 협력사가 없으면 카드 자체를 그리지 않는다.
+// 2026-10-07 Mig 257·258 — 직영 주방후드를 부가세 포함으로 받았을 때의 부가세 (받은 금액 − 받은 금액 ÷ 1.1)
+function _vatOfTask(task) {
+  if (!task || task.vatIncluded !== true || task.subcontractorId) return 0;
+  const got = Number(task.receivedTotal ?? task.totalAmount ?? 0) || 0;
+  return got > 0 ? Math.max(0, got - Math.round(got / 1.1)) : 0;
+}
 function SubcontractorCard({ task, onChanged }) {
   const idx = useSubcontractorIndex();
   const allSubs = [...idx.names.values()].filter(s => s.active !== false);
@@ -1295,6 +1301,7 @@ function SettlementInfoCard({ task }) {
                   </div>
                   {engineerAmt  > 0 && <SettlementRow label="기사 분배" value={engineerAmt}  color="#06B6D4"/>}
                   {ownerAmt     > 0 && <SettlementRow label="회사 수익" value={ownerAmt}     color="#1D9E75"/>}
+                  {_vatOfTask(task) > 0 && <SettlementRow label="부가세 (따로 받은 금액 · 어느 몫에도 넣지 않음)" value={_vatOfTask(task)} color="#9CA3AF"/>}
                   {principalAmt > 0 && <SettlementRow label="원청 수수료" value={principalAmt} color="#A855F7"/>}
                 </>
               )}
@@ -1351,6 +1358,7 @@ function SettlementInfoCard({ task }) {
                 )}
                 {engShow      > 0 && <SettlementRow label="기사 분배" value={engShow}      color="#06B6D4"/>}
                 {ownShow      > 0 && <SettlementRow label="회사 수익" value={ownShow}      color="#1D9E75"/>}
+                {_vatOfTask(task) > 0 && <SettlementRow label="부가세 (따로 받은 금액 · 어느 몫에도 넣지 않음)" value={_vatOfTask(task)} color="#9CA3AF"/>}
                 {principalAmt > 0 && <SettlementRow label="원청 수수료" value={principalAmt} color="#A855F7"/>}
               </>
             )}
@@ -1519,6 +1527,7 @@ function TaskItemsCard({ task, user, onReload }) {
     return init;
   });
   const [saving, setSaving] = useState({});
+  const lastDbReceived = useRef({});       // 항목 id → 직전에 읽은 서버의 받은 돈 값 (글자)
 
   // task.workItems 측 외부 변경 (refetch) 시 sync — 사용자 입력 중이 아닌 row 측만 갱신
   useEffect(() => {
@@ -1530,7 +1539,10 @@ function TaskItemsCard({ task, user, onReload }) {
         const dbValue = it.isCanceled ? "0"
           : (it.receivedAmount != null ? String(it.receivedAmount) : "");
         // 기존 입력값과 DB 값이 다르면서 사용자 입력 흔적 없음 측 fresh init
-        if (next[it.id] == null) next[it.id] = dbValue;
+        // 2026-10-07 — 화면 값이 "직전에 읽은 서버 값" 그대로면(사람이 고치지 않았으면) 새 서버 값을 따라간다.
+        //   (항목 금액을 고친 뒤 받은 돈 칸이 옛 금액으로 남던 문제)
+        if (next[it.id] == null || next[it.id] === lastDbReceived.current[it.id]) next[it.id] = dbValue;
+        lastDbReceived.current[it.id] = dbValue;
       }
       return next;
     });

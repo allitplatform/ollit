@@ -26,6 +26,7 @@ import { isEffectivelyCanceled } from "../utils/taskCancelState.js";
 import { isPureVisitOnly, isAllItemsVisit } from "../utils/visitFeeDetect.js";
 import { TimelineDatePicker } from "../components/TimelineDatePicker.jsx";
 import { relocationLine } from "../utils/relocation.js";
+import { listEngineerSkillsFromDb } from "../lib/engineerSkillsDb.js";
 import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
 import { adminRescheduleTask, adminReassignTask, clearReassignRequest } from "../lib/adminTaskRpc.js";
 import { supabase } from "../lib/supabase.js";
@@ -236,6 +237,27 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
 
   // 협력사가 맡는 종목 (미배정 카드의 "○○로 넘기기") — 종목 code → [협력사 id]
   const [subCats, setSubCats] = useState(() => new Map());
+  // 2026-10-07 — 기사별 기술 (기사 코드 → "세척·냉매"). 못 읽으면 빈 표 → 전처럼 지역 · 건수만.
+  const [skillsByCode, setSkillsByCode] = useState(() => new Map());
+  useEffect(() => {
+    let alive = true;
+    listEngineerSkillsFromDb().then(res => {
+      if (!alive || !res || !res.ok) return;
+      const m = new Map();
+      for (const sk of (res.skills || [])) {
+        const code = String(sk.engineerId || "");
+        const name = String(sk.workType || "").replace("냉매충전", "냉매").replace(/_.*$/, "");
+        if (!code || !name) continue;
+        const set = m.get(code) || new Set();
+        set.add(name);
+        m.set(code, set);
+      }
+      const out = new Map();
+      for (const [code, set] of m) out.set(code, [...set].slice(0, 4).join("·"));
+      setSkillsByCode(out);
+    }).catch(() => {});
+    return () => { alive = false; };
+  }, []);
   useEffect(() => {
     let alive = true;
     listSubcontractorCategories().then(res => {
@@ -356,6 +378,8 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
             firstTask && firstTask.assignedEngineerId, firstTask && firstTask.assigned_engineer_id),
           engineerCode: (eng && (eng.engineerId || eng.id)) || (eid && !UUID_RE.test(eid) ? eid : null),
           region: (eng && eng.region) || "",
+          // 2026-10-07 — 기사 줄 아래에 기술 표시 ("설치 · 서울 · 1건")
+          skillLabel: skillsByCode.get(String((eng && (eng.engineerId || eng.id)) || "")) || "",
           active: eng ? eng.active !== false : true,
           subId,
           groupKey: subId ? `sub:${subId}` : "direct",
@@ -425,7 +449,7 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     }
     const glist = [...gmap.values()].sort((a, b) => (a.subId ? 1 : 0) - (b.subId ? 1 : 0) || a.label.localeCompare(b.label, "ko"));
     return { groups: glist, allLanes: lanes };
-  }, [todayTasks, apiTasks, apiEngineers, subIdx, regionFilter, affFilter, sortMode, offsByLaneName, matchCat]);
+  }, [todayTasks, apiTasks, apiEngineers, subIdx, regionFilter, affFilter, sortMode, offsByLaneName, matchCat, skillsByCode]);
 
   const laneCount = allLanes.length;
   const busyCount = allLanes.filter(l => l.tasks.length > 0).length;

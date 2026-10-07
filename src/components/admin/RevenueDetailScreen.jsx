@@ -16,6 +16,7 @@ import {
   computeRevenueByEngineer,
   getMonthRange,
   getTasksByYmRange,
+  getSubTasksByYmRange,
 } from "../../utils/revenueStats.js";
 // 2026-07-20 — 5종 통일 (SERVICE_KIND_META). 옛 자체 3종 (cleaning/refrigerant/other) 폐기.
 import {
@@ -315,9 +316,10 @@ export function RevenueDetailScreen({ t, apiTasks = [], user, onBack, onTaskClic
   const [taskKind, setTaskKind] = useState("all"); // 'all' | 'cleaning' | 'refrigerant' | 'other'
 
   // 작업별 리스트 (필터 + 정렬). 합계 검산용.
-  const extraKinds = useMemo(() => extraKindsOf(getTasksByYmRange(apiTasks, startYmd, endYmd, user)), [apiTasks, startYmd, endYmd, user]);
+  const extraKinds = useMemo(() => extraKindsOf([...getTasksByYmRange(apiTasks, startYmd, endYmd, user), ...getSubTasksByYmRange(apiTasks, startYmd, endYmd, user)]), [apiTasks, startYmd, endYmd, user]);
   const { taskList, taskTotalRevenue, taskTotalOwner } = useMemo(() => {
-    const raw = getTasksByYmRange(apiTasks, startYmd, endYmd, user);
+    // 2026-10-07 — 협력사 작업 줄도 같이 (총액 = 받은 공급가). 대시보드 "총 거래액" 과 합계가 맞게.
+    const raw = [...getTasksByYmRange(apiTasks, startYmd, endYmd, user), ...getSubTasksByYmRange(apiTasks, startYmd, endYmd, user)];
     const filtered = taskKind === "all"
       ? raw
       : raw.filter(tk => kindOfTask(tk).key === taskKind);
