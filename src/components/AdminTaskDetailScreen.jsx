@@ -428,7 +428,15 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
                 {task.principalCode !== "usol_n" && (
                   <TaskItemsCard task={task} user={user} onReload={reloadTask} pc
                     onPartialCancel={() => setShowPartialCancelDialog(true)}
-                    footer={<PcMoneySplit task={task}/>}/>
+                    footer={<PcMoneySplit task={task} onEditMaterial={async () => {
+                      const cur = Number(task.materialCost || 0);
+                      const v = window.prompt("자재비(기사 선지출)를 숫자로 입력해 주세요. 없으면 0.", String(cur));
+                      if (v == null) return;
+                      const n = Math.max(0, Math.floor(Number(String(v).replace(/[^0-9]/g, "")) || 0));
+                      const res = await setMaterialCostAdapter(task.id, n);
+                      if (!res || !res.ok) { window.alert((res && res.error) || "자재비 저장 실패"); return; }
+                      reloadTask();
+                    }}/>}/>
                 )}
                 {task.principalCode === "usol_n" && (
                   <UsolNSettlementCycleCard taskId={task.id} paymentMethod={task.paymentMethod || task.payment_method || null}/>
@@ -436,7 +444,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
                 {/* 기존 "정산 정보" 카드 — 자재비 입력 · 계산 내역은 여기 그대로 (접어 둠) */}
                 {!task.subcontractorId && (
                   <details style={{ margin: `0 ${DETAIL_GUTTER}px 12px`, border: "1px solid var(--border)", borderRadius: 14, background: "var(--bg-elevated)" }}>
-                    <summary style={{ padding: "11px 16px", fontSize: 12.5, fontWeight: 800, color: "var(--text-secondary)", cursor: "pointer" }}>정산 자세히 · 자재비 입력 (펼치기)</summary>
+                    <summary style={{ padding: "11px 16px", fontSize: 12.5, fontWeight: 800, color: "var(--text-secondary)", cursor: "pointer" }}>정산 자세히 (계산 내역 펼치기)</summary>
                     <SettlementInfoCard task={task}/>
                   </details>
                 )}
@@ -875,7 +883,7 @@ function MainCard({ task, onStatusChange, pc = false, children = null }) {
           <div style={{ fontSize: 12, color: "var(--text-secondary)", marginBottom: 6, paddingRight: 90 }}>
             <span className="mono" style={{ fontWeight: 700 }}>{task.taskCode || task.taskNo || ""}</span>
             {(task.receivedAt || task.createdAt) ? ` · 접수 ${formatDateTimeKST(task.receivedAt || task.createdAt)}` : ""}
-            {task.channel ? ` · ${task.channel}` : ""}
+            {` · ${_channelLabel(task)}`}
           </div>
         )}
         {!isExternal && (
@@ -1164,6 +1172,15 @@ function D2LabelRow({ label, value, mono, wrap, highlight }) {
 //     (운영자가 협력사 직원을 직접 배정해도 수행처는 자동으로 그 협력사가 된다 — Mig 213)
 //   · 협력사 작업: [직영으로 회수].
 //   등록된 협력사가 없으면 카드 자체를 그리지 않는다.
+// 2026-10-07 — 접수 경로 글자: 운영자 접수 / 원청앱 · 원청명 / 홈페이지 / 그 밖(값 그대로)
+function _channelLabel(task) {
+  const ch = String(task?.channel || "").trim();
+  if (ch === "원청앱") return `원청앱${task.principal ? ` · ${task.principal}` : ""}`;
+  if (ch) return ch;
+  const note = String(task?.requestNote || task?.memo || "");
+  if (/^\[[^\]]*(랜딩|홈페이지)/.test(note)) return "홈페이지";
+  return "운영자 접수";
+}
 // 2026-10-07 Mig 257·258 — 직영 주방후드를 부가세 포함으로 받았을 때의 부가세 (받은 금액 − 받은 금액 ÷ 1.1)
 function _vatOfTask(task) {
   if (!task || task.vatIncluded !== true || task.subcontractorId) return 0;
@@ -1667,6 +1684,9 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
       const res = await apiSetItemReceived(itemId, newValue);
       if (!res || res.ok === false) {
         console.warn('[admin/TaskItemsCard] received_amount 저장 실패:', res?.error);
+      } else if (onReload) {
+        // 2026-10-07 — 저장 직후 작업을 다시 읽어 합계 · 비율 막대가 바로 바뀌게 한다 (전에는 새로고침해야 바뀜)
+        await onReload();
       }
     } catch (e) {
       console.warn('[admin/TaskItemsCard] received_amount 예외:', e?.message);
@@ -1682,13 +1702,17 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
   // 2026-10-07 — 운영자 PC 새 배치: 표 하나 (항목 | 견적 | 받은 돈) → 합계 → 아래 내용(footer).
   //   입력칸 · 저장(handleBlur) · 수정 · 추가 창은 위에서 쓰는 것과 똑같은 것이다. 모양만 다르다.
   if (pc) {
-    const grid = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 92px 118px auto", gap: 8, alignItems: "center" };
+    const grid = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 104px 118px auto", gap: 8, alignItems: "center" };
+    // 2026-10-07 — 완료 전(접수 · 미배정 · 배정 · 일정 확정)에는 받은 돈을 입력하지 않는다 (미리 받는 돈 없음). 진행부터 입력칸.
+    const beforeWork = ["미배정", "약속대기", "배정", "확정", "접수"].includes(String(task?.status || ""));
     const sumQuote = items.reduce((s, it) => s + (it.isCanceled || isVisitOnly ? 0 : (Number(it.subtotal) || (Number(it.unitPrice) || 0) * (Number(it.qty) || 1))), 0);
     return (
       <div style={{ padding: D1_OUTER_PAD }}>
         <div style={D1_CARD_STYLE}>
           <div style={{ ...grid, fontSize: 11.5, fontWeight: 700, color: "var(--text-tertiary)", paddingBottom: 6, borderBottom: "1px solid var(--border)" }}>
-            <span>항목</span><span style={{ textAlign: "right" }}>견적</span><span style={{ textAlign: "right" }}>받은 돈</span>
+            <span>항목</span>
+            <span style={{ textAlign: "right", lineHeight: 1.25 }}>견적<br/><span style={{ fontWeight: 500, fontSize: 10 }}>(고객에게 말한 금액)</span></span>
+            <span style={{ textAlign: "right", lineHeight: 1.25 }}>실제 받은 돈<br/><span style={{ fontWeight: 500, fontSize: 10 }}>(현장 결제)</span></span>
             {/* 2-2 — [+ 항목 추가] 를 표 머리줄 오른쪽으로 */}
             {!isVisitOnly ? (
               <button type="button" onClick={() => canEdit && setShowAdd(true)} disabled={!canEdit}
@@ -1720,11 +1744,25 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
                   {name} ×{qty}
                   {isCanceled && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, color: "#A32D2D" }}>취소</span>}
                   {isVisitOnly && !isCanceled && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, color: "#1D4ED8" }}>출장 전환</span>}
+                  {/* 견적과 실제 받은 돈이 다르면 작은 배지 (저장된 값 기준) */}
+                  {canShowInput && !beforeWork && it.receivedAmount != null && Number(it.receivedAmount) !== subtotal && (
+                    <span style={{
+                      marginLeft: 6, fontSize: 10, fontWeight: 800, padding: "1px 5px", borderRadius: 999,
+                      background: Number(it.receivedAmount) > subtotal ? "rgba(16,185,129,0.14)" : "rgba(239,68,68,0.12)",
+                      color: Number(it.receivedAmount) > subtotal ? "#059669" : "#DC2626",
+                    }}>
+                      {Number(it.receivedAmount) > subtotal
+                        ? `+${(Number(it.receivedAmount) - subtotal).toLocaleString("ko-KR")} 추가`
+                        : `−${(subtotal - Number(it.receivedAmount)).toLocaleString("ko-KR")} 할인`}
+                    </span>
+                  )}
                 </span>
                 <span className="mono" style={{ textAlign: "right", fontSize: 13.5, fontWeight: 700, color: "var(--text-primary)", textDecoration: isCanceled ? "line-through" : "none" }}>
                   {(isVisitOnly ? 0 : subtotal).toLocaleString("ko-KR")}
                 </span>
-                {canShowInput ? (
+                {canShowInput && beforeWork ? (
+                  <span style={{ textAlign: "right", fontSize: 12, color: "var(--text-tertiary)" }}>완료 때 입력</span>
+                ) : canShowInput ? (
                   <input
                     type="number"
                     inputMode="numeric"
@@ -1733,7 +1771,7 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
                     onChange={(e) => setLocalReceived(prev => ({ ...prev, [it.id]: e.target.value }))}
                     onBlur={() => handleBlur(it.id, it.receivedAmount)}
                     disabled={!!saving[it.id]}
-                    aria-label="받은 돈"
+                    aria-label="실제 받은 돈"
                     style={{
                       width: "100%", boxSizing: "border-box", padding: "6px 8px", background: "var(--card-bg)",
                       border: `1px solid ${colors.main}`, borderRadius: 6, color: "var(--text-primary)",
@@ -1770,7 +1808,7 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
           <div style={{ ...grid, padding: "10px 0 0", fontSize: 14, fontWeight: 800 }}>
             <span style={{ color: "var(--text-primary)" }}>합계</span>
             <span className="mono" style={{ textAlign: "right", color: "var(--text-primary)" }}>{sumQuote.toLocaleString("ko-KR")}</span>
-            <span className="mono" style={{ textAlign: "right", color: "#D4537E" }}>{usesReceivedTotalFlow ? Number(task?.receivedTotal || 0).toLocaleString("ko-KR") : "—"}</span>
+            <span className="mono" style={{ textAlign: "right", color: "#D4537E" }}>{beforeWork ? "" : (usesReceivedTotalFlow ? Number(task?.receivedTotal || 0).toLocaleString("ko-KR") : "—")}</span>
             <span/>
           </div>
           {footer}

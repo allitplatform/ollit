@@ -178,7 +178,8 @@ export function PartialCancelDialog({ task, onClose, onConfirm }) {
             const done = !!it.isCanceled;
             const checked = checkedIds.has(it.id);
             const workTypeRaw = it.workType || it.work_type || "";
-            const applianceName = it.appliance || it.appliance_type || "";
+            // 2026-10-07 — 설치 5종(이전설치 · 철거 등)은 기종 칸이 비어 있고 설명 칸에 이름이 있다 → 금액 표와 같은 이름으로
+            const applianceName = it.appliance || it.appliance_type || it.description || "";
             const qty = it.qty || 1;
             const amount = Number(it.subtotal) || (Number(it.unitPrice) * qty) || 0;
             const colors = getWorkTypeColors(workTypeRaw);

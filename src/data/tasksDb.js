@@ -134,6 +134,8 @@ export function rowToTask(row) {
     customer:     row.customer_name,
     phone:        row.phone,
     address:      row.address,
+    // 2026-10-07 — 접수 경로 (null = 운영자 접수 / "원청앱" / "네이버" …). 3곳 매핑.
+    channel:      row.channel || null,
     // Mig 259 — 이전설치: 설치(도착) 주소 · 메모. (address = 철거 주소) 3곳 매핑.
     destAddress:  row.dest_address || "",
     destDetail:   row.dest_detail || "",

@@ -241,7 +241,8 @@ export function PcExceptionCard({ task, onVisitOnly, onCancel, onPartialCancel, 
 
 // 금액 카드 아래쪽: 기사 · 회사 (협력사 작업이면 협력사 · 수수료 · 원청 몫) 비율 막대 + 자재비 · 부가세 줄.
 //   값은 서버가 계산해 둔 정산 값(payments)을 그대로 읽는다. 계산이 아직 없으면 안내만.
-export function PcMoneySplit({ task }) {
+//   onEditMaterial: 주면 자재비 줄에 [자재비 입력] 버튼 (설치 작업에서만)
+export function PcMoneySplit({ task, onEditMaterial = null }) {
   const won = (n) => `₩${Math.round(Number(n) || 0).toLocaleString("ko-KR")}`;
   const isSub = !!task.subcontractorId;
   const share = Math.max(0, Number(task.sub_principal_share || 0));
@@ -266,8 +267,18 @@ export function PcMoneySplit({ task }) {
   const material = Number(task.materialCost || 0);
   const got = Number(task.receivedTotal ?? task.totalAmount ?? 0) || 0;
   const vat = (!isSub && task.vatIncluded === true && got > 0) ? Math.max(0, got - Math.round(got / 1.1)) : 0;
+  // 완료 전(접수 · 배정 · 일정 확정)에는 견적 기준으로 계산된 값이라 "예상" 이라고 적는다
+  const beforeWork = ["미배정", "약속대기", "배정", "확정", "접수"].includes(String(task.status || ""));
+  const isInstall = (() => {
+    const wi = Array.isArray(task.workItems) ? task.workItems : [];
+    if (wi.length > 0) return wi.every(x => x.serviceCode === "install" || /설치/.test(String(x.workType || x.appliance || "")));
+    return /설치/.test(String(task.workType || ""));
+  })();
   return (
     <div style={{ marginTop: 12 }}>
+      {sum > 0 && beforeWork && (
+        <div style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-tertiary)", marginBottom: 5 }}>예상 (견적 기준 — 완료 때 실제 받은 돈으로 확정)</div>
+      )}
       {sum > 0 ? (
         <>
           <div style={{ display: "flex", height: 10, borderRadius: 5, overflow: "hidden", background: "var(--border)" }}>
@@ -286,7 +297,14 @@ export function PcMoneySplit({ task }) {
       ) : (
         <div style={{ fontSize: 12.5, color: "var(--text-tertiary)" }}>기사 · 회사 분배는 정산이 계산된 뒤에 나옵니다</div>
       )}
-      {material > 0 && <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 6 }}>🧰 자재비 {won(material)} (기사 선지출 — 기사 몫에 포함)</div>}
+      {(material > 0 || (onEditMaterial && isInstall && !isSub)) && (
+        <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 6, display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+          <span>🧰 자재비 {material > 0 ? `${won(material)} (기사 선지출 — 기사 몫에 포함)` : "없음"}</span>
+          {onEditMaterial && isInstall && !isSub && (
+            <button type="button" onClick={onEditMaterial} style={{ ...smallBtn, padding: "3px 9px", fontSize: 11.5 }}>자재비 입력</button>
+          )}
+        </div>
+      )}
       {vat > 0 && <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 4 }}>🧾 부가세 {won(vat)} (따로 받은 금액 · 어느 몫에도 넣지 않음)</div>}
     </div>
   );
