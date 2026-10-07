@@ -9958,12 +9958,14 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
   const totalCandidates = candidates.main.length + candidates.sub.length + candidates.capable.length;
 
   // 2026-07-15 — capable = 전국·지역 미설정 기사 (지역 메인/백업과 분리, 사장님 spec).
+  // 2026-10-07 — 그 날이 정기(반복) 휴무인 기사는 추천 후보에서 기본으로 뺀다 (전체 기사 목록에서 [보기] 로 고를 수 있다)
+  const _notRepeatOff = (eng) => !(offByName?.get?.(eng?.name)?.get?.(selYmd) || []).some(o => o.type === "repeat");
   const groups = [
-    { id: "main",    color: "#FF1B8D", label: "지역 메인", list: candidates.main },
-    { id: "sub",     color: "#888780", label: "지역 백업", list: candidates.sub },
-    { id: "capable", color: "#6B7280", label: "전지역·지역 미설정", list: candidates.capable },
+    { id: "main",    color: "#FF1B8D", label: "지역 메인", list: candidates.main.filter(_notRepeatOff) },
+    { id: "sub",     color: "#888780", label: "지역 백업", list: candidates.sub.filter(_notRepeatOff) },
+    { id: "capable", color: "#6B7280", label: "전지역·지역 미설정", list: candidates.capable.filter(_notRepeatOff) },
     // 2026-08-05 — ① 주변 지역 (사장님 확정): 담당 구역이 15km 안인 기사, 가까운 순
-    { id: "nearby",  color: "#0EA5E9", label: "주변 지역", list: nearbyList.map(x => x.eng) },
+    { id: "nearby",  color: "#0EA5E9", label: "주변 지역", list: nearbyList.map(x => x.eng).filter(_notRepeatOff) },
   ];
 
   return (

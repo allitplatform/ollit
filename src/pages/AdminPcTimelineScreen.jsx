@@ -358,13 +358,21 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
         gmap.set(l.groupKey, {
           key: l.groupKey, subId: l.subId, readOnly: l.readOnly,
           label: l.subId ? subcontractorName(l.subId, subIdx) : "직영",
-          busy: [], idle: [], taskCount: 0,
+          busy: [], idle: [], repeatOff: [], taskCount: 0,
         });
       }
       const g = gmap.get(l.groupKey);
-      const hasOff = offsByLaneName.has(l.name);
-      // 일이 있거나 휴무 띠가 있는 기사는 바로 보이는 줄, 나머지는 "오늘 일 없는 기사" 아래
-      if (l.tasks.length > 0 || hasOff) g.busy.push(l); else g.idle.push(l);
+      // 2026-10-07 (31) — 휴무 종류별 처리
+      //   반복(정기) 휴무 + 오늘 작업 0건  → 줄을 숨긴다 (묶음 머리에 "정기 휴무 n명" 숫자만). 끌어다 놓을 대상도 아니다.
+      //   반복 휴무인데 오늘 작업이 있음   → 줄 표시 + "⚠ 휴무일 작업" 배지
+      //   하루·기간 휴무 + 오늘 작업 0건   → "오늘 일 없는 기사" 접힘 목록 안 (빗금 띠는 그대로)
+      //   시간 휴무                        → 지금처럼 바로 보이는 줄
+      const offs = offsByLaneName.get(l.name) || [];
+      const repeatOff = offs.some(o => o.type === "repeat");
+      const hourlyOff = offs.some(o => o.type === "hourly" || o.type === "휴무부분");
+      if (repeatOff && l.tasks.length === 0) { g.repeatOff.push(l.name); continue; }
+      l.offWork = repeatOff && live(l) > 0;
+      if (l.tasks.length > 0 || hourlyOff) g.busy.push(l); else g.idle.push(l);
       g.taskCount += live(l);
     }
     // 2026-10-07 (30) — 협력사로 넘겼는데 담당 기사가 아직 없는 작업: 그 협력사 묶음 맨 위 "기사 미정 n건" 줄 (보기 전용)
@@ -378,7 +386,7 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       const gk = `sub:${sid}`;
       if (affFilter && affFilter !== gk) continue;
       if (!gmap.has(gk)) {
-        gmap.set(gk, { key: gk, subId: sid, readOnly: true, label: subcontractorName(sid, subIdx), busy: [], idle: [], taskCount: 0 });
+        gmap.set(gk, { key: gk, subId: sid, readOnly: true, label: subcontractorName(sid, subIdx), busy: [], idle: [], repeatOff: [], taskCount: 0 });
       }
       const g = gmap.get(gk);
       (g.pending || (g.pending = [])).push(t);
@@ -908,6 +916,7 @@ function ConfirmDialog({ info, busy, onYes, onNo }) {
 }
 
 function TimeAxisView({ wrapperRef, groups, fold, onToggleFold, offsByLaneName, onTaskClick, onTaskDragCommit, onDragPreview, dropPreview, showNowLine, nowPct, nowLabel, highlightTaskId }) {
+  const [offTip, setOffTip] = useState(null);      // 정기 휴무 이름 말풍선이 열린 묶음 key
   if (groups.length === 0) {
     return (
       <div style={{
@@ -1006,6 +1015,24 @@ function TimeAxisView({ wrapperRef, groups, fold, onToggleFold, offsByLaneName, 
                 <span style={{ width: 12 }}>{closed ? "▶" : "▼"}</span>
                 <span>{g.label}</span>
                 <small style={{ fontWeight: 600, color: "var(--text-secondary)", fontSize: 12 }}>{g.busy.length + g.idle.length}명 · 오늘 {g.taskCount}건{g.pending && g.pending.length > 0 ? ` · 기사 미정 ${g.pending.length}건` : ""}</small>
+                {g.repeatOff.length > 0 && (
+                  <span style={{ position: "relative" }}>
+                    <button type="button" onClick={(e) => { e.stopPropagation(); setOffTip(v => v === g.key ? null : g.key); }} style={{
+                      background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit",
+                      fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", textDecoration: "underline dotted",
+                    }}>· 정기 휴무 {g.repeatOff.length}명</button>
+                    {offTip === g.key && (
+                      <span onClick={(e) => { e.stopPropagation(); setOffTip(null); }} style={{
+                        position: "absolute", top: 24, left: 0, zIndex: 80, background: "#1A1A1A", color: "#fff",
+                        fontSize: 12, fontWeight: 600, padding: "8px 11px", borderRadius: 8, whiteSpace: "nowrap",
+                        boxShadow: "0 4px 14px rgba(0,0,0,0.35)", lineHeight: 1.6, cursor: "pointer",
+                      }}>
+                        <b style={{ display: "block", fontWeight: 800 }}>🏖️ 오늘 정기 휴무</b>
+                        {g.repeatOff.join(", ")}
+                      </span>
+                    )}
+                  </span>
+                )}
                 {g.readOnly && (
                   <span style={{ marginLeft: 8, fontSize: 11.5, fontWeight: 700, color: "#7C5CFA", background: "rgba(124,92,250,0.14)", padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>
                     🔒 보기 전용 · 배정은 {g.label} 관리자
@@ -1118,6 +1145,12 @@ function Lane({ lane, idle = false, offs = [], onTaskClick, onTaskDragCommit, on
         }}>
           {hasFullDayOff && <span style={{ marginRight: 4 }}>🏖️</span>}
           {lane.name}
+          {lane.offWork && (
+            <span title="정기 휴무일에 작업이 잡혀 있습니다" style={{
+              marginLeft: 6, fontSize: 10.5, fontWeight: 800, padding: "1px 6px", borderRadius: 5,
+              background: "rgba(249,115,22,0.16)", color: "#F97316", whiteSpace: "nowrap",
+            }}>⚠ 휴무일 작업</span>
+          )}
         </span>
         <small style={{
           fontSize: 11, color: "var(--text-secondary)", fontWeight: 600,

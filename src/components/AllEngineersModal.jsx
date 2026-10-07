@@ -32,6 +32,7 @@ function _shortZone(z) {
 
 export function AllEngineersModal({ task, engineers: enginerProp, apiTasks = [], onSelect, onClose }) {
   const [searchQuery, setSearchQuery] = useState("");
+  const [showRepeatOff, setShowRepeatOff] = useState(false);
 
   // 2026-08-05 — ② 하루 격자·동선 계산 재료 (자급자족: 호출측 변경 불필요)
   const _todayYmd = new Date().toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
@@ -140,6 +141,11 @@ export function AllEngineersModal({ task, engineers: enginerProp, apiTasks = [],
     return m;
   }, [allScored, apiTasks, _offByName, _selYmd, _taskGu, _centroids, _todayYmd]);
 
+  // 2026-10-07 — 그 날이 정기(반복) 휴무인 기사는 기본으로 뺀다 ([보기] 를 누르면 다시 나온다)
+  const _isRepeatOff = (rec) => (_offByName?.get?.(rec?.engineer?.name)?.get?.(_selYmd) || []).some(o => o.type === "repeat");
+  const _repeatOffCount = filtered.filter(_isRepeatOff).length;
+  const shown = showRepeatOff ? filtered : filtered.filter(rec => !_isRepeatOff(rec));
+
   return (
     <div style={overlayStyle} onClick={onClose}>
       <div style={contentStyle} onClick={(e) => e.stopPropagation()}>
@@ -190,17 +196,26 @@ export function AllEngineersModal({ task, engineers: enginerProp, apiTasks = [],
             )}
           </div>
           <div style={{ fontSize: 11, color: "var(--text-secondary)", marginTop: 7 }}>
-            {searchQuery ? `"${searchQuery}" — ${filtered.length}명` : `전체 ${filtered.length}명`}
+            {searchQuery ? `"${searchQuery}" — ${shown.length}명` : `전체 ${shown.length}명`}
+            {_repeatOffCount > 0 && (
+              <>
+                {" · "}정기 휴무 {_repeatOffCount}명 {showRepeatOff ? "포함" : "숨김"}{" "}
+                <button type="button" onClick={() => setShowRepeatOff(v => !v)} style={{
+                  background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit",
+                  fontSize: 11, fontWeight: 700, color: "var(--accent, #FF1B8D)", textDecoration: "underline",
+                }}>{showRepeatOff ? "숨기기" : "보기"}</button>
+              </>
+            )}
           </div>
         </div>
 
         <div style={{ flex: 1, overflowY: "auto", padding: "4px 0" }}>
-          {filtered.length === 0 ? (
+          {shown.length === 0 ? (
             <div style={{ padding: 30, textAlign: "center", color: "var(--text-secondary)", fontSize: 12 }}>
               {searchQuery ? "검색 결과가 없습니다" : "활성 프로가 없습니다"}
             </div>
           ) : (
-            filtered.map(rec => (
+            shown.map(rec => (
               <AllEngineerRow
                 key={rec.engineer.id}
                 recommendation={rec}
