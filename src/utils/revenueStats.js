@@ -13,6 +13,7 @@
 import { toKstYmd } from "./dateLabel.js";
 import { isTrackARemittance } from "./remitFilter.js";
 import { canSeeField } from "../data/permissions.js";
+import { getCategoryMetaOfRow, CATEGORY_META, SERVICE_EXCEPTIONS } from "../lib/serviceCatalog.js";
 
 const EMPTY = {
   total: 0, engineer: 0, principal: 0, owner: 0,
@@ -55,6 +56,85 @@ function _sumSubFee(apiTasks, startYmd, endYmd) {
   return { subFee, subShare, subGross, subCount };
 }
 
+// 2026-10-07 — 매출 현황 화면용 덧붙임 값 (대시보드 모바일 · PC 매출 패널).
+//   · cats      : 기존 4칸(세척·냉매·설치·누수)에 들지 않는 종목별 합계. 종목 기준표(serviceCatalog)의 색·아이콘을 쓴다.
+//                 직영 작업은 총액, 협력사 작업(track S)은 받은 공급가. 회사 몫 = 수수료 − 원청 몫.
+//   · directExtra : cats 가운데 직영분 합계 (기존 "기타" 칸에 이미 들어 있는 금액 → 화면에서 기타에서 뺀다)
+//   · subSupply : 협력사 작업의 받은 공급가 합계 (매출 합계에 더한다)
+//   · subKeep   : 그 가운데 협력사가 갖는 금액 (= 공급가 − 수수료). "협력사 정산" 줄.
+const _FIXED_CODES = new Set(["cleaning", "refrigerant", "install", "leak"]);
+const _FIXED_META_KEYS = new Set(["aircon", "etc", "unknown", "refrigerant", "install", "leak"]);
+function _extras(apiTasks, startYmd, endYmd) {
+  const cats = {};
+  let subKeep = 0, subSupply = 0, directExtra = 0;
+  const add = (meta, amt, owner) => {
+    const c = cats[meta.key] || (cats[meta.key] = { key: meta.key, label: meta.label, icon: meta.icon, color: meta.color, total: 0, count: 0, owner: 0 });
+    c.total += amt; c.count += 1; c.owner += owner;
+  };
+  for (const t of (apiTasks || [])) {
+    if (!t) continue;
+    const completed = t.completedAt || t.completed_at;
+    if (!completed) continue;
+    const ymd = toKstYmd(completed);
+    if (!ymd || ymd < startYmd || ymd > endYmd) continue;
+    const share = Math.max(0, Number(t.sub_principal_share || 0));
+    const track = t.track || t.payment?.track || "A";
+    if (track === "S") {
+      if (t.status !== "완료") continue;
+      const supply = Number(t.supplyAmount ?? t.supply_amount ?? 0) || Number(t.receivedTotal ?? t.received_total ?? 0) || 0;
+      const fee = Number(t.owner_amount || 0);
+      add(getCategoryMetaOfRow(t), supply, fee - share);
+      subKeep += Math.max(0, supply - fee);
+      subSupply += supply;
+      continue;
+    }
+    if (!isTrackARemittance(t)) continue;
+    if (_FIXED_CODES.has(pickServiceCode(t))) continue;
+    const meta = getCategoryMetaOfRow(t);
+    if (_FIXED_META_KEYS.has(meta.key)) continue;
+    const amt = Number(t.totalAmount || t.총금액 || t.estimateTotal || 0);
+    add(meta, amt, Number(t.owner_amount || 0) - share);
+    directExtra += amt;
+  }
+  return { cats, subKeep, subSupply, directExtra };
+}
+
+// 집계 결과 → 매출 현황 화면에 그릴 값. 종목 줄은 기준표 순서, 0원은 뺀다.
+//   total = 직영·원청 총액 + 협력사 받은 공급가  /  parts 합계 = total
+export function revenueView(rev) {
+  const r = rev || {};
+  const x = r.ext || { cats: {}, subKeep: 0, subSupply: 0, directExtra: 0 };
+  const bs = r.byService || {};
+  const bd = r.byServiceDetail || {};
+  const total = (Number(r.total) || 0) + x.subSupply;
+  const ex = (k) => SERVICE_EXCEPTIONS.find(e => e.key === k) || {};
+  const aircon = CATEGORY_META.find(c => c.key === "aircon") || {};
+  const fixed = [
+    { key: "cleaning",    label: "세척", icon: aircon.icon || "❄", color: aircon.color || "#0EA5E9" },
+    { key: "refrigerant", label: "냉매", icon: ex("refrigerant").icon || "⚡", color: ex("refrigerant").color || "#FFB800" },
+    { key: "install",     label: "설치", icon: ex("install").icon || "🛠", color: ex("install").color || "#6366F1" },
+    { key: "leak",        label: "냉매 누설·물 누수", icon: ex("leak").icon || "💧", color: ex("leak").color || "#14B8A6" },
+  ].map(f => ({ ...f, total: Number(bs[f.key]) || 0, count: Number(bd[f.key]?.count) || 0, owner: Number(bd[f.key]?.owner) || 0 }));
+  const order = CATEGORY_META.map(c => c.key);
+  const extra = Object.values(x.cats).sort((a, b) => {
+    const ia = order.indexOf(a.key), ib = order.indexOf(b.key);
+    return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+  });
+  const otherTotal = Math.max(0, (Number(bs.other) || 0) - x.directExtra);
+  const other = { key: "other", label: "기타", icon: "•", color: "#9CA3AF", total: otherTotal,
+                  count: Math.max(0, (Number(bd.other?.count) || 0) - extra.reduce((s, c) => s + c.count, 0) + extra.filter(c => false).length),
+                  owner: Number(bd.other?.owner) || 0 };
+  return {
+    total,
+    count: (Number(r.count) || 0) + (Number(r.subCount) || 0),
+    engineer: Number(r.engineer) || 0,
+    subKeep: x.subKeep,
+    principal: (Number(r.principal) || 0) + (Number(r.subShare) || 0),
+    owner: Number(r.owner) || 0,
+    services: [...fixed, ...extra, other].filter(s => s.total > 0),
+  };
+}
+
 // 직영 작업(track A)에 붙은 원청 몫 합계 — 완료 계열 + 완료일(KST)이 기간 안. 지금은 직영 주방후드만 해당.
 function _sumDirectShare(apiTasks, startYmd, endYmd) {
   let s = 0;
@@ -81,7 +161,8 @@ export function withSubFee(rev, apiTasks, startYmd, endYmd, user) {
   // 2026-10-07 Mig 256 — 서버 요약의 회사 몫은 owner_amount 합계라 직영 주방후드의 원청 몫이 들어 있다 → 뺀다.
   const dShare = _sumDirectShare(apiTasks, startYmd, endYmd);
   const ownerDirect = (Number(rev.owner) || 0) - dShare;
-  return { ...rev, principal: (Number(rev.principal) || 0) + dShare, ownerDirect, owner: ownerDirect + sub.subFee, ...sub };
+  return { ...rev, principal: (Number(rev.principal) || 0) + dShare, ownerDirect, owner: ownerDirect + sub.subFee, ...sub,
+           ext: _extras(apiTasks, startYmd, endYmd) };
 }
 
 // 2026-07-14 — Stage 2c: 서버 집계(get_admin_dashboard_summary) 응답 → computeRevenueByYmRange 반환 형태 매핑.
@@ -188,6 +269,7 @@ export function computeRevenueByYmRange(apiTasks, startYmd, endYmd, user) {
   return {
     total, engineer, principal, owner: owner + _sub.subFee,
     ownerDirect: owner, ..._sub,
+    ext: _extras(apiTasks, startYmd, endYmd),
     byService: { cleaning, refrigerant, install, leak, other },
     byServiceDetail: {
       cleaning:    { total: cleaning,    count: cleaningCount,    owner: cleaningOwner },

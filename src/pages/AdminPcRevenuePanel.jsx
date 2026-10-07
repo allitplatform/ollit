@@ -20,6 +20,7 @@ import {
   getMonthStart,
   getPrevMonthStart,
   fromServerSummary,
+  revenueView,
 } from "../utils/revenueStats.js";
 import { isTrackARemittance } from "../utils/remitFilter.js";
 
@@ -70,25 +71,19 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
     };
   }, [apiTasks, user, period, serverSummary, serverRanges]);
 
-  const total = current.total || 0;
+  // 2026-10-07 — 화면 값은 revenueView 한 곳에서 만든다 (모바일 매출 현황과 같은 기준).
+  const view = revenueView(current);
+  const prevView = revenueView(previous);
+  const total = view.total || 0;
   const denom = total > 0 ? total : 1;
-  const engineerPct  = (current.engineer  / denom) * 100;
-  const principalPct = (current.principal / denom) * 100;
-  // 막대 비율은 직영·원청분만으로 계산한다 (총액에 협력사 거래액이 없으므로). 금액 표시는 협력사 수수료 포함.
-  const ownerPct     = ((current.ownerDirect ?? current.owner) / denom) * 100;
+  const engineerPct  = (view.engineer  / denom) * 100;
+  const subKeepPct   = (view.subKeep   / denom) * 100;
+  const principalPct = (view.principal / denom) * 100;
+  const ownerPct     = (view.owner     / denom) * 100;
 
-  const diffPct = previous.total > 0
-    ? ((current.total - previous.total) / previous.total) * 100
+  const diffPct = prevView.total > 0
+    ? ((view.total - prevView.total) / prevView.total) * 100
     : null;
-
-  // 2026-06-28 — install/leak 버킷 분리 (Mig 122/124/125).
-  const sd = current.byServiceDetail || {
-    cleaning:    { total: 0, count: 0, owner: 0 },
-    refrigerant: { total: 0, count: 0, owner: 0 },
-    install:     { total: 0, count: 0, owner: 0 },
-    leak:        { total: 0, count: 0, owner: 0 },
-    other:       { total: 0, count: 0, owner: 0 },
-  };
 
   return (
     <div style={{
@@ -140,11 +135,11 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
         <Donut
           size={donutSize}
           total={total}
-          engineerPct={engineerPct}
+          engineerPct={engineerPct + subKeepPct}
           principalPct={principalPct}
           diffPct={diffPct}
           periodLabel={periodLabel}
-          count={current.count}
+          count={view.count}
         />
         <div style={{
           display: "flex",
@@ -156,7 +151,7 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
           <RevItem
             color={COLOR_OWNER}
             label="회사 마진"
-            amount={current.owner}
+            amount={view.owner}
             pct={ownerPct}
             big
           />
@@ -172,14 +167,24 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
             <RevItem
               color={COLOR_ENGINEER}
               label="기사 정산"
-              amount={current.engineer}
+              amount={view.engineer}
               pct={engineerPct}
               muted
             />
+            {/* 2026-10-07 — 협력사가 갖는 금액 (받은 공급가 − 수수료). 도넛에서는 기사 정산 색에 합쳐 그린다. */}
+            {view.subKeep > 0 && (
+              <RevItem
+                color="#A78BFA"
+                label="협력사 정산"
+                amount={view.subKeep}
+                pct={subKeepPct}
+                muted
+              />
+            )}
             <RevItem
               color={COLOR_PRINCIPAL}
               label="원청 수수료"
-              amount={current.principal}
+              amount={view.principal}
               pct={principalPct}
               muted
             />
@@ -195,47 +200,12 @@ export function AdminPcRevenuePanel({ t, apiTasks = [], user, onDetailClick, onC
         borderTop: "1px solid var(--border)",
         paddingTop: 16,
       }}>
-        <ServiceBar
-          icon="❄"
-          label="세척"
-          color={COLOR_CLEANING}
-          detail={sd.cleaning}
-          total={total}
-        />
-        <ServiceBar
-          icon="⚡"
-          label="냉매"
-          color={COLOR_REFRIGERANT}
-          detail={sd.refrigerant}
-          total={total}
-        />
-        {/* 2026-06-28 — install/leak 행 추가. 0 이면 숨김 (other 패턴 일관). */}
-        {(sd.install?.total || 0) > 0 && (
-          <ServiceBar
-            icon="🔧"
-            label="설치"
-            color="#8B5CF6"
-            detail={sd.install}
-            total={total}
-          />
-        )}
-        {(sd.leak?.total || 0) > 0 && (
-          <ServiceBar
-            icon="💧"
-            label="누설"
-            color="#DC2626"
-            detail={sd.leak}
-            total={total}
-          />
-        )}
-        {(sd.other?.total || 0) > 0 && (
-          <ServiceBar
-            icon="🚗"
-            label="기타"
-            color={COLOR_OTHER}
-            detail={sd.other}
-            total={total}
-          />
+        {/* 2026-10-07 — 종목 기준표(serviceCatalog) 순서로 그린다. 0원 종목은 숨김. */}
+        {view.services.map(sv => (
+          <ServiceBar key={sv.key} icon={sv.icon} label={sv.label} color={sv.color} detail={sv} total={total}/>
+        ))}
+        {view.services.length === 0 && (
+          <div style={{ fontSize: 12, color: "var(--text-tertiary)" }}>완료된 작업이 없습니다</div>
         )}
         {/* 2026-10-06 Mig 229 — 협력사 수수료 (회사 수입에 포함된 금액). 받은 금액은 참고(거래액). */}
         {(current.subFee || 0) !== 0 && (

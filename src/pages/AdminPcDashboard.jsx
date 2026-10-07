@@ -34,7 +34,7 @@ import { AdminPcRevenuePanel } from "./AdminPcRevenuePanel.jsx";
 import { getCancelReasonLabel, isMistakeTask } from "../data/cancelReasons.js";
 // 2026-07-29 — 접수 시간대 차트 공용화 (모바일 통계 허브와 같은 컴포넌트 사용).
 import { HourlyReceivedChart, hourBucketIndexKst } from "../components/admin/HourlyReceivedChart.jsx";
-import { useSubcontractorIndex, engineerDisplayName } from "../lib/subcontractorsDb.js";
+import { useSubcontractorIndex, engineerDisplayName, getSubcontractorIndex, subcontractorName } from "../lib/subcontractorsDb.js";
 
 function fmtKRW(n) {
   return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`;
@@ -104,7 +104,9 @@ export function AdminPcDashboard({
     (apiTasks || []).filter(x => {
       const n = x.scheduledAt || x.scheduled_at || x.확정일시 || x.confirmedAt;
       if (!n || toKstYmd(n) !== todayStr) return false;
-      return TASK_FILTERS.getEffectiveStatus(x) === "확정";
+      // 2026-10-07 — 협력사 작업은 일정이 잡혀도 상태가 "배정" 에 머무를 수 있다 → 오늘 일정에서 빠지지 않게 같이 센다
+      const _es = TASK_FILTERS.getEffectiveStatus(x);
+      return _es === "확정" || (_es === "배정" && !!(x.subcontractorId || x.subcontractor_id));
     }).length,
     [apiTasks, todayStr]
   );
@@ -261,6 +263,9 @@ export function AdminPcDashboard({
         unassigned={unassignedCount}
         assigned={stats.assigned || 0}
         confirmed={stats.confirmed || 0}
+        subAssigned={stats.subAssigned || 0}
+        subConfirmed={stats.subConfirmed || 0}
+        subWaiting={stats.subWaiting || 0}
         inProgress={stats.inProgress || 0}
         completedToday={stats.completed || 0}
         notStartedToday={notStartedToday}
@@ -359,8 +364,14 @@ function HeroStat({ icon, label, value, sub, warn, money, onClick }) {
 //   좌 "처리 대기" = 날짜 무관 대기열 3칸 (미배정/배정됨/확정 — 옛 메트릭 앞 3칸과 동일 필터).
 //   우 "오늘" = 진행 바 🅐: 완료(초록) + 진행(앰버) + 시작 전(회색) — 세그먼트 클릭 시 해당 목록.
 //   시작 전 = 오늘 예약 + 효과상태 '확정' (신규 표시 — 계산은 기존 helper 재사용).
+// 협력사가 한 곳뿐이면 그 이름(예: 화이트코어), 여럿이면 "협력사"
+function _subWord() {
+  const names = [...getSubcontractorIndex().names.values()].filter(s => s && s.active !== false);
+  return names.length === 1 ? names[0].name : "협력사";
+}
 function WorkStatusCard({
   unassigned, assigned, confirmed,
+  subAssigned = 0, subConfirmed = 0, subWaiting = 0,
   inProgress, completedToday, notStartedToday,
   onUnassigned, onAssigned, onConfirmed, onInProgress, onCompleted,
 }) {
@@ -418,9 +429,10 @@ function WorkStatusCard({
             <span style={{ fontSize: 10, color: "var(--text-tertiary)" }}>날짜 무관 — 쌓여 있는 일</span>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
-            {waitCell(unassigned, "미배정", "기사 배정 필요", unassigned > 0, onUnassigned)}
-            {waitCell(assigned, "배정됨", "약속 조율 중", false, onAssigned)}
-            {waitCell(confirmed, "확정", "내일 이후 포함", false, onConfirmed)}
+            {/* 2026-10-07 — 협력사 작업: 숫자에는 넣고 작게 따로 적는다. 미배정에는 넣지 않는다 (협력사 관리자 몫). */}
+            {waitCell(unassigned, "미배정", subWaiting > 0 ? `${_subWord()} 배정 대기 ${subWaiting} 별도` : "기사 배정 필요", unassigned > 0, onUnassigned)}
+            {waitCell(assigned, "배정됨", subAssigned > 0 ? `${_subWord()} ${subAssigned} 포함` : "약속 조율 중", false, onAssigned)}
+            {waitCell(confirmed, "확정", subConfirmed > 0 ? `${_subWord()} ${subConfirmed} 포함` : "내일 이후 포함", false, onConfirmed)}
           </div>
         </div>
 
@@ -852,6 +864,10 @@ function EngineersPanel({ apiTasks, apiEngineers }) {
     for (const task of apiTasks || []) {
       const scheduled = task.scheduledAt || task.scheduled_at;
       if (!scheduled || toKstYmd(scheduled) !== today) continue;
+      // 2026-10-07 — 협력사 작업은 기사가 정해졌든 아니든 협력사 한 줄로 모은다
+      //   (협력사 기사는 운영자 기사 목록에 없을 수 있고, "기사 미정" 작업도 오늘 일정이다)
+      const subId = task.subcontractorId || task.subcontractor_id;
+      if (subId) { map.set(`sub:${subId}`, (map.get(`sub:${subId}`) || 0) + 1); continue; }
       const engineerId = task.assignedEngineerId || task.assigned_engineer_id;
       if (!engineerId) continue;
       map.set(engineerId, (map.get(engineerId) || 0) + 1);
@@ -867,8 +883,11 @@ function EngineersPanel({ apiTasks, apiEngineers }) {
         name: eng.name || eng.label || "—",
         count: countByEngineer.get(eng.id) || 0,
       }))
-      .filter(e => e.count > 0)
-      .sort((a, b) => b.count - a.count);
+      .filter(e => e.count > 0);
+    for (const [k, n] of countByEngineer) {
+      if (String(k).startsWith("sub:")) arr.push({ id: k, name: `${subcontractorName(String(k).slice(4)) || "협력사"} (협력사)`, count: n });
+    }
+    arr.sort((a, b) => b.count - a.count);
     return arr;
   }, [apiEngineers, countByEngineer]);
 

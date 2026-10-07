@@ -4597,8 +4597,10 @@ function DashboardScreen({ happycallMode = false, t, mode, setMode, onLogout, us
         {/* 2. 작업 통계 — 핫핑크 = 새 접수 + 진행중 (사장님 KPI) */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 5, marginBottom: 14 }}>
           <StatBox t={t} label="새 접수" value={dynamicStats?.new        ?? TODAY_STATS.newReceived} color={t.accent}  onClick={() => onClickNewReception(null)}/>
-          <StatBox t={t} label="배정 완료" value={dynamicStats?.assigned  ?? TODAY_STATS.assigned}    color={t.text}    onClick={() => onClickAssignedList("assigned")}/>
-          <StatBox t={t} label="일정 확정" value={dynamicStats?.confirmed ?? TODAY_STATS.confirmed}   color={t.text}    onClick={() => onClickAssignedList("confirmed")}/>
+          <StatBox t={t} label="배정 완료" value={dynamicStats?.assigned  ?? TODAY_STATS.assigned}    color={t.text}    onClick={() => onClickAssignedList("assigned")}
+                   note={dynamicStats?.subAssigned > 0 ? `협력사 ${dynamicStats.subAssigned}` : ""}/>
+          <StatBox t={t} label="일정 확정" value={dynamicStats?.confirmed ?? TODAY_STATS.confirmed}   color={t.text}    onClick={() => onClickAssignedList("confirmed")}
+                   note={dynamicStats?.subConfirmed > 0 ? `협력사 ${dynamicStats.subConfirmed}` : ""}/>
           <StatBox t={t} label="진행중"   value={dynamicStats?.inProgress ?? TODAY_STATS.inProgress}  color={t.accent}  onClick={onClickInProgress}/>
           <StatBox t={t} label="완료"     value={dynamicStats?.completed  ?? TODAY_STATS.completed}   color={t.success} onClick={() => onClickLiveWork("completed-today")}/>
         </div>
@@ -4795,7 +4797,9 @@ function MobileTodayBar({ t, apiTasks = [], completedToday = 0, inProgress = 0, 
     (apiTasks || []).filter(x => {
       const n = x.scheduledAt || x.scheduled_at || x.확정일시 || x.confirmedAt;
       if (!n || toKstYmd(n) !== todayStr) return false;
-      return TASK_FILTERS.getEffectiveStatus(x) === "확정";
+      // 2026-10-07 — 협력사 작업은 일정이 잡혀도 상태가 "배정" 에 머무를 수 있다 → 오늘 일정에서 빠지지 않게 같이 센다
+      const _es = TASK_FILTERS.getEffectiveStatus(x);
+      return _es === "확정" || (_es === "배정" && !!(x.subcontractorId || x.subcontractor_id));
     }).length,
     [apiTasks, todayStr]
   );
@@ -5836,7 +5840,7 @@ function ScheduleRow({ t, slot }) {
 // 보조 컴포넌트
 // ============================================
 
-function StatBox({ t, label, value, color, onClick }) {
+function StatBox({ t, label, value, color, onClick, note = "" }) {
   return (
     <div onClick={onClick} className={onClick ? "clickable" : ""} style={{
       background: t.bgElevated, border: `1px solid ${t.border}`,
@@ -5846,6 +5850,8 @@ function StatBox({ t, label, value, color, onClick }) {
         {label}
       </div>
       <div className="mono" style={{ fontSize: 22, fontWeight: 800, color, letterSpacing: "-0.02em" }}>{value}</div>
+      {/* 2026-10-07 — 협력사 작업 수 (숫자에 포함돼 있고, 따로 작게 적는다) */}
+      {note && <div style={{ fontSize: 8, color: t.textMuted, fontWeight: 700, marginTop: 2, whiteSpace: "nowrap" }}>{note}</div>}
     </div>
   );
 }

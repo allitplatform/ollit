@@ -10,6 +10,7 @@ import {
   getPrevMonthSameDay,
   getMonthStart,
   getPrevMonthStart,
+  revenueView,
   fromServerSummary,
 } from "../../utils/revenueStats.js";
 
@@ -55,25 +56,19 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
     };
   }, [apiTasks, user, period, serverSummary, serverRanges]);
 
-  // 전월비 (= 같은 기간).
-  const diffPct = previous.total > 0
-    ? ((current.total - previous.total) / previous.total) * 100
+  // 2026-10-07 — 화면 값은 revenueView 한 곳에서 만든다 (종목 기준표 순서 · 협력사 공급가 포함).
+  const view = revenueView(current);
+  const prevView = revenueView(previous);
+  const diffPct = prevView.total > 0
+    ? ((view.total - prevView.total) / prevView.total) * 100
     : null;
 
-  const total = current.total || 0;
-  const denom = total > 0 ? total : 1; // pct 측측 측측 0 측측 측측.
-
-  const engineerPct  = (current.engineer  / denom) * 100;
-  const principalPct = (current.principal / denom) * 100;
-  // 막대 비율은 직영·원청분만으로 계산한다 (총액에 협력사 거래액이 없으므로). 금액 표시는 협력사 수수료 포함.
-  const ownerPct     = ((current.ownerDirect ?? current.owner) / denom) * 100;
-
-  const cleaningPct    = (current.byService.cleaning    / denom) * 100;
-  const refrigerantPct = (current.byService.refrigerant / denom) * 100;
-  // 2026-06-28 — install/leak 버킷 분리 (Mig 122/124/125 활성화 반영).
-  const installPct     = ((current.byService.install || 0) / denom) * 100;
-  const leakPct        = ((current.byService.leak    || 0) / denom) * 100;
-  const otherPct       = (current.byService.other       / denom) * 100;
+  const total = view.total || 0;
+  const denom = total > 0 ? total : 1;
+  const engineerPct  = (view.engineer  / denom) * 100;
+  const subKeepPct   = (view.subKeep   / denom) * 100;
+  const principalPct = (view.principal / denom) * 100;
+  const ownerPct     = (view.owner     / denom) * 100;
 
   return (
     <div style={{
@@ -125,7 +120,7 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
           </span>
         )}
         <span style={{ fontSize: 10, color: t.textMuted, fontWeight: 600, marginLeft: "auto" }}>
-          {periodLabel} · {current.count}건
+          {periodLabel} · {view.count}건
         </span>
       </div>
 
@@ -140,21 +135,26 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
         }}>
           {engineerPct > 0 && (
             <div style={{ width: `${engineerPct}%`, background: "#3B82F6" }}
-                 title={`프로 정산 ${fmtKRW(current.engineer)}`}/>
+                 title={`프로 정산 ${fmtKRW(view.engineer)}`}/>
+          )}
+          {subKeepPct > 0 && (
+            <div style={{ width: `${subKeepPct}%`, background: "#A78BFA" }}
+                 title={`협력사 정산 ${fmtKRW(view.subKeep)}`}/>
           )}
           {principalPct > 0 && (
             <div style={{ width: `${principalPct}%`, background: "#F59E0B" }}
-                 title={`원청 수수료 ${fmtKRW(current.principal)}`}/>
+                 title={`원청 수수료 ${fmtKRW(view.principal)}`}/>
           )}
           {ownerPct > 0 && (
             <div style={{ width: `${ownerPct}%`, background: t.accent }}
-                 title={`회사 마진 ${fmtKRW(current.owner)}`}/>
+                 title={`회사 마진 ${fmtKRW(view.owner)}`}/>
           )}
         </div>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", fontSize: 10 }}>
-          <Legend color="#3B82F6"   label="프로 정산"   amount={current.engineer}  t={t}/>
-          <Legend color="#F59E0B"   label="원청 수수료" amount={current.principal} t={t}/>
-          <Legend color={t.accent}  label="회사 마진"   amount={current.owner}     t={t}/>
+          <Legend color="#3B82F6"   label="프로 정산"   amount={view.engineer}  t={t}/>
+          {view.subKeep > 0 && <Legend color="#A78BFA" label="협력사 정산" amount={view.subKeep} t={t}/>}
+          <Legend color="#F59E0B"   label="원청 수수료" amount={view.principal} t={t}/>
+          <Legend color={t.accent}  label="회사 마진"   amount={view.owner}     t={t}/>
         </div>
       </div>
 
@@ -163,17 +163,12 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
         <div style={{ fontSize: 10, color: t.textMuted, fontWeight: 700, marginBottom: 6 }}>
           종류별
         </div>
-        <ServiceBar t={t} label="세척" icon="❄" amount={current.byService.cleaning}    pct={cleaningPct}    color="#0EA5E9"/>
-        <ServiceBar t={t} label="냉매" icon="⚡" amount={current.byService.refrigerant} pct={refrigerantPct} color="#FFB800"/>
-        {/* 2026-06-28 — install/leak 행 추가. 0 이면 숨김 (other 패턴 일관). */}
-        {(current.byService.install || 0) > 0 && (
-          <ServiceBar t={t} label="설치" icon="🔧" amount={current.byService.install} pct={installPct} color="#8B5CF6"/>
-        )}
-        {(current.byService.leak || 0) > 0 && (
-          <ServiceBar t={t} label="냉매 누설·물 누수" icon="💧" amount={current.byService.leak} pct={leakPct} color="#DC2626"/>
-        )}
-        {current.byService.other > 0 && (
-          <ServiceBar t={t} label="기타" icon="•" amount={current.byService.other} pct={otherPct} color={t.textMuted}/>
+        {/* 2026-10-07 — 종목 기준표(serviceCatalog) 순서로 그린다. 0원 종목은 숨김. 새 종목이 생기면 자동으로 붙는다. */}
+        {view.services.map(sv => (
+          <ServiceBar key={sv.key} t={t} label={sv.label} icon={sv.icon} amount={sv.total} pct={(sv.total / denom) * 100} color={sv.color}/>
+        ))}
+        {view.services.length === 0 && (
+          <div style={{ fontSize: 11, color: t.textMuted, padding: "4px 0" }}>완료된 작업이 없습니다</div>
         )}
         {/* 2026-10-06 Mig 229 — 협력사 수수료 (회사 수입에 포함된 금액). 받은 금액은 참고(거래액). */}
         {(current.subFee || 0) !== 0 && (
