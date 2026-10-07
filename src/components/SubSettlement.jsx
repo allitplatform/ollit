@@ -22,6 +22,7 @@ import {
   adminListSubDailyFees, adminConfirmSubDailyFee, adminCancelSubDailyReport, adminCloseSubCarryRefund,
   subStaffListRemits, subStaffReportRemit, subManagerListStaffRemits, subManagerConfirmStaffRemit, subManagerCancelStaffRemit,
   subGetCompanyAccount, subStaffGetPayAccount,
+  subStaffReportExtra, subManagerListStaffExtras, subManagerConfirmStaffExtra,
 } from "../lib/subcontractorsDb.js";
 import BottomSheet, { SheetButtons } from "./BottomSheet.jsx";
 import { AccountLine, copyText } from "./SubManagerMe.jsx";
@@ -297,136 +298,256 @@ function groupByEngineer(lines) {
 // ─────────────────────────────────────────────────────────────
 // 1) 협력사 기사 — 정산 탭 (보기 전용)
 // ─────────────────────────────────────────────────────────────
+// 2026-10-07 — 시안 v2: 맨 위는 "보낼 돈" 한 가지. 상태(보낼 돈 → 보냄 → 받음 완료)에 따라 같은 카드의 색·버튼만 바뀐다.
+//   기사 화면에서는 "수수료" 라는 낱말을 쓰지 않는다 — 받은 돈 · 내 몫 · 보낼 돈 세 줄로만 보여 준다.
+//   금액은 서버 값 그대로: 보낼 돈 = 기사 보낼 금액(due), 받은 돈 = 공급가 합계, 내 몫 = 받은 돈 − 보낼 돈.
+const num = (n) => (Math.round(Number(n) || 0)).toLocaleString("ko-KR");
+const hmKst = (iso) => {
+  if (!iso) return "";
+  const d = new Date(iso);
+  return Number.isNaN(d.getTime()) ? "" : d.toLocaleTimeString("en-GB", { timeZone: "Asia/Seoul", hour: "2-digit", minute: "2-digit" });
+};
+const ST = {
+  hero: { background: "var(--bg-elevated)", border: "1px solid var(--border)", borderRadius: 18, padding: 16, marginBottom: 12 },
+  k: { fontSize: 13, color: "var(--text-secondary)" },
+  big: { fontSize: 38, fontWeight: 800, margin: "6px 0 8px", letterSpacing: "-1px", fontVariantNumeric: "tabular-nums", lineHeight: 1.1 },
+  won: { fontSize: 20, fontWeight: 700, marginLeft: 2, color: "var(--text-secondary)" },
+  rcpt: { background: "var(--bg-secondary)", border: "1px solid var(--border)", borderRadius: 12, padding: "4px 14px", marginTop: 4, fontVariantNumeric: "tabular-nums" },
+  calc: { fontSize: 13, color: "var(--text-secondary)", background: "var(--bg-secondary)", borderRadius: 10, padding: "8px 10px", lineHeight: 1.6 },
+  btn: { display: "block", width: "100%", border: 0, borderRadius: 14, padding: 15, fontSize: 17, fontWeight: 800, marginTop: 12, color: "#fff", background: "var(--accent, #FF1B8D)", fontFamily: "inherit", cursor: "pointer" },
+  copy: { border: "1px solid var(--border)", borderRadius: 8, padding: "4px 9px", fontSize: 12, color: "var(--text-primary)", background: "transparent", fontFamily: "inherit", cursor: "pointer", flexShrink: 0 },
+};
+const AMBER = "#F5A524", GREEN = "#22C55E";
+
+function Steps({ at }) {       // at: 1 보낼 돈 / 2 보냄 / 3 받음 완료
+  const cell = (i, text) => {
+    const done = i < at || at === 3;
+    const on = i === at && at !== 3;
+    return (
+      <div key={i} style={{
+        flex: 1, textAlign: "center", fontSize: 11, padding: "7px 2px", borderRadius: 8,
+        background: on ? "var(--accent-bg, rgba(255,27,141,0.16))" : done ? "rgba(34,197,94,0.15)" : "var(--bg-secondary)",
+        color: on ? "var(--accent, #FF1B8D)" : done ? GREEN : "var(--text-secondary)", fontWeight: on ? 700 : 500,
+      }}>{text}</div>
+    );
+  };
+  return <div style={{ display: "flex", gap: 4, marginTop: 14 }}>{cell(1, "① 보낼 돈")}{cell(2, "② 보냄")}{cell(3, "③ 받음 완료")}</div>;
+}
+function RcptRow({ label, value, sum }) {
+  return (
+    <div style={{
+      display: "flex", justifyContent: "space-between", alignItems: "baseline", padding: "9px 0", fontSize: 14,
+      color: sum ? "var(--text-primary)" : "var(--text-secondary)", fontWeight: sum ? 700 : 400,
+      borderTop: sum ? "1px solid var(--border)" : "none",
+    }}>
+      <span>{label}</span>
+      <span style={sum ? { color: "var(--accent, #FF1B8D)", fontSize: 16, fontWeight: 800 } : { color: "var(--text-primary)", fontWeight: 600 }}>{value}</span>
+    </div>
+  );
+}
+
 export function SubStaffSettleTab({ user, onBack }) {
   const fn = useCallback(() => subStaffListSettlement(), []);
   const { data, loading, error, load: loadSettle } = useLoader(fn);
-  // 협력사에 보낼 금액 (Mig 234) — 날짜별 1탭 보고. 읽지 못하면 이 카드만 빠진다.
-  const [remits, setRemits] = useState([]);
+  // 협력사에 보낼 돈 (Mig 234 · 250) — 날짜별 보고 + 추가분. 읽지 못하면 위쪽 카드만 빠진다.
+  const [remitRes, setRemitRes] = useState({ days: [], extra_due: 0, extra_tasks: [], extras: [] });
+  const [acct, setAcct] = useState(undefined);        // undefined = 읽는 중 / null = 없음 / { bank, number, holder }
   const [sending, setSending] = useState(false);
   const loadRemits = useCallback(async () => {
     const res = await subStaffListRemits();
-    if (res.ok) setRemits(Array.isArray(res.days) ? res.days : []);
+    if (res.ok) setRemitRes({
+      days: Array.isArray(res.days) ? res.days : [],
+      extra_due: Number(res.extra_due) || 0,                              // 250 실행 전이면 값이 없다 → 0
+      extra_tasks: Array.isArray(res.extra_tasks) ? res.extra_tasks : [],
+      extras: Array.isArray(res.extras) ? res.extras : [],
+    });
   }, []);
   useEffect(() => { loadRemits(); }, [loadRemits]);
+  useEffect(() => {
+    let alive = true;
+    subStaffGetPayAccount().then(res => { if (alive) setAcct(res.ok && res.account ? res.account : null); });
+    return () => { alive = false; };
+  }, []);
   const load = useCallback(() => { loadSettle(); loadRemits(); }, [loadSettle, loadRemits]);
   const days = ((data && data.days) || []).map(fixDay);
-  const [open, setOpen] = useState(null);
   const subName = user?.subcontractor?.name || "협력사";
+  const today = todayKst();
+  const remits = remitRes.days;
 
-  const sums = useMemo(() => {
-    const today = todayKst();
-    const d0 = new Date(`${today}T00:00:00+09:00`);
-    // 한국 시간 기준 요일 (0=일). 주는 월요일 시작.
-    const kstDow = new Date(d0.getTime() + 9 * 3600 * 1000).getUTCDay();
-    const monOffset = kstDow === 0 ? 6 : kstDow - 1;
-    const weekStart = new Date(d0.getTime() - monOffset * 86400000).toLocaleDateString("en-CA", { timeZone: "Asia/Seoul" });
+  const month = useMemo(() => {
     const monthStart = today.slice(0, 8) + "01";
-    let week = 0, month = 0, weekCnt = 0, monthCnt = 0;
-    for (const d of days) {
-      if (d.date >= monthStart) { month += Number(d.net) || 0; monthCnt += Number(d.task_count) || 0; }
-      if (d.date >= weekStart)  { week  += Number(d.net) || 0; weekCnt  += Number(d.task_count) || 0; }
-    }
-    return { week, month, weekCnt, monthCnt };
-  }, [days]);
+    let net = 0, cnt = 0;
+    for (const d of days) if (d.date >= monthStart) { net += Number(d.net) || 0; cnt += Number(d.task_count) || 0; }
+    return { net, cnt };
+  }, [days, today]);
 
-  // 보여 줄 줄: 열린 날짜 전부 + 닫힌 날짜는 최근 7개
-  const remitRows = useMemo(() => {
-    const open = remits.filter(r => !r.locked);
-    const closed = remits.filter(r => r.locked).slice(0, 7);
-    return [...open, ...closed].sort((a, b) => String(b.date).localeCompare(String(a.date)));
-  }, [remits]);
+  // 위쪽 카드: 오래된 날짜가 위. 보낼 돈이 있는 날 · 보내고 확인을 기다리는 날 전부.
+  const todo = useMemo(() => remits.filter(r => r.status === "대기" || r.status === "미보고" || r.status === "보고됨")
+    .sort((a, b) => String(a.date).localeCompare(String(b.date))), [remits]);
+  // 보낼 것이 없을 때 보여 줄 "받음 완료" 카드 — 가장 최근에 받음 확인된 날
+  const lastDone = useMemo(() => remits.find(r => r.status === "받음") || null, [remits]);
+  const waitingExtras = remitRes.extras.filter(e => !e.received_at);
+  const extraNames = useMemo(() => new Set(remitRes.extra_tasks.map(t => t.task_no)), [remitRes.extra_tasks]);
+  const extraDate = remitRes.extra_tasks.length > 0 ? remitRes.extra_tasks[remitRes.extra_tasks.length - 1].date : (lastDone ? lastDone.date : today);
+
+  const noAcctText = `${subName} 회사 계좌가 아직 없습니다 — 관리자에게 등록을 요청해 주세요`;
+  async function copyAcct() {
+    if (!acct) { window.alert(noAcctText); return; }
+    const ok = await copyText(acct.number);
+    window.alert(ok ? "계좌번호를 복사했습니다." : "복사하지 못했습니다. 직접 입력해 주세요.");
+  }
+  const acctLine = (
+    <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8, fontSize: 13, color: "var(--text-secondary)", marginTop: 12 }}>
+      <span style={{ minWidth: 0, wordBreak: "break-all" }}>
+        {acct === undefined ? "계좌 확인 중…"
+          : acct ? <><em style={{ fontStyle: "normal", color: "var(--text-primary)" }}>{[acct.bank, acct.number].filter(Boolean).join(" ")}</em>{acct.holder ? ` · ${acct.holder}` : ""}</>
+          : <span style={{ color: "var(--danger, #E5484D)", fontWeight: 700 }}>{noAcctText}</span>}
+      </span>
+      <button type="button" onClick={copyAcct} style={ST.copy}>복사</button>
+    </div>
+  );
 
   async function sendRemit(r) {
     if (sending) return;
-    if (!window.confirm(`${dayLabel(r.date)}\n${subName}에 ${fmtWon(r.due)}을 보냈습니까?\n보고하면 이 날짜는 잠깁니다.`)) return;
+    if (!window.confirm(`${dayLabel(r.date)}\n${subName}에 ${num(r.due)}원을 보냈습니까?\n누르면 이 날짜는 잠깁니다.`)) return;
     setSending(true);
     const res = await subStaffReportRemit(r.date);
     setSending(false);
     if (!res.ok) { window.alert(res.error || "보고하지 못했습니다."); return; }
     loadRemits();
   }
+  async function sendExtra() {
+    if (sending) return;
+    if (!window.confirm(`추가로 보낼 돈 ${num(remitRes.extra_due)}원을 ${subName}에 보냈습니까?`)) return;
+    setSending(true);
+    const res = await subStaffReportExtra();
+    setSending(false);
+    if (!res.ok) { window.alert(res.error || "보고하지 못했습니다."); return; }
+    loadRemits();
+  }
+
+  const extraWhy = (() => {
+    const list = remitRes.extra_tasks;
+    if (list.length === 0) return "먼저 보낸 뒤에 금액이 바뀌었어요. 이 금액만 따로 보내 주세요.";
+    const names = list.map(t => t.customer_name).filter(Boolean);
+    const shown = names.slice(0, 2).join(", ") + (names.length > 2 ? ` 외 ${names.length - 2}` : "");
+    return `먼저 보낸 뒤에 작업 ${list.length}건${shown ? `(${shown})` : ""}이 더 완료됐어요. 이 금액만 따로 보내 주세요.`;
+  })();
 
   return (
     <div style={S.page}>
       <TitleBar
         title="내 정산" onReload={load} loading={loading}
         left={onBack ? <button type="button" onClick={onBack} style={S.btnSub}>← 뒤로</button> : null}
-        help={`내 수익 = 공급가 − 수수료. 수수료는 ${subName}에 내고, ${subName}가 올데이케어에 모아서 보냅니다. 날짜별로 ${subName}에 보낸 뒤 [${subName}에 보냄]을 눌러 주세요. 부가세를 포함해 받은 건의 부가세는 수익에 넣지 않고 따로 보여 줍니다(신고·납부용).`}
-      />
-      <HeroCard
-        label="이번 주 내 수익" value={sums.week}
-        sub={`이번 주 ${sums.weekCnt}건 · 이번 달 ${fmtWon(sums.month)} (${sums.monthCnt}건)`}
+        help={`보낼 돈은 ${subName}에 보내는 금액입니다. 날짜별로 보낸 뒤 [보냈어요]를 눌러 주세요. 관리자가 받음 확인을 하면 끝납니다. 내 몫 = 받은 돈 − 보낼 돈. 부가세를 포함해 받은 건의 부가세는 내 몫에 넣지 않고 따로 보여 줍니다(신고·납부용).`}
       />
       {error && <ErrorBox text={error}/>}
-      {!error && !loading && days.length === 0 && <Empty text="최근 한 달 완료한 작업이 없습니다."/>}
 
-      <PayToBox who="staff" subName={subName}/>
-      {/* 협력사에 보낼 금액 — 아직 닫히지 않은 날짜 전부 + 최근 닫힌 날짜 몇 개 */}
-      {remitRows.length > 0 && (
-        <div style={S.card}>
-          <div style={S.label}>{subName}에 보낼 금액</div>
-          {remitRows.map(r => {
-            const canSend = r.status === "대기" || r.status === "미보고";
-            return (
-              <div key={r.date} style={{ padding: "10px 0", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                  <span style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>{dayLabel(r.date)}</span>
-                  <span style={{ fontSize: 13, minWidth: 90, textAlign: "right" }}><Num value={r.due} strong/></span>
-                  <Badge status={r.status}/>
-                </div>
-                <div style={{ ...S.small, marginTop: 4 }}>
-                  {r.task_count}건 · 수수료 {fmtWon(r.fee)}
-                  {Number(r.cut) > 0 ? ` + ${subName} 회사 몫 ${fmtWon(r.cut)}` : ""}
-                  {Number(r.carry_in) !== 0 ? ` · 지난 날짜 반영 ${fmtWonSigned(r.carry_in)}` : ""}
-                  {r.status === "이월" && r.carried_to ? ` · ${dayLabel(r.carried_to)} 보고에 포함` : ""}
-                  {r.status === "이월" && !r.carried_to ? " · 다음 보낼 날에 차감" : ""}
-                </div>
-                {canSend && (
-                  <button type="button" disabled={sending} onClick={() => sendRemit(r)} style={{ ...S.btnMain, width: "100%", marginTop: 10 }}>
-                    {subName}에 보냄 · {fmtWon(r.due)}
-                  </button>
-                )}
-              </div>
-            );
-          })}
+      {/* ④ 추가로 보낼 돈 — 먼저 보낸(잠긴) 날짜 뒤에 작업이 더 끝난 경우. 맨 위. */}
+      {remitRes.extra_due > 0 && (
+        <div style={{ ...ST.hero, border: `1px solid ${AMBER}`, background: "rgba(245,165,36,0.08)" }}>
+          <div style={{ fontSize: 13, color: AMBER, fontWeight: 700, marginBottom: 6 }}>⚠ 추가로 보낼 돈 · {dayLabel(extraDate)}</div>
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 }}>
+            <b style={{ fontSize: 22, fontVariantNumeric: "tabular-nums" }}>{num(remitRes.extra_due)}<span style={{ ...ST.won, fontSize: 14 }}>원</span></b>
+          </div>
+          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 6, lineHeight: 1.5 }}>{extraWhy}</div>
+          {acctLine}
+          <button type="button" disabled={sending} onClick={sendExtra} style={{ ...ST.btn, opacity: sending ? 0.6 : 1 }}>추가분 보냈어요</button>
         </div>
       )}
+      {waitingExtras.map(e => (
+        <div key={e.id} style={{ ...ST.hero, borderColor: AMBER }}>
+          <div style={ST.k}>추가분 보낸 돈 · {dayLabel(e.ref_date)}</div>
+          <div style={{ ...ST.big, fontSize: 26, color: AMBER }}>{num(e.amount)}<span style={ST.won}>원</span></div>
+          <div style={ST.calc}>{hmKst(e.reported_at)} 보냄 · <b style={{ color: "var(--text-primary)" }}>관리자 확인을 기다리는 중</b></div>
+        </div>
+      ))}
+
+      {/* ① 보낼 돈 / ② 보냄 — 밀린 날이 여러 개면 오래된 날부터 */}
+      {todo.map(r => {
+        const sent = r.status === "보고됨";
+        const supply = Number(r.supply) || 0;
+        const due = Number(sent ? r.amount : r.due) || 0;
+        const isToday = r.date === today;
+        if (sent) {
+          return (
+            <div key={r.date} style={{ ...ST.hero, borderColor: AMBER }}>
+              <div style={ST.k}>{isToday ? "오늘 " : ""}보낸 돈 · {dayLabel(r.date)}</div>
+              <div style={{ ...ST.big, color: AMBER }}>{num(due)}<span style={ST.won}>원</span></div>
+              <div style={ST.calc}>{hmKst(r.reported_at)} 보냄 · <b style={{ color: "var(--text-primary)" }}>관리자 확인을 기다리는 중</b></div>
+              <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginTop: 8 }}>잘못 눌렀으면 관리자에게 [보냄 취소] 를 요청해 주세요.</div>
+              <Steps at={2}/>
+            </div>
+          );
+        }
+        return (
+          <div key={r.date} style={ST.hero}>
+            <div style={ST.k}>{isToday ? "오늘 " : ""}{subName}에 보낼 돈 · {dayLabel(r.date)}{r.status === "미보고" ? " · 아직 안 보냄" : ""}</div>
+            <div style={ST.big}>{num(due)}<span style={ST.won}>원</span></div>
+            <div style={ST.rcpt}>
+              <RcptRow label="받은 돈" value={num(supply)}/>
+              <RcptRow label="내 몫" value={`− ${num(supply - (Number(r.own) || 0))}`}/>
+              {Number(r.carry_in) !== 0 && <RcptRow label="지난 날짜에서 넘어온 금액" value={`${Number(r.carry_in) > 0 ? "+ " : "− "}${num(Math.abs(Number(r.carry_in)))}`}/>}
+              <RcptRow label="보낼 돈" value={num(due)} sum/>
+            </div>
+            {acctLine}
+            <button type="button" disabled={sending} onClick={() => sendRemit(r)} style={{ ...ST.btn, opacity: sending ? 0.6 : 1 }}>보냈어요</button>
+            <Steps at={1}/>
+          </div>
+        );
+      })}
+
+      {/* ③ 받음 완료 — 보낼 것이 없을 때만 (가장 최근에 받음 확인된 날) */}
+      {todo.length === 0 && remitRes.extra_due <= 0 && waitingExtras.length === 0 && lastDone && (
+        <div style={{ ...ST.hero, borderColor: GREEN }}>
+          <div style={ST.k}>{dayLabel(lastDone.date)}</div>
+          <div style={{ ...ST.big, fontSize: 30, color: GREEN }}>보낼 돈 없음 ✓</div>
+          <div style={ST.calc}>
+            {num(lastDone.amount)} 보냄{hmKst(lastDone.reported_at) ? ` (${hmKst(lastDone.reported_at)})` : ""} → {hmKst(lastDone.received_at)} 관리자 받음 확인
+          </div>
+          <Steps at={3}/>
+        </div>
+      )}
+      {/* 추가분이 있을 때는 처음 보낸 돈을 작게 */}
+      {(remitRes.extra_due > 0 || waitingExtras.length > 0) && lastDone && (
+        <div style={{ ...ST.hero, borderColor: GREEN }}>
+          <div style={ST.k}>{dayLabel(lastDone.date)} 처음 보낸 돈</div>
+          <div style={{ ...ST.big, fontSize: 22, color: GREEN, margin: "6px 0 0" }}>{num(lastDone.amount)} 받음 완료 ✓</div>
+        </div>
+      )}
+      {!error && !loading && days.length === 0 && todo.length === 0 && <Empty text="최근 한 달 완료한 작업이 없습니다."/>}
+
+      <div style={{ fontSize: 13, color: "var(--text-secondary)", margin: "4px 2px 8px" }}>이번 달 내 몫</div>
+      <div style={{ ...S.card, display: "flex", justifyContent: "space-between", fontSize: 13, color: "var(--text-secondary)" }}>
+        <span>{Number(today.slice(5, 7))}월</span>
+        <b style={{ color: "var(--text-primary)" }}>{fmtWon(month.net)} · {month.cnt}건</b>
+      </div>
 
       {days.length > 0 && (
-        <div style={S.card}>
-          <div style={S.label}>날짜별</div>
-          {days.map(d => (
-            <div key={d.date}>
-              <div onClick={() => setOpen(open === d.date ? null : d.date)} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", borderBottom: "1px solid var(--border)", cursor: "pointer" }}>
-                <span style={{ flex: 1, fontSize: 13, fontWeight: 700 }}>{dayLabel(d.date)}</span>
-                <span style={S.small}>{d.task_count}건</span>
-                <span style={{ fontSize: 13, minWidth: 90, textAlign: "right" }}><Num value={d.net} strong/></span>
-                <span style={S.small}>{open === d.date ? "▲" : "▼"}</span>
+        <>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", margin: "4px 2px 8px" }}>날짜별</div>
+          <div style={S.card}>
+            {days.map(d => (
+              <div key={d.date} style={{ paddingBottom: 8, marginBottom: 8, borderBottom: "1px solid var(--border)" }}>
+                <Table
+                  columns={[
+                    { key: "name", label: `${dayLabel(d.date)} 고객` },
+                    { key: "received", label: "받은 돈", align: "right" },
+                    { key: "due", label: "보낼 돈", align: "right" },
+                    { key: "net", label: "내 몫", align: "right" },
+                  ]}
+                  rows={(d.tasks || []).map(t => ({
+                    name: <>{t.customer_name}{extraNames.has(t.task_no) && <span style={{ color: AMBER, fontWeight: 700 }}> 추가</span>}</>,
+                    received: <span className="mono">{num(t.supply)}</span>,
+                    due: <span className="mono">{num((Number(t.supply) || 0) - (Number(t.net) || 0))}</span>,
+                    net: <b className="mono">{num(t.net)}</b>,
+                  }))}
+                />
+                {Number(d.vat) > 0 && <div style={{ ...S.small, marginTop: 6 }}>부가세 {fmtWon(d.vat)} (신고·납부용, 내 몫에 미포함)</div>}
               </div>
-              {open === d.date && (
-                <div style={{ padding: "4px 0 10px" }}>
-                  <Table
-                    columns={[
-                      { key: "name", label: "고객" },
-                      { key: "received", label: "받은 금액", align: "right" },
-                      { key: "fee", label: "수수료", align: "right" },
-                      { key: "net", label: "내 수익", align: "right" },
-                    ]}
-                    rows={(d.tasks || []).map(t => ({
-                      name: t.customer_name,
-                      received: <Num value={t.received}/>,
-                      fee: <Num value={t.fee}/>,
-                      net: <Num value={t.net} strong/>,
-                    }))}
-                    foot={{ name: "합계", received: <Num value={d.received}/>, fee: <Num value={d.fee}/>, net: <Num value={d.net} strong/> }}
-                  />
-                  {Number(d.vat) > 0 && <div style={{ ...S.small, marginTop: 6 }}>부가세 {fmtWon(d.vat)} (신고·납부용, 수익에 미포함)</div>}
-                  {Number(d.staff_cut) > 0 && <div style={{ ...S.small, marginTop: 2 }}>{subName} 회사 몫 {fmtWon(d.staff_cut)}</div>}
-                </div>
-              )}
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        </>
       )}
     </div>
   );
@@ -559,6 +680,23 @@ export function SubManagerSettleView({ focusRemits = 0 }) {
   }, []);
   useEffect(() => { loadRemits(); }, [loadRemits]);
   const pendingRemits = useMemo(() => pendingStaffRemits(staffRemits), [staffRemits]);
+  // Mig 250 — 기사가 따로 보낸 "추가분" (잠긴 날짜 뒤에 생긴 차액). 250 실행 전이면 빈 목록.
+  const [staffExtras, setStaffExtras] = useState([]);
+  const loadExtras = useCallback(async () => {
+    const res = await subManagerListStaffExtras();
+    setStaffExtras(res.ok && Array.isArray(res.rows) ? res.rows : []);
+  }, []);
+  useEffect(() => { loadExtras(); }, [loadExtras]);
+  const pendingExtras = staffExtras.filter(e => !e.received_at);
+  async function receiveExtra(e) {
+    if (busy) return;
+    if (!window.confirm(`${e.name} · 추가분\n${fmtWon(e.amount)} 받은 것으로 확인할까요?`)) return;
+    setBusy(true);
+    const res = await subManagerConfirmStaffExtra(e.id, true);
+    setBusy(false);
+    if (!res.ok) { window.alert(res.error || "처리하지 못했습니다."); return; }
+    loadExtras();
+  }
   const pendingRef = useRef(null);
   useEffect(() => {
     if (focusRemits > 0 && pendingRemits.length > 0 && pendingRef.current) {
@@ -629,6 +767,21 @@ export function SubManagerSettleView({ focusRemits = 0 }) {
       />
       {/* 기사 송금 확인 대기 — 기사가 [보냄] 했고 아직 [받음 확인] 하지 않은 것. 0건이면 숨김.
           (날짜 카드가 이미 "확인 완료" 로 접혀 있어도 여기서 바로 처리할 수 있다) */}
+      {pendingExtras.length > 0 && (
+        <div style={{ ...S.card, borderColor: "#F5A524" }}>
+          <div style={{ fontSize: 14, fontWeight: 800, color: "#F5A524" }}>기사 추가분 확인 대기 {pendingExtras.length}건</div>
+          <div style={{ ...S.small, marginTop: 2 }}>먼저 받은 뒤에 작업이 더 끝나서 기사가 따로 보낸 금액입니다. 받았으면 [받음 확인]을 눌러 주세요.</div>
+          {pendingExtras.map(e => (
+            <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 8, padding: "10px 0", borderTop: "1px solid var(--border)", marginTop: 8 }}>
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ fontSize: 14, fontWeight: 800 }}>{e.name}</div>
+                <div style={S.small}>{dayLabel(e.ref_date)} 추가분 · <Num value={e.amount} strong/></div>
+              </div>
+              <button type="button" disabled={busy} onClick={() => receiveExtra(e)} style={S.btnMain}>받음 확인</button>
+            </div>
+          ))}
+        </div>
+      )}
       {pendingRemits.length > 0 && (
         <div ref={pendingRef} style={{ ...S.card, borderColor: "var(--danger, #EF4444)", scrollMarginTop: 80 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: "var(--danger, #EF4444)" }}>기사 송금 확인 대기 {pendingRemits.length}건</div>

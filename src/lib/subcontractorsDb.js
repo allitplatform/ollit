@@ -159,6 +159,11 @@ export const subSetNotifyPrefs = (prefs) => _call("sub_set_notify_prefs", { p_pr
 
 // ── 기사 → 협력사 송금 보고 (Mig 234, 2단계 보고) ────────────
 //   기사: 날짜별 보낼 금액·상태 / [협력사에 보냄].  관리자: 기사별 상태 / [받음 확인].
+// 추가로 보낼 돈 (Mig 250) — 잠긴 날짜 뒤에 생긴 차액을 따로 보고 / 관리자 확인
+export const subStaffReportExtra = () => _call("sub_staff_report_extra", {});
+export const subManagerListStaffExtras = () => _call("sub_manager_list_staff_extras", {});
+export const subManagerConfirmStaffExtra = (id, confirm = true) =>
+  _call("sub_manager_confirm_staff_extra", { p_id: id, p_confirm: !!confirm });
 export const subStaffListRemits = () => _call("sub_staff_list_remits", {});
 export const subStaffReportRemit = (date) => _call("sub_staff_report_remit", { p_date: date });
 export const subManagerListStaffRemits = () => _call("sub_manager_list_staff_remits", {});
