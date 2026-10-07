@@ -3,6 +3,7 @@
 //   RelocationBlocks : 작업 상세 · 기사 작업 화면 — 철거(출발) / 설치(도착) 두 블록 + 지도 열기 · 주소 복사
 import { useState } from "react";
 import { mapSearchLinks, mapAppLinks, relocationFees } from "../utils/relocation.js";
+import { splitAddress } from "../utils/addressParts.js";
 
 // 2026-10-07 — 기사 앱의 기존 지도 버튼과 같은 방식: 앱으로 먼저 열고, 1.5초 안에 안 넘어가면 웹 검색으로.
 //   PC(터치 기기가 아님)에서는 앱이 없으므로 웹을 바로 연다. 좌표가 없어 주소 검색으로 연다.
@@ -77,9 +78,13 @@ function Block({ tone, title, address, detail, fee, onEdit }) {
         <span style={{ fontSize: 12.5, fontWeight: 800, color: tone }}>{title}</span>
         {fee != null && <span style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>{won(fee)}</span>}
       </div>
-      <div style={{ fontSize: 15, fontWeight: 700, color: has ? "var(--text-primary)" : "var(--danger, #E5484D)", margin: "4px 0 2px", wordBreak: "keep-all" }}>
-        {has ? address : "주소가 아직 없습니다"}
+      {/* 2026-10-07 — 구·동 크게 + 전체 주소 아래 작게 */}
+      <div style={{ fontSize: 16, fontWeight: 800, color: has ? "var(--text-primary)" : "var(--danger, #E5484D)", margin: "4px 0 1px", wordBreak: "keep-all" }}>
+        {has ? (splitAddress(address).head || address) : "주소가 아직 없습니다"}
       </div>
+      {has && splitAddress(address).head && (
+        <div style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.45, wordBreak: "keep-all", overflowWrap: "anywhere" }}>{address}</div>
+      )}
       {detail && <div style={{ fontSize: 12.5, color: "var(--text-secondary)" }}>{detail}</div>}
       {has && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>

@@ -11,6 +11,7 @@ import { engineerDisplayName } from "../lib/subcontractorsDb.js";
 import { formatDateTimeKST } from "../utils/dateLabel.js";
 import { isRelocationTask, relocationLine, mapSearchLinks, mapAppLinks } from "../utils/relocation.js";
 import { RelocationBlocks } from "./RelocationParts.jsx";
+import { splitAddress } from "../utils/addressParts.js";
 
 const GUT = 12;
 const cardBox = {
@@ -204,7 +205,11 @@ export function PcPlaceCard({ task, onSaveDest }) {
         <RelocationBlocks task={task} onSaveDest={onSaveDest}/>
       ) : (
         <>
-          <div style={{ fontSize: 15, fontWeight: 700, color: "var(--text-primary)", wordBreak: "keep-all" }}>{address || "주소 없음"}</div>
+          {/* 2026-10-07 — 구·동 크게 + 전체 주소 아래 작게 */}
+          <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)", wordBreak: "keep-all" }}>{splitAddress(address).head || address || "주소 없음"}</div>
+          {splitAddress(address).head && (
+            <div style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.45, wordBreak: "keep-all", overflowWrap: "anywhere", marginTop: 1 }}>{address}</div>
+          )}
           {address && (
             <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 8 }}>
               <button type="button" onClick={() => openMap("kakao", address)} style={smallBtn}>카카오맵</button>

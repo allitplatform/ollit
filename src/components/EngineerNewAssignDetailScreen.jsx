@@ -6,7 +6,9 @@ import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 // 2026-06-16 — 주소 표시 + 복사 공통 컴포넌트.
 import { AddressLine } from "./common/AddressLine.jsx";
-import { chooseRouteAddress } from "../utils/relocation.js";
+import { chooseRouteAddress, isRelocationTask } from "../utils/relocation.js";
+import { workItemName } from "../utils/workItemName.js";
+import { getCategoryMeta } from "../lib/serviceCatalog.js";
 import { DropdownPicker, HOURS_24, MINUTES_30 } from "./DropdownPicker.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
@@ -302,6 +304,38 @@ export function EngineerNewAssignDetailScreen({
                 return s + sub;
               }, 0);
               const distRatio = (sumSub > 0 && totalEng > 0) ? (totalEng / sumSub) : 0.6;
+              // 2026-10-07 시안 v1 — 항목이 여러 개면 큰 아이콘 칸을 반복하지 않는다:
+              //   "🛠 이전설치" 한 줄 + 작은 칩 [철거 ×1] [설치 ×1], 견적은 오른쪽. (유솔N 은 항목별 정산금이 필요해 예전 그대로)
+              const liveItems = workItems.filter(w => !(w.isCanceled ?? w.is_canceled));
+              if (!isUsolN && liveItems.length >= 2) {
+                const reloc = isRelocationTask(task);
+                const meta = getCategoryMeta(task);
+                const est = Number(task.estimateTotal || 0);
+                return (
+                  <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontSize: 17, fontWeight: 800, color: "var(--text-primary)" }}>{meta.icon} {reloc ? "이전설치" : meta.label}</div>
+                      <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginTop: 6 }}>
+                        {liveItems.map((w, i) => {
+                          let nm = workItemName(w, "");
+                          if (reloc && nm === "이전설치") nm = "설치";
+                          return (
+                            <span key={w.id || i} style={{ fontSize: 12.5, fontWeight: 700, padding: "3px 9px", borderRadius: 999, background: "var(--bg-secondary)", border: "1px solid var(--border)", color: "var(--text-primary)" }}>
+                              {nm || "항목"} ×{w.qty || 1}
+                            </span>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    {est > 0 && (
+                      <div style={{ textAlign: "right", flexShrink: 0 }}>
+                        <div style={{ fontSize: 11, color: "var(--text-tertiary)", fontWeight: 600 }}>고객 견적</div>
+                        <div style={{ fontSize: 17, fontWeight: 800, color: "var(--text-primary)" }}>{est.toLocaleString("ko-KR")}원</div>
+                      </div>
+                    )}
+                  </div>
+                );
+              }
               return workItems.map((wi, idx) => {
                 const subtotal = Number(wi.subtotal ?? (wi.unit_price ?? wi.unitPrice ?? 0) * (wi.qty || 1));
                 let price;
@@ -348,7 +382,7 @@ export function EngineerNewAssignDetailScreen({
             color: "var(--text-secondary)",
             marginBottom: 4,
           }}>
-            📞 {task.phone || "—"}
+            📞 {task.phone || "—"}{task.paymentMethod ? ` · 💳 ${PAYMENT_METHOD_LABELS[task.paymentMethod] || task.paymentMethod}` : ""}
           </div>
 
           {/* 2026-06-16 — 주소 + 복사 (공통 AddressLine plain). */}
@@ -363,7 +397,8 @@ export function EngineerNewAssignDetailScreen({
           />
 
           {/* 2026-05-29 — 결제 방식 라벨 (선택값 있을 때만 / NULL 숨김) */}
-          {task.paymentMethod && (
+          {/* 2026-10-07 — 결제 방식은 위 전화 줄에 같이 적는다 (이 줄은 쓰지 않음) */}
+          {false && task.paymentMethod && (
             <div style={{
               fontSize: 14, fontWeight: 600,
               color: "var(--text-secondary)",

@@ -3,6 +3,7 @@
 //   · 견적은 새 금액 칸을 만들지 않고 작업 항목 두 줄(철거 / 이전설치)의 단가로 나눈다. 견적 = 두 줄 합.
 //   · 설치 기사 몫(80%)은 작업 전체 금액으로 계산하므로 항목을 둘로 나눠도 결과가 같다.
 import { extractRegion } from "./partnerPasteParser.js";
+import { splitAddress } from "./addressParts.js";
 
 export const RELOC_INSTALL = "이전설치";
 export const RELOC_REMOVE = "철거";
@@ -61,11 +62,13 @@ export function relocationFees(task) {
 // 카드 한 줄: "철거 강남구 → 설치 송파구"
 export function relocationLine(task) {
   if (!isRelocationTask(task)) return "";
-  const from = extractRegion(task.address || "") || task.region || "";
+  // 2026-10-07 — 구·동까지 (주소 표시 규칙). 뽑지 못하면 예전처럼 구 이름.
+  const fromAddr = task.fullAddress || task.address || "";
+  const from = splitAddress(fromAddr).head || extractRegion(fromAddr) || task.region || "";
   const dest = String(task.destAddress || task.dest_address || "").trim();
-  const to = dest ? (extractRegion(dest) || dest.split(/\s+/).slice(0, 2).join(" ")) : "";
+  const to = dest ? (splitAddress(dest).head || extractRegion(dest) || dest.split(/\s+/).slice(0, 2).join(" ")) : "";
   if (!from && !to) return "";
-  return `철거 ${from || "?"} → 설치 ${to || "미정"}`;
+  return `① ${from || "?"} → ② ${to || "미정"}`;
 }
 
 // 지도 앱을 바로 여는 주소 (주소 검색). 기사 앱의 기존 티맵 · 카카오맵 버튼과 같은 스킴.

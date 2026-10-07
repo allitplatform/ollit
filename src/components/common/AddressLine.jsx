@@ -18,7 +18,7 @@ import { Copy, Pencil } from "lucide-react";
 import { supabase } from "../../lib/supabase.js";
 import { currentUserId } from "../../lib/cancelRpc.js";
 import { parseRegion } from "../../utils/regionParser.js";
-import { relocationLine } from "../../utils/relocation.js";
+import { splitAddress, addressHead } from "../../utils/addressParts.js";
 
 async function editTaskAddress(task, onToast) {
   const cur = task.fullAddress || task.address || "";
@@ -87,53 +87,82 @@ export async function copyAddress(task, onToast) {
   }
 }
 
-// 2026-10-07 Mig 259 — 이전설치면 주소가 2개다: ① 철거(출발 = 기존 주소) ② 설치(도착 = destAddress) + 메모.
-//   이 부품을 쓰는 화면(새 배정 목록 · 새 배정 상세 · 통화 화면 · 오늘 작업 카드 · 일정 목록 · 작업 화면)이 한 번에 바뀐다.
-function DestAddressLine({ task, iconColor }) {
-  const [copied, setCopied] = useState(false);
-  const dest = String(task?.destAddress || task?.dest_address || "").trim();
-  const memo = String(task?.destDetail || task?.dest_detail || "").trim();
+// 2026-10-07 — 주소 표시 규칙: 구·동은 크게, 전체 주소는 아래 작게 (utils/addressParts.js).
+//   이전설치(설치 주소 있음)는 경로선: 주황 ① 철거 → 보라 ② 설치. 각 칸에 [복사] [길찾기], 철거 칸에만 ✏️.
+//   compact(목록 카드): "① 강남구 역삼동 → ② 도봉구 창동" 한 줄.
+function openRoute(address) {
+  const q = encodeURIComponent(String(address || "").trim());
+  if (!q) return;
+  const isPhone = typeof navigator !== "undefined" && /Android|iPhone|iPad|iPod/i.test(navigator.userAgent || "");
+  const web = `https://map.kakao.com/?q=${q}`;
+  if (!isPhone) { window.open(web, "_blank"); return; }
+  const start = Date.now();
+  window.location.href = `kakaomap://search?q=${q}`;
+  setTimeout(() => { if (Date.now() - start < 2000 && document.visibilityState === "visible") window.open(web, "_blank"); }, 1500);
+}
+
+function RouteStop({ no, color, label, address, memo, task, canEdit, last }) {
+  const [msg, setMsg] = useState("");
+  const parts = splitAddress(address);
+  const flash = (m) => { setMsg(m); setTimeout(() => setMsg(""), 1500); };
   async function copy(e) {
     e.stopPropagation();
     try {
-      if (navigator?.clipboard?.writeText) await navigator.clipboard.writeText(dest);
+      if (navigator?.clipboard?.writeText) await navigator.clipboard.writeText(parts.full);
       if (navigator?.vibrate) navigator.vibrate(30);
-      setCopied(true); setTimeout(() => setCopied(false), 1500);
-    } catch (_e) { window.prompt("주소를 복사해 주세요", dest); }
+      flash("복사됨 ✓");
+    } catch (_e) { window.prompt("주소를 복사해 주세요", parts.full); }
   }
+  const btn = {
+    background: "transparent", border: "1px solid var(--border)", borderRadius: 8, padding: "5px 9px",
+    fontSize: 12, fontWeight: 700, color: "var(--text-primary)", fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
+  };
   return (
-    <div style={{ marginTop: 6 }}>
-      <div style={{ fontSize: 11, fontWeight: 800, color: "#6366F1", marginBottom: 2 }}>② 설치 (도착)</div>
-      <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
-        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, lineHeight: 1.45, wordBreak: "keep-all", overflowWrap: "anywhere" }}>
-          {dest}
-          {memo && <span style={{ display: "block", fontSize: 12, fontWeight: 500, opacity: 0.8 }}>메모: {memo}</span>}
-        </span>
-        <button type="button" onClick={copy} aria-label="설치 주소 복사" style={{
-          flexShrink: 0, background: "transparent", border: "none", padding: 2, cursor: "pointer", lineHeight: 0,
-          color: iconColor, display: "inline-flex", alignItems: "center", fontSize: 11, fontWeight: 700,
-        }}>{copied ? "복사됨 ✓" : <Copy size={14}/>}</button>
+    <div style={{ display: "flex", gap: 10 }}>
+      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", flexShrink: 0 }}>
+        <span style={{ width: 22, height: 22, borderRadius: "50%", background: color, color: "#fff", fontSize: 12, fontWeight: 800, display: "grid", placeItems: "center" }}>{no}</span>
+        {!last && <span style={{ flex: 1, width: 2, background: "var(--border)", margin: "3px 0" }}/>}
+      </div>
+      <div style={{ flex: 1, minWidth: 0, paddingBottom: last ? 0 : 12 }}>
+        <div style={{ fontSize: 11.5, fontWeight: 800, color }}>{label}</div>
+        <div style={{ fontSize: 17, fontWeight: 800, color: "var(--text-primary)", lineHeight: 1.3 }}>{parts.head || parts.full || "주소 없음"}</div>
+        {parts.head && (
+          <div style={{ fontSize: 12.5, color: "var(--text-secondary)", lineHeight: 1.45, wordBreak: "keep-all", overflowWrap: "anywhere" }}>{parts.full}</div>
+        )}
+        {memo && (
+          <div style={{ marginTop: 5, padding: "5px 8px", borderRadius: 8, fontSize: 12.5, fontWeight: 600, background: "rgba(251,191,36,0.16)", color: "#B45309" }}>📝 {memo}</div>
+        )}
+        {parts.full && (
+          <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginTop: 6, alignItems: "center" }}>
+            <button type="button" onClick={copy} style={btn}>📋 복사</button>
+            <button type="button" onClick={(e) => { e.stopPropagation(); openRoute(parts.full); }} style={btn}>🧭 길찾기</button>
+            {canEdit && task?.id && (
+              <button type="button" aria-label="주소 수정" onClick={(e) => { e.stopPropagation(); editTaskAddress(task, flash); }} style={{ ...btn, color: "#FF1B8D", borderColor: "rgba(255,27,141,0.4)" }}>✏️</button>
+            )}
+            {msg && <span style={{ fontSize: 11.5, fontWeight: 700, color: "var(--text-secondary)" }}>{msg}</span>}
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-//   compact: 목록 카드용 — 이전설치면 "철거 강남구 → 설치 도봉구" 한 줄만 (두 줄은 상세 · 작업 화면에서)
 export function AddressLine(props) {
-  const dest = String(props?.task?.destAddress || props?.task?.dest_address || "").trim();
+  const task = props.task;
+  const dest = String(task?.destAddress || task?.dest_address || "").trim();
   if (!dest) return <AddressLineBase {...props}/>;
+  const from = task?.fullAddress || task?.address || "";
   if (props.compact) {
     return (
-      <div style={{ ...(props.baseStyle || {}), minWidth: 0, fontWeight: 700, color: "#6366F1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-        {relocationLine(props.task) || dest}
+      <div style={{ ...(props.baseStyle || {}), minWidth: 0, fontWeight: 700, color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        <span style={{ color: "#F97316" }}>①</span> {addressHead(from)} <span style={{ color: "var(--text-tertiary)" }}>→</span> <span style={{ color: "#6366F1" }}>②</span> {addressHead(dest)}
       </div>
     );
   }
   return (
-    <div style={{ minWidth: 0 }}>
-      <div style={{ fontSize: 11, fontWeight: 800, color: "#F97316", marginBottom: 2 }}>① 철거 (출발)</div>
-      <AddressLineBase {...props}/>
-      <DestAddressLine task={props.task} iconColor={props.iconColor || "var(--label-main)"}/>
+    <div style={{ minWidth: 0, marginTop: 6 }}>
+      <RouteStop no={1} color="#F97316" label="철거 (출발)" address={from} task={task} canEdit={props.editable !== false}/>
+      <RouteStop no={2} color="#6366F1" label="설치 (도착)" address={dest} memo={String(task?.destDetail || task?.dest_detail || "").trim()} last/>
     </div>
   );
 }
@@ -202,7 +231,25 @@ function AddressLineBase({
       alignItems: lineClamp >= 2 ? "flex-start" : "center",
       gap: 6,
     }}>
-      <span style={addrStyle}>📍 {addr}</span>
+      {/* 2026-10-07 — 구·동은 굵게. 상세(줄바꿈 허용)는 구·동 크게 + 전체 주소 아래 작게, 목록(말줄임)은 나머지를 흐리게 한 줄 */}
+      {(() => {
+        const parts = hasAddr ? splitAddress(addr) : { head: "", rest: "", full: addr };
+        if (!parts.head) return <span style={addrStyle}>📍 {addr}</span>;
+        if (lineClamp === 0 || lineClamp === "none") {
+          return (
+            <span style={{ ...addrStyle, display: "block" }}>
+              <b style={{ display: "block", fontSize: "1.15em", fontWeight: 800, color: "var(--text-primary)" }}>📍 {parts.head}</b>
+              <span style={{ display: "block", fontSize: "0.92em", fontWeight: 500 }}>{parts.full}</span>
+            </span>
+          );
+        }
+        return (
+          <span style={addrStyle}>
+            📍 <b style={{ fontWeight: 800, color: "var(--text-primary)" }}>{parts.head}</b>
+            {parts.rest ? <span style={{ opacity: 0.6, fontWeight: 500 }}> {parts.rest}</span> : null}
+          </span>
+        );
+      })()}
       {hasAddr && (
         <button onClick={handleCopy} aria-label="주소 복사" style={buttonStyle}>
           <Copy size={14}/>
