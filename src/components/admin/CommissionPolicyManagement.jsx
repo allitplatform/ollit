@@ -82,7 +82,7 @@ function PermissionDeniedView({ onBack, role }) {
         권한 없음
       </div>
       <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 4 }}>
-        admin / owner / operator 만 박은 영역
+        admin / owner / operator 만 볼 수 있습니다
       </div>
       <div style={{ fontSize: 12, color: "var(--text-tertiary)", marginBottom: 24 }}>
         현재 role: {role || "(없음)"}

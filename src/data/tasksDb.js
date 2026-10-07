@@ -2,6 +2,7 @@
 // 옛 src/data/tasks.js (localStorage)는 그대로 두고, 신규 흐름은 여기서 처리.
 // 외부 인터페이스(rowToTask 결과)는 옛 v14NormalizeTask 결과와 호환되게 camelCase로 반환.
 
+import { categoryIdOfTask } from "../lib/serviceCatalog.js";
 import { supabase } from "../lib/supabase.js";
 import { clearReassignRequest as clearReassignRequestRpc } from "../lib/adminTaskRpc.js";
 import { currentUserId } from "../lib/cancelRpc.js";
@@ -336,8 +337,15 @@ export function taskToRow(task, partial = false) {
     row.task_no = task.taskNo || task.taskCode;
   }
   // category_id 는 NOT NULL — insert 시 task.categoryId 누락이면 Phase 1 MVP 기본값 (aircon) fallback
+  // 2026-10-07 — 종목은 작업 항목(서비스)의 종목으로 저장한다. (전에는 항상 에어컨이 들어가
+  //   주방후드 작업을 협력사 기사 전원이 "이 종목 불가" 로 받았다.) 항목으로 못 정할 때만 기본값.
+  //   수정(partial)일 때는 항목이 함께 바뀌었고 종목을 알아냈을 때만 고친다.
   if (task.categoryId !== undefined) row.category_id = task.categoryId;
-  else if (!partial)                 row.category_id = CATEGORY_ID_AIRCON;
+  else if (!partial)                 row.category_id = categoryIdOfTask(task) || CATEGORY_ID_AIRCON;
+  else if (task.workItems !== undefined || (task.categoryData && task.categoryData.workItems !== undefined)) {
+    const cid = categoryIdOfTask(task);
+    if (cid) row.category_id = cid;
+  }
   if (task.principalId !== undefined) row.principal_id = task.principalId;
 
   // 고객

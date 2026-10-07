@@ -221,7 +221,7 @@ export function LoginScreen({ onLogin }) {
           </button>
 
           <div style={{ textAlign: "center", marginTop: 16 }}>
-            <span style={{
+            <span onClick={() => window.alert("비밀번호를 잊으셨나요?\n\n소속 관리자 또는 올데이케어에 초기화를 요청해 주세요.\n초기화 후 처음 로그인할 때 새 비밀번호를 정합니다.")} style={{
               fontSize: 13, color: DARK.subColor,
               cursor: "pointer", fontWeight: 500,
             }}>

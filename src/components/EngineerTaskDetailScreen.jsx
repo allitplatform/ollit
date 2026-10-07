@@ -2866,7 +2866,7 @@ function PhotoPreview({ label, photos, allPhotos, onRemove }) {
           padding: 12, background: "var(--card-bg)", borderRadius: 6,
           border: "0.5px solid var(--border)",
         }}>
-          아직 박지 X
+          아직 사진 없음
         </div>
       ) : (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 6 }}>

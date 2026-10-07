@@ -5124,7 +5124,14 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
     return () => { alive = false; };
   }, [user?.subcontractor?.id]);
 
+  // 2026-10-07 — 협력사 기사의 전화·문의는 소속 협력사 관리자 번호로 (올데이케어 번호 아님)
+  function contactSubManager(kind) {
+    const m = subContacts.find(x => String(x.phone || "").replace(/[^0-9]/g, ""));
+    if (!m) { alert("소속 관리자 연락처가 없습니다. 관리자에게 직접 문의해 주세요."); return; }
+    window.location.href = `${kind === "sms" ? "sms" : "tel"}:${String(m.phone).replace(/[^0-9]/g, "")}`;
+  }
   function handleCallOps() {
+    if (user?.subcontractor) { contactSubManager("tel"); return; }
     if (!opsPhone) return;
     const digits = String(opsPhone).replace(/[^0-9]/g, "");
     if (!digits) return;
@@ -5479,6 +5486,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
             onContactOps={opsPhone ? handleCallOps : null}
             subcontractor={user?.subcontractor || null}
             subContacts={subContacts}
+            authUser={user}
             onChangeAccount={() => setScreen("accountEdit")}
             onRegions={() => setScreen("regionChange")}
             onLogout={onLogout}
@@ -5579,7 +5587,10 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
               resetTo("main");
               fetchTasks();
             }}
+            opsLabels={user?.subcontractor ? { call: "📞 관리자 전화", ask: "💬 관리자 문자" } : null}
             onCallOps={async () => {
+              // 2026-10-07 — 협력사 기사는 올데이케어가 아니라 소속 협력사 관리자에게
+              if (user?.subcontractor) { contactSubManager("tel"); return; }
               // 2026-07-15 — 운영팀 전화 (설정 > 운영팀 전화번호, Mig 104)
               try {
                 const r = await getOpsPhone();
@@ -5588,6 +5599,7 @@ export default function EngineerApp({ user, onLogout, onSwitchRole }) {
               alert("운영팀 번호가 아직 설정되지 않았어요 (관리자 설정 > 운영팀 전화번호)");
             }}
             onAskOps={() => {
+              if (user?.subcontractor) { contactSubManager("sms"); return; }
               // 2026-07-24 — 카톡 → 메시지 창구 (Mig 188, 사장님 spec).
               //   이 작업에 대한 운영팀 채팅 스레드로 바로 진입.
               const tk = acceptedCall || tasks.find(x => x.id === callTaskId) || extraAssignments.find(x => x.id === callTaskId) || null;

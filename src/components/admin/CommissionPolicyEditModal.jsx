@@ -28,12 +28,12 @@ export function CommissionPolicyEditModal({ policy, onClose, onSaved }) {
       const patch = {};
       if (engineerBase !== "" && engineerBase !== policy.engineer_base) {
         const n = parseInt(engineerBase, 10);
-        if (!Number.isFinite(n)) { setError("기사 단가 박은 영역 숫자 박을 영역"); setBusy(false); return; }
+        if (!Number.isFinite(n)) { setError("기사 단가는 숫자로 입력해 주세요"); setBusy(false); return; }
         patch.engineer_base = n;
       }
       if (feeRate !== "" && Number(feeRate) !== Number(policy.fee_rate)) {
         const r = parseFloat(feeRate);
-        if (!Number.isFinite(r) || r < 0 || r > 1) { setError("수수료율 박은 영역 0~1 사이 박을 영역"); setBusy(false); return; }
+        if (!Number.isFinite(r) || r < 0 || r > 1) { setError("수수료율은 0~1 사이로 입력해 주세요"); setBusy(false); return; }
         patch.fee_rate = r;
       }
       if (principalFee !== policy.principal_fee) {
@@ -119,7 +119,7 @@ export function CommissionPolicyEditModal({ policy, onClose, onSaved }) {
           />
         </FormRow>
 
-        <FormRow label="추가 메모 (JSON 형식 / 가짜단가 박은 영역)">
+        <FormRow label="추가 메모 (JSON 형식 / 가짜단가 포함)">
           <textarea
             value={notes}
             onChange={(e) => setNotes(e.target.value)}

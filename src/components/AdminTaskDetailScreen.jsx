@@ -155,6 +155,12 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
     setLoading(!(initialTask?.task_no && initialTask?.address));
     setFetchError(null);
   }, [initialTask?.id]);
+  // 2026-10-07 — 협력사 모드: 바깥(협력사 관리자 화면)이 배정·기사 변경·일정 저장 뒤 같은 작업을 다시 읽어
+  //   새 값으로 넘겨 준다. 위 효과는 작업 id 가 바뀔 때만 반영해서 화면이 "미배정" 그대로 남았다 → 값이 바뀌면 반영.
+  useEffect(() => {
+    if (subMode && initialTask) setTask(initialTask);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [initialTask]);
   useEffect(() => {
     if (!initialTask?.id) {
       setLoading(false);

@@ -145,8 +145,8 @@ function AssignmentCard({ task, onClick }) {
           }}>N</span>
         )}
         <span>
-          {task.appliance ? `· ${task.appliance}` : ""}
-          {task.qty ? ` ×${task.qty}` : ""}
+          {/* 기종이 없는 종목(주방후드·출장비 등)의 "(공통) ×1" 은 숨긴다 */}
+          {task.appliance && task.appliance !== "(공통)" ? `· ${task.appliance}${task.qty ? ` ×${task.qty}` : ""}` : ""}
         </span>
       </div>
 

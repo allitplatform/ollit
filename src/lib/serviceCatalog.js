@@ -260,6 +260,24 @@ export function getCategoryMeta(input) {
   return direct ? categoryMetaByCode(direct) : CATEGORY_OTHER;
 }
 
+// 작업의 항목(서비스)으로 종목 id(categories.id) 를 정한다 — 저장할 때 쓴다 (2026-10-07).
+//   "공통(출장비 등)" 을 뺀 첫 항목의 종목. 못 정하면(목록을 아직 못 읽었거나 모르는 이름) null → 부르는 쪽이 기본값을 쓴다.
+//   사고: 접수 폼이 종목을 안 넣어 주방후드 작업이 전부 에어컨으로 저장 → 협력사 기사 전원 "이 종목 불가".
+export function categoryIdOfTask(task) {
+  if (!task) return null;
+  // 접수 어댑터는 항목을 categoryData(jsonb) 안에 넣어 보낸다 → 두 곳 다 본다
+  const cd = task.categoryData || {};
+  const items = Array.isArray(task.workItems) ? task.workItems : (Array.isArray(cd.workItems) ? cd.workItems : []);
+  const candidates = [...items, { serviceCode: task.serviceCode, workType: task.workType || cd.workType }];
+  for (const it of candidates) {
+    const c = _categoryCodeOfItem(it);
+    if (!c || c === "common") continue;
+    for (const [id, code] of _catById) if (code === c) return id;
+    return null;
+  }
+  return null;
+}
+
 // 색 띠·칩 배경용 옅은 색 (#RRGGBB → rgba)
 export function categoryTint(color, alpha = 0.14) {
   const m = /^#([0-9a-f]{6})$/i.exec(String(color || ""));

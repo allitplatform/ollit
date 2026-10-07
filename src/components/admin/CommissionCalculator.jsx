@@ -106,7 +106,7 @@ export function CommissionCalculator() {
           </select>
         </Row>
         {showQty && (
-          <Row label="수량 조건 (에어컨프로 1way 박은 영역 — 첫 대 / 추가)">
+          <Row label="수량 조건 (에어컨프로 1way — 첫 대 / 추가)">
             <select value={qty} onChange={(e) => setQty(e.target.value)} style={selectStyle}>
               {QTY_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
             </select>

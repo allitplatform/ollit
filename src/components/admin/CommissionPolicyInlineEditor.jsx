@@ -49,7 +49,7 @@ export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) 
     listCommissionPolicies({ principalCode }).then(res => {
       if (cancelled) return;
       if (!res.ok) {
-        setError(res.error || "정책 조회 박지 X");
+        setError(res.error || "정책을 불러오지 못했습니다");
         setPolicies([]);
       } else {
         setPolicies(res.data || []);
@@ -126,7 +126,7 @@ export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) 
       <div style={emptyStyle}>
         <div style={{ fontSize: 36, marginBottom: 8 }}>📭</div>
         <div style={{ fontSize: 13, color: "var(--text-secondary)" }}>
-          박힌 영역 박은 영역 박지 X
+          등록된 정책이 없습니다
         </div>
         <div style={{ fontSize: 11, color: "var(--text-tertiary)", marginTop: 4 }}>
           (principal_code: {principalCode || "—"})
@@ -188,7 +188,7 @@ export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) 
             {fakeBaseChanged && (
               <><strong style={{ color: "#FF1B8D" }}>가짜단가 수정됨</strong></>
             )}
-            {" "}— <strong style={{ color: "#FF1B8D" }}>저장 버튼</strong> 박은 영역 박을 영역
+            {" "}— <strong style={{ color: "#FF1B8D" }}>저장 버튼</strong>을 눌러야 반영됩니다
           </span>
         </div>
       )}
@@ -210,7 +210,7 @@ export function CommissionPolicyInlineEditor({ principalId, onModifiedChange }) 
         })}
         {filtered.length === 0 && (
           <div style={emptyStyle}>
-            이 작업 유형 박은 영역 박은 영역 박지 X
+            이 작업 유형에는 정책이 없습니다
           </div>
         )}
       </div>
@@ -261,7 +261,7 @@ function PolicyEditCard({ policy, original, isModified, onChange }) {
         {hasFake && (
           <div
             style={{ fontSize: 10, color: "#FF1B8D", whiteSpace: "nowrap" }}
-            title="가짜단가 박혀있음 (Phase B-2 측 박을 영역)"
+            title="가짜단가가 설정되어 있습니다"
           >
             🔒 가짜단가
           </div>
@@ -303,7 +303,7 @@ function PolicyEditCard({ policy, original, isModified, onChange }) {
       {/* 수정 박지 X 박은 영역 박은 영역 박은 영역 박은 영역 박은 영역 박은 영역 박을 영역 */}
       {original.engineer_base == null && original.fee_rate == null && !original.principal_fee && (
         <div style={{ fontSize: 11, color: "var(--text-tertiary)", padding: "8px 0", fontStyle: "italic" }}>
-          수정 박을 영역 박은 영역 박지 X (계산방식 자체 박은 영역)
+          수정할 수 있는 값이 없습니다 (계산 방식으로 정해지는 정책)
         </div>
       )}
     </div>

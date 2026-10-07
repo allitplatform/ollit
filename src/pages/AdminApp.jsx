@@ -1918,7 +1918,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
     try {
       const res = await apiRejectCancel(cancelHandleTask.id, cancelRejectReason);
       if (!res || res.ok === false) {
-        addToast({ type: "completed", title: "거절 실패", message: (res && res.error) || "시트 박지 X" });
+        addToast({ type: "completed", title: "거절 실패", message: (res && res.error) || "처리하지 못했습니다" });
         return;
       }
       // Optimistic — 옛 상태 복구 (backend 응답에서 oldStatus 박힘)
@@ -3054,9 +3054,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
           const tk = selectedTaskDetail;
           if (!tk?.id) return;
           const today = todayYmd();
-          const dateStr = window.prompt("일정 날짜 박기 (YYYY-MM-DD):", tk.requestedDate || tk.confirmedDate || today);
+          const dateStr = window.prompt("일정 날짜 입력 (YYYY-MM-DD):", tk.requestedDate || tk.confirmedDate || today);
           if (!dateStr) return;
-          const timeStr = window.prompt("일정 시간 박기 (HH:MM):", tk.requestedTime || "10:00");
+          const timeStr = window.prompt("일정 시간 입력 (HH:MM):", tk.requestedTime || "10:00");
           if (!timeStr) return;
           // 2026-05-31 — Bug 2 fix — KST timezone offset 명시 (+09:00).
           //   옛: `${dateStr} ${timeStr}` — timezone 정보 없음 → PG session TimeZone 측 의존.
@@ -4696,7 +4696,7 @@ function DashboardScreen({ happycallMode = false, t, mode, setMode, onLogout, us
                   {task.customer} · {task.principal}
                 </div>
                 <div style={{ fontSize: 11, color: "#991B1B", lineHeight: 1.4 }}>
-                  {task.region} · 사유: {(task.memo || "").slice(0, 40) || "(박지 X)"}
+                  {task.region} · 사유: {(task.memo || "").slice(0, 40) || "(없음)"}
                 </div>
               </div>
               <button
@@ -6560,7 +6560,7 @@ function NewReceptionScreen({
             </details>
           )}
           <div style={{ marginTop: 8, fontSize: 10, color: "#92400E" }}>
-            · 캡처 → 저한테 catch (fix 박을 수 있음)
+            · 이 화면을 캡처해서 전달해 주세요
           </div>
         </div>
       )}

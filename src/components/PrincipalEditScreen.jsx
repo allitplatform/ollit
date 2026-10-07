@@ -96,18 +96,18 @@ export function PrincipalEditScreen({ principal, isNew, onSaved, onBack, onGoCom
       let msg = "원청 저장 완료";
       if (policyIds.length > 0) {
         if (policyFails === 0) {
-          msg += ` · 정책 ${policyIds.length}건 박음`;
+          msg += ` · 정책 ${policyIds.length}건 저장`;
           setModifiedPolicies({});
         } else {
-          msg += ` · 정책 ${policyIds.length - policyFails}/${policyIds.length}건 박음`;
+          msg += ` · 정책 ${policyIds.length - policyFails}/${policyIds.length}건 저장`;
         }
       }
       if (fakeBaseTotal > 0) {
         if (fakeBaseFails === 0) {
-          msg += " · 가짜단가 박음";
+          msg += " · 가짜단가 저장";
           setModifiedFakeBase(null);
         } else {
-          msg += ` · 가짜단가 ${fakeBaseTotal - fakeBaseFails}/${fakeBaseTotal}건 박음`;
+          msg += ` · 가짜단가 ${fakeBaseTotal - fakeBaseFails}/${fakeBaseTotal}건 저장`;
         }
       }
       setToast({ type: (policyFails > 0 || fakeBaseFails > 0) ? "warn" : "success", message: msg });

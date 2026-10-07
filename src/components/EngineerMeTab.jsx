@@ -23,6 +23,7 @@ import { EngineerBusinessInfoCard } from "./EngineerBusinessInfoCard.jsx";
 // 2026-10-06 — 설정 카드 부품을 공용 파일로 (협력사 관리자 내 정보와 같은 것을 쓴다)
 import { meCardStyle, SectionHeader, SettingRow, Toggle, FontSizeButton, Chevron, LogoutButton } from "./MeParts.jsx";
 import { ME_APP_VERSION } from "../lib/meConstants.js";
+import { PasswordChangeScreen } from "./PasswordChangeScreen.jsx";
 
 const APP_VERSION = ME_APP_VERSION;
 
@@ -54,6 +55,8 @@ export function EngineerMeTab({
   subcontractor = null,
   // 소속 협력사 관리자 연락처 [{ name, phone }] (Mig 234). 비어 있으면 전화·문자 버튼을 숨긴다.
   subContacts = [],
+  // 2026-10-07 — 로그인 사용자(비밀번호 변경 화면에 넘긴다). 없으면 engineer 값으로 대신한다.
+  authUser = null,
 }) {
   const isDark = useIsDark();
   const eng = engineer || {};
@@ -68,6 +71,8 @@ export function EngineerMeTab({
   const [copyToast, setCopyToast] = useState(null);
   // 2026-06-19 — 사업자 정보 풀스크린 진입 (헤더 톱니 → setShowBusiness(true))
   const [showBusiness, setShowBusiness] = useState(false);
+  // 2026-10-07 — 비밀번호 변경 화면 (협력사 관리자 내 정보와 같은 화면)
+  const [showPw, setShowPw] = useState(false);
 
   useEffect(() => { applyFontSize(fontSize); }, [fontSize]);
 
@@ -228,7 +233,7 @@ export function EngineerMeTab({
 
   function handleHelp()    { alert("준비 중입니다."); }
   function handleTerms()   { alert("준비 중입니다."); }
-  function handlePassword(){ if (onChangePassword) onChangePassword(); else alert("준비 중입니다. 운영팀에 문의해주세요."); }
+  function handlePassword(){ if (onChangePassword) onChangePassword(); else setShowPw(true); }
   function handleKakao()   {
     if (KAKAO_CHANNEL_URL) {
       window.open(KAKAO_CHANNEL_URL, "_blank");
@@ -596,6 +601,20 @@ export function EngineerMeTab({
           {copyToast}
         </div>
       )}
+
+      {/* 2026-10-07 — 비밀번호 변경: 첫 로그인 때 쓰는 화면을 그대로 */}
+      {showPw && (() => {
+        const pwUser = authUser || { ...eng, user_id: eng.user_id || eng.userId || eng.id };
+        return (
+          <div style={{ position: "fixed", inset: 0, zIndex: 1000, overflowY: "auto", background: "#0A0A0A" }}>
+            <button type="button" onClick={() => setShowPw(false)} aria-label="뒤로" style={{
+              position: "absolute", top: "calc(10px + env(safe-area-inset-top))", left: 12, zIndex: 1,
+              background: "transparent", border: "none", color: "#fff", fontSize: 24, padding: 8, cursor: "pointer",
+            }}>←</button>
+            <PasswordChangeScreen user={pwUser} onComplete={() => { setShowPw(false); showLocalToast("✓ 비밀번호를 변경했습니다"); }}/>
+          </div>
+        );
+      })()}
 
       {/* 2026-06-19 — 사업자 정보 풀스크린 (헤더 톱니 진입) */}
       {showBusiness && (() => {

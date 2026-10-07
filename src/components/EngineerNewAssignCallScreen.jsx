@@ -72,6 +72,8 @@ export function EngineerNewAssignCallScreen({
   onUnableSchedule,
   onCustomerCancel,
   onAskOps,
+  // 2026-10-07 — 협력사 기사: 버튼 글자를 바꾼다 { call, ask }. 없으면 운영팀 문구.
+  opsLabels = null,
   onCallOps,   // 2026-07-15 — 운영팀 전화 (카톡과 분리)
 }) {
   const [memo, setMemo] = useState(task?.callMemo || "");
@@ -158,8 +160,7 @@ export function EngineerNewAssignCallScreen({
           <ServiceTypeIcon workType={task.workType} size={12} showLabel={true}/>
           <span>
             {formatWorkTypeLabel(task.workType)}
-            {task.appliance ? ` · ${task.appliance}` : ""}
-            {task.qty ? ` ×${task.qty}` : ""}
+            {task.appliance && task.appliance !== "(공통)" ? ` · ${task.appliance}${task.qty ? ` ×${task.qty}` : ""}` : ""}
           </span>
         </div>
         {task.requestedDate && (
@@ -297,7 +298,7 @@ export function EngineerNewAssignCallScreen({
             cursor: "pointer", fontFamily: "inherit",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
           }}>
-            📞 운영팀 전화
+            {(opsLabels && opsLabels.call) || "📞 운영팀 전화"}
           </button>
           <button onClick={onAskOps} style={{
             background: "#FF1B8D",
@@ -309,7 +310,7 @@ export function EngineerNewAssignCallScreen({
             cursor: "pointer", fontFamily: "inherit",
             display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
           }}>
-            💬 메시지 보내기
+            {(opsLabels && opsLabels.ask) || "💬 메시지 보내기"}
           </button>
         </div>
       </div>

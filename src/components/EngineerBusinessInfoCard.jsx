@@ -271,7 +271,7 @@ export function EngineerBusinessInfoCard({
               type="text"
               value={form.business_name}
               onChange={e => setField("business_name", e.target.value)}
-              placeholder="예: 올데이케어"
+              placeholder="예: ○○설비"
               style={inputStyle}
             />
           </Field>
@@ -292,7 +292,7 @@ export function EngineerBusinessInfoCard({
               inputMode="numeric"
               value={form.business_no}
               onChange={handleBusinessNoChange}
-              placeholder="430-07-03167"
+              placeholder="000-00-00000"
               maxLength={12}
               style={{
                 ...inputStyle,
@@ -335,7 +335,7 @@ export function EngineerBusinessInfoCard({
               type="text"
               value={form.bank_account}
               onChange={e => setField("bank_account", e.target.value)}
-              placeholder="1005-104-865024"
+              placeholder="숫자만 입력"
               style={{
                 ...inputStyle,
                 fontFamily: "monospace",

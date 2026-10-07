@@ -154,7 +154,7 @@ function AcceptanceCard({ call, onAccept, onReject }) {
             color: "var(--text-primary)",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
-            {call.region || "—"}{call.appliance ? ` · ${call.appliance}` : ""}
+            {call.region || "—"}{call.appliance && call.appliance !== "(공통)" ? ` · ${call.appliance}` : ""}
           </div>
         </div>
       </div>
@@ -177,7 +177,7 @@ function AcceptanceCard({ call, onAccept, onReject }) {
             fontWeight: 600,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
           }}>
-            💼 {call.appliance || "—"}{call.qty ? ` ×${call.qty}` : ""}
+            💼 {call.appliance && call.appliance !== "(공통)" ? `${call.appliance}${call.qty ? ` ×${call.qty}` : ""}` : (call.workType || "—")}
           </div>
         </div>
         <div style={{ textAlign: "right", flexShrink: 0 }}>
