@@ -210,6 +210,15 @@ export const subListStaffForTask = (taskId) => _call("sub_list_staff_for_task", 
 export const adminGetSubSplits = (taskIds) => _call("admin_get_sub_splits", { p_task_ids: taskIds || [] });
 export const adminSetSubQuote = (taskId, amount, reason) =>
   _call("admin_set_sub_quote", { p_task_id: taskId, p_amount: amount, p_reason: reason });
+// 협력사 → 올데이케어 추가분 (Mig 252) — 그날 수수료를 보고한 뒤에 더 생긴 금액을 따로 보고 · 받음 확인
+export const subListFeeExtras = () => _call("sub_list_fee_extras", {});
+export const subReportFeeExtra = (amount) => _call("sub_report_fee_extra", { p_amount: amount });
+export const subCancelFeeExtra = (id) => _call("sub_cancel_fee_extra", { p_id: id });
+export const adminListSubFeeExtras = () => _call("admin_list_sub_fee_extras", {});
+export const adminConfirmSubFeeExtra = (id, confirm = true) =>
+  _call("admin_confirm_sub_fee_extra", { p_id: id, p_confirm: confirm });
+export const adminCancelSubFeeExtra = (id, reason) =>
+  _call("admin_cancel_sub_fee_extra", { p_id: id, p_reason: reason });
 export const adminListPrincipalRemits = () => _call("admin_list_principal_remits", {});
 export const adminMarkPrincipalRemitPaid = (remitId, paid = true) =>
   _call("admin_mark_principal_remit_paid", { p_remit_id: remitId, p_paid: !!paid });

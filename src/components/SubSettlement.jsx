@@ -28,6 +28,7 @@ import {
 import BottomSheet, { SheetButtons } from "./BottomSheet.jsx";
 import { AccountLine, copyText } from "./SubManagerMe.jsx";
 import { PrincipalRemitBox, SplitNote, useSubSplits } from "./SubPrincipalParts.jsx";
+import { SubFeeExtraDueCard, AdminSubFeeExtraBox } from "./SubFeeExtraParts.jsx";
 import { fmtWon, fmtWonSigned } from "../utils/money.js";
 
 const NEG = "#3B82F6";   // 음수(차감분) 표시색
@@ -800,6 +801,8 @@ export function SubManagerSettleView({ focusRemits = 0 }) {
         title="수수료 정산" onReload={load} loading={loading}
         help="날짜별로 올데이케어에 보낼 수수료입니다. 기사에게 걷은 뒤 하루에 한 번 송금하고 [송금 보고]를 눌러 주세요. 보고한 날짜는 잠기고, 그 뒤 바뀐 금액은 다음 날짜에 조정(추가분·차감분) 줄로 나옵니다. 합계가 0 이하인 날은 보고 없이 다음 송금에서 자동으로 차감됩니다(이월)."
       />
+      {/* Mig 252 — 오늘 수수료를 이미 보고한 뒤에 더 생긴 금액: 맨 위에서 따로 보고 */}
+      <SubFeeExtraDueCard refreshKey={loading ? 1 : 0} onChanged={load}/>
       {/* 기사 송금 확인 대기 — 기사가 [보냄] 했고 아직 [받음 확인] 하지 않은 것. 0건이면 숨김.
           (날짜 카드가 이미 "확인 완료" 로 접혀 있어도 여기서 바로 처리할 수 있다) */}
       {pendingExtras.length > 0 && (
@@ -1021,6 +1024,8 @@ ${r.subName} · ${dayLabel(r.date)} 이월 금액을 환급 처리로 닫을까�
         sub={`입금 확인 대기 ${summary.waitingConfirm}건 · 미입금 ${summary.unpaid}건`}
       />
       {/* Mig 245 — 원청에 보낼 돈: 입금 확인한 날짜의 작업분만, 날짜별 [원청 송금 완료] */}
+      {/* Mig 252 — 협력사가 따로 보낸 추가분: 받음 확인하면 원청 송금 줄에 그 작업의 원청 몫이 들어간다 */}
+      <AdminSubFeeExtraBox refreshKey={loading ? 1 : 0} onChanged={() => { load(); setRemitTick(t => t + 1); }}/>
       <PrincipalRemitBox refreshKey={remitTick} style={{ marginBottom: 12 }}/>
       <FilterChips value={filter} onChange={setFilter} counts={counts}/>
       {error && <ErrorBox text={error}/>}
