@@ -87,3 +87,58 @@ export function mapSearchLinks(address) {
     naver: `https://map.naver.com/v5/search/${q}`,
   };
 }
+
+// 2026-10-07 — 항목 요약 (모든 항목): "철거 ×1 · 이전설치 ×1". 항목이 2개 이상일 때만 글자를 돌려준다.
+export function allItemsSummary(task) {
+  const items = (Array.isArray(task && task.workItems) ? task.workItems : []).filter(_alive);
+  if (items.length < 2) return "";
+  return items.map(it => {
+    const ap = it.appliance && it.appliance !== "(공통)" ? it.appliance : "";
+    const nm = ap || it.description || String(it.workType || "").replace(/_\(공통\)$/, "");
+    return `${nm}${Number(it.qty) > 0 ? ` ×${it.qty}` : ""}`;
+  }).join(" · ");
+}
+
+// 2026-10-07 — 길찾기 할 주소 고르기. 이전설치가 아니면 그 작업의 주소를 바로 돌려준다.
+//   이전설치면 화면 아래에 "철거(출발)로 / 설치(도착)로" 고르는 창을 띄운다. 닫으면 null.
+//   작업이 진행 중이면 설치(도착)를 위에 둔다 (철거를 마치고 이동하는 때가 많으므로).
+export function chooseRouteAddress(task) {
+  const from = String((task && (task.fullAddress || task.address)) || "").trim();
+  const dest = String((task && (task.destAddress || task.dest_address)) || "").trim();
+  if (!dest || typeof document === "undefined") return Promise.resolve(from);
+  return new Promise((resolve) => {
+    const wrap = document.createElement("div");
+    wrap.style.cssText = "position:fixed;inset:0;z-index:5000;background:rgba(0,0,0,0.55);display:flex;align-items:flex-end;justify-content:center;";
+    const box = document.createElement("div");
+    box.style.cssText = "width:100%;max-width:480px;background:var(--bg-elevated,#1f1f1f);color:var(--text-primary,#fff);border-radius:18px 18px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom,0px));font-family:inherit;box-sizing:border-box;";
+    const title = document.createElement("div");
+    title.textContent = "어디로 길찾기 할까요?";
+    title.style.cssText = "font-size:15px;font-weight:800;margin-bottom:10px;";
+    box.appendChild(title);
+    const done = (v) => { if (wrap.parentNode) wrap.parentNode.removeChild(wrap); resolve(v); };
+    const mk = (label, addr, color) => {
+      const b = document.createElement("button");
+      b.type = "button";
+      b.style.cssText = `display:block;width:100%;text-align:left;padding:13px 14px;margin-bottom:8px;border-radius:12px;border:1px solid var(--border,#333);border-left:4px solid ${color};background:transparent;color:inherit;font-family:inherit;cursor:pointer;`;
+      const l = document.createElement("div"); l.textContent = label; l.style.cssText = `font-size:12.5px;font-weight:800;color:${color};`;
+      const a = document.createElement("div"); a.textContent = addr || "주소 없음"; a.style.cssText = "font-size:15px;font-weight:700;margin-top:3px;word-break:keep-all;";
+      b.appendChild(l); b.appendChild(a);
+      b.onclick = () => done(addr || null);
+      return b;
+    };
+    const st = String((task && task.status) || "");
+    const destFirst = st === "진행중" || st === "작업중";
+    const bFrom = mk("① 철거 (출발)로", from, "#F97316");
+    const bDest = mk("② 설치 (도착)로", dest, "#6366F1");
+    if (destFirst) { box.appendChild(bDest); box.appendChild(bFrom); } else { box.appendChild(bFrom); box.appendChild(bDest); }
+    const c = document.createElement("button");
+    c.type = "button"; c.textContent = "닫기";
+    c.style.cssText = "display:block;width:100%;padding:11px;border-radius:12px;border:none;background:transparent;color:var(--text-secondary,#aaa);font-family:inherit;font-size:14px;font-weight:700;cursor:pointer;";
+    c.onclick = () => done(null);
+    box.appendChild(c);
+    box.onclick = (e) => e.stopPropagation();
+    wrap.onclick = () => done(null);
+    wrap.appendChild(box);
+    document.body.appendChild(wrap);
+  });
+}

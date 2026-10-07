@@ -6,6 +6,7 @@ import { ArrowLeft } from "lucide-react";
 import { ServiceTypeIcon } from "./ServiceTypeIcon.jsx";
 // 2026-06-16 — 주소 표시 + 복사 공통 컴포넌트.
 import { AddressLine } from "./common/AddressLine.jsx";
+import { chooseRouteAddress } from "../utils/relocation.js";
 import { DropdownPicker, HOURS_24, MINUTES_30 } from "./DropdownPicker.jsx";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { WorkItemRow } from "./WorkItemRow.jsx";
@@ -161,8 +162,10 @@ export function EngineerNewAssignDetailScreen({
     }
   }
 
-  function openMap() {
-    const address = encodeURIComponent(task.fullAddress || task.address || "");
+  async function openMap() {
+    // 2026-10-07 — 이전설치면 철거(출발) / 설치(도착) 가운데 고른다
+    const picked = await chooseRouteAddress(task);
+    const address = encodeURIComponent(picked || "");
     if (!address) return;
     window.open(`https://map.kakao.com/?q=${address}`, "_blank");
   }

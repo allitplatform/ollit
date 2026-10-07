@@ -7,6 +7,7 @@ import { getWorkTypeColors } from "../utils/workTypeColors.js";
 import { useIsDark } from "../hooks/useIsDark.js";
 // 2026-06-16 — 주소 표시 + 복사 공통 컴포넌트.
 import { AddressLine } from "./common/AddressLine.jsx";
+import { allItemsSummary } from "../utils/relocation.js";
 
 export function EngineerNewAssignmentListScreen({ tasks = [], onBack, onTaskClick }) {
   return (
@@ -146,7 +147,10 @@ function AssignmentCard({ task, onClick }) {
         )}
         <span>
           {/* 기종이 없는 종목(주방후드·출장비 등)의 "(공통) ×1" 은 숨긴다 */}
-          {task.appliance && task.appliance !== "(공통)" ? `· ${task.appliance}${task.qty ? ` ×${task.qty}` : ""}` : ""}
+          {/* 2026-10-07 — 항목이 여러 개면 전부 적는다 (예: 철거 ×1 · 이전설치 ×1) */}
+          {allItemsSummary(task)
+            ? `· ${allItemsSummary(task)}`
+            : (task.appliance && task.appliance !== "(공통)" ? `· ${task.appliance}${task.qty ? ` ×${task.qty}` : ""}` : "")}
         </span>
       </div>
 

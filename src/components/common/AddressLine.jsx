@@ -86,7 +86,50 @@ export async function copyAddress(task, onToast) {
   }
 }
 
-export function AddressLine({
+// 2026-10-07 Mig 259 — 이전설치면 주소가 2개다: ① 철거(출발 = 기존 주소) ② 설치(도착 = destAddress) + 메모.
+//   이 부품을 쓰는 화면(새 배정 목록 · 새 배정 상세 · 통화 화면 · 오늘 작업 카드 · 일정 목록 · 작업 화면)이 한 번에 바뀐다.
+function DestAddressLine({ task, iconColor }) {
+  const [copied, setCopied] = useState(false);
+  const dest = String(task?.destAddress || task?.dest_address || "").trim();
+  const memo = String(task?.destDetail || task?.dest_detail || "").trim();
+  async function copy(e) {
+    e.stopPropagation();
+    try {
+      if (navigator?.clipboard?.writeText) await navigator.clipboard.writeText(dest);
+      if (navigator?.vibrate) navigator.vibrate(30);
+      setCopied(true); setTimeout(() => setCopied(false), 1500);
+    } catch (_e) { window.prompt("주소를 복사해 주세요", dest); }
+  }
+  return (
+    <div style={{ marginTop: 6 }}>
+      <div style={{ fontSize: 11, fontWeight: 800, color: "#6366F1", marginBottom: 2 }}>② 설치 (도착)</div>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 6 }}>
+        <span style={{ flex: 1, minWidth: 0, fontSize: 13, fontWeight: 600, lineHeight: 1.45, wordBreak: "keep-all", overflowWrap: "anywhere" }}>
+          {dest}
+          {memo && <span style={{ display: "block", fontSize: 12, fontWeight: 500, opacity: 0.8 }}>메모: {memo}</span>}
+        </span>
+        <button type="button" onClick={copy} aria-label="설치 주소 복사" style={{
+          flexShrink: 0, background: "transparent", border: "none", padding: 2, cursor: "pointer", lineHeight: 0,
+          color: iconColor, display: "inline-flex", alignItems: "center", fontSize: 11, fontWeight: 700,
+        }}>{copied ? "복사됨 ✓" : <Copy size={14}/>}</button>
+      </div>
+    </div>
+  );
+}
+
+export function AddressLine(props) {
+  const dest = String(props?.task?.destAddress || props?.task?.dest_address || "").trim();
+  if (!dest) return <AddressLineBase {...props}/>;
+  return (
+    <div style={{ minWidth: 0 }}>
+      <div style={{ fontSize: 11, fontWeight: 800, color: "#F97316", marginBottom: 2 }}>① 철거 (출발)</div>
+      <AddressLineBase {...props}/>
+      <DestAddressLine task={props.task} iconColor={props.iconColor || "var(--label-main)"}/>
+    </div>
+  );
+}
+
+function AddressLineBase({
   task,
   baseStyle,
   iconColor = "var(--label-main)",

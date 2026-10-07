@@ -1,7 +1,6 @@
 import { subStaffSetReceived, engineerSetHoodVat } from "../lib/subcontractorsDb.js";
 import { getCategoryMetaOfRow } from "../lib/serviceCatalog.js";
-import { isRelocationTask } from "../utils/relocation.js";
-import { RelocationBlocks } from "./RelocationParts.jsx";
+import { isRelocationTask, chooseRouteAddress } from "../utils/relocation.js";
 // V13-FINAL — 기사 PWA 작업 상세 (3 상태 + 부분 취소 + 일정 변경 + 출장비만)
 // V14 — 사진 분류 X / 완료 분기 3가지 (완료 / 부분 / 출장비만)
 // 진입: 오늘 화면 / 새 배정 리스트 / 다음 일정
@@ -107,8 +106,10 @@ function openMap(task) {
   }, 1500);
 }
 
-function openTmap(task) {
-  const addrRaw = buildFullAddress(task);
+async function openTmap(task) {
+  // 2026-10-07 — 이전설치면 철거(출발) / 설치(도착) 가운데 고른다 (닫으면 아무 것도 하지 않음)
+  const addrRaw = isRelocationTask(task) ? await chooseRouteAddress(task) : buildFullAddress(task);
+  if (addrRaw === null) return;
   if (!addrRaw) { alert("주소 없음"); return; }
   const addr = encodeURIComponent(addrRaw);
   // 2026-05-20 — T맵 search 스킴 정정 (옛 route 스킴 측 좌표 필요 spec → 빈 검색 catch)
@@ -125,8 +126,9 @@ function openTmap(task) {
 }
 
 // 2026-05-20 — 카카오맵 신규 (앱 deeplink + 웹 fallback)
-function openKakaoMap(task) {
-  const addrRaw = buildFullAddress(task);
+async function openKakaoMap(task) {
+  const addrRaw = isRelocationTask(task) ? await chooseRouteAddress(task) : buildFullAddress(task);
+  if (addrRaw === null) return;
   if (!addrRaw) { alert("주소 없음"); return; }
   const addr = encodeURIComponent(addrRaw);
   const appUrl = `kakaomap://search?q=${addr}`;
@@ -1049,8 +1051,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
       )}
 
       {/* V14 — 확정/진행중 = 통합 메인 카드 (시간 + 작업 항목 + 고객) */}
-      {/* 2026-10-07 Mig 259 — 이전설치: 철거(출발) / 설치(도착) 두 블록 + 지도 열기 · 주소 복사 */}
-      {isRelocationTask(task) && <RelocationBlocks task={task} style={{ margin: "0 16px 12px" }}/>}
+      {/* 2026-10-07 — 이전설치 두 주소는 아래 카드의 주소 줄(공용 AddressLine)이 ① 철거 / ② 설치 두 줄로 보여 준다.
+          (전에 여기 따로 두었던 두 블록은 겹쳐서 뺐다. 길찾기는 누를 때 철거 / 설치를 고른다) */}
       {(isConfirmed || isInProgress) && <WorkMainCard task={task} itemEngineerAmounts={itemEngineerAmounts}/>}
       {isCompleted && <StatusBlockCompleted task={task}/>}
       {isWaiting && <StatusBlockWaiting task={task}/>}

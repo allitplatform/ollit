@@ -24,7 +24,7 @@ import { fetchUsolNCompletedTaskItems, getItemChipLabel } from "../lib/usolNTask
 // Phase 3-5 — 휴무는 DB 측 (offDaysDb.js) 어댑터 사용. 시그니처 동일.
 import { getOffDays, addOffDay, deleteOffDay } from "../lib/offDaysDb.js";
 import { v14NormalizeTask, v14FindTaskList, filterTasksForEngineerV14 } from "../utils/v14Task.js";
-import { relocationLine } from "../utils/relocation.js";
+import { relocationLine, chooseRouteAddress } from "../utils/relocation.js";
 import { isTrackARemittance, isRemittanceTarget, isTrackC } from "../utils/remitFilter.js";
 import { isCompletedStatus } from "../utils/taskStatus.js";
 import { isCleaning, isRefrigerant, getServiceKind } from "../utils/workTypeKind.js";
@@ -186,8 +186,10 @@ const NavSvgColored = ({ color = "currentColor" }) => (
 );
 
 // catch #9 — 길찾기 (카카오맵 우선 → 웹 fallback)
-function openMapForTask(task) {
-  const address = encodeURIComponent(task.fullAddress || task.address || "");
+async function openMapForTask(task) {
+  // 2026-10-07 — 이전설치면 철거(출발) / 설치(도착) 가운데 고른다
+  const picked = await chooseRouteAddress(task);
+  const address = encodeURIComponent(picked || "");
   if (!address) return;
   const webUrl = `https://map.kakao.com/?q=${address}`;
   window.open(webUrl, "_blank");
@@ -859,9 +861,11 @@ function NextWorkCard({ work, now, onClick, onCompleteReport, onCustomerCall }) 
           }}>
             {/* 길찾기 (회색 통일) */}
             <button
-              onClick={(e) => {
+              onClick={async (e) => {
                 e.stopPropagation();
-                const addr = encodeURIComponent(work.fullAddress || work.address || "");
+                // 2026-10-07 — 이전설치면 철거(출발) / 설치(도착) 가운데 고른다
+                const picked = await chooseRouteAddress(work);
+                const addr = encodeURIComponent(picked || "");
                 if (!addr) return;
                 const appUrl = `kakaomap://search?q=${addr}`;
                 const webUrl = `https://map.kakao.com/?q=${addr}`;

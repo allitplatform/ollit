@@ -101,7 +101,10 @@ export function rowToTask(row) {
     ? [...row.task_items].sort((a, b) => {
         const aMain = a.order_type === '본작업' ? 0 : 1;
         const bMain = b.order_type === '본작업' ? 0 : 1;
-        return aMain - bMain;
+        if (aMain !== bMain) return aMain - bMain;
+        // 2026-10-07 — 이전설치 작업은 작업 순서대로: 철거 → 이전설치 (금액 표 · 상세 · 기사 앱 모두 이 순서)
+        const rr = (x) => (`${x.description || ""}|${(x.work_types && x.work_types.name) || ""}`.includes("이전설치") ? 1 : 0);
+        return rr(a) - rr(b);
       })
     : [];
   // 2026-05-16 Phase 4 통합 2-C — payments JOIN 적용 spec (one-to-many 관계지만 1 task = 1 payment)
