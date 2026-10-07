@@ -193,6 +193,15 @@ export const subListStaff = () => _call("sub_list_staff", {});
 //   기사별: zone_match / today_tasks / day_tasks / next_at / off / off_part
 export const subListStaffForTask = (taskId) => _call("sub_list_staff_for_task", { p_task_id: taskId });
 // 반려 (Mig 232) — 사유와 함께 올데이케어로 되돌린다. 진행 중·끝난 작업은 불가.
+// ── 협력사 작업의 원청 몫 (Mig 244·245) — 운영자 전용 ───────────
+//   작업별 견적 · 수수료 · 원청 몫 / 견적 고치기 / 원청에 보낼 돈(날짜별) / 송금 완료
+export const adminGetSubSplits = (taskIds) => _call("admin_get_sub_splits", { p_task_ids: taskIds || [] });
+export const adminSetSubQuote = (taskId, amount, reason) =>
+  _call("admin_set_sub_quote", { p_task_id: taskId, p_amount: amount, p_reason: reason });
+export const adminListPrincipalRemits = () => _call("admin_list_principal_remits", {});
+export const adminMarkPrincipalRemitPaid = (remitId, paid = true) =>
+  _call("admin_mark_principal_remit_paid", { p_remit_id: remitId, p_paid: !!paid });
+
 // ── 협력사 작업 예외 처리 (Mig 242) ──────────────────────────
 //   운영자: 관리자에게 변경 요청 (kind = engineer / schedule / etc) · 올데이케어로 회수 (사유 필수)
 export const adminRequestSubChange = (taskId, kind, body) =>

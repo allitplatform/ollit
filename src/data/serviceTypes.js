@@ -136,7 +136,7 @@ function _detectServiceTypeRaw(task) {
   const _mainItem = Array.isArray(task.workItems) && task.workItems.length > 0 ? task.workItems[0] : null;
   const _code = String((_mainItem && (_mainItem.serviceCode || _mainItem.service_code)) || "");
   const _wtText = String(firstWt || rootWt || "");
-  if (_code.startsWith("hood") || _wtText.startsWith("주방후드") || _wtText.startsWith("후드설치")) {
+  if (_code.startsWith("hood") || _wtText.startsWith("주방후드") || _wtText.startsWith("후드설치") || _wtText.startsWith("후드옵션")) {
     return SERVICE_TYPES.hood;
   }
 

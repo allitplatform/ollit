@@ -27,6 +27,7 @@ import {
   getAppliancePool,
   // 2026-06-17 Phase 2 — 카톡/KA 파서 (모바일 폼과 공유, Stage 1 확장).
   parseKakaoText, formatPhone,
+  hoodAutoEstimate,
 } from "../../utils/receptionForm.js";
 import { lookupRate, autoGenerateCustomer } from "../principal/NewReceptionScreenLite.jsx";
 import { calculateCommissionMultiRpc } from "../../lib/commissionPoliciesDb.js";
@@ -158,6 +159,14 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
   // ── 자동 견적 ──
   useEffect(() => {
     if (estimateTouched || priceTBD) return;
+    // 2026-10-07 Mig 244 — 주방후드는 원청과 상관없이 단가표 합계가 견적 (직접 입력 줄이 있으면 자동으로 채우지 않는다)
+    const hoodTotal = hoodAutoEstimate(workItems);
+    if (hoodTotal !== undefined) {
+      if (hoodTotal === null || hoodTotal <= 0) { setAutoEstimateValue(null); return; }
+      setAutoEstimateValue(hoodTotal);
+      setForm(prev => prev.estimateTotal === hoodTotal ? prev : { ...prev, estimateTotal: hoodTotal });
+      return;
+    }
     const code = PRINCIPAL_NAME_TO_CODE[form.principal];
     if (!code || !quoteRates || workItems.length === 0) {
       setAutoEstimateValue(null);

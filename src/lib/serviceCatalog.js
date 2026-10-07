@@ -16,6 +16,7 @@ const FALLBACK = [
   ] },
   { key: "hood", label: "주방후드", items: [
     { name: "주방후드(업소용)", scope: "all" }, { name: "주방후드(가정용)", scope: "all" }, { name: "후드설치", scope: "all" },
+    { name: "후드옵션", scope: "all" },
   ] },
   { key: "common", label: "공통", items: [ { name: "출장비", scope: "all" } ] },
 ];
@@ -186,7 +187,7 @@ let _byName = new Map([
   ["세척", "aircon"], ["냉매충전", "aircon"], ["누설", "aircon"], ["누수", "aircon"], ["설치", "aircon"],
   ["피톤치드", "aircon"], ["실외기 청소", "aircon"], ["송풍팬분해", "aircon"],
   ["추가선택(YS-N)", "aircon"], ["냉매점검(YS-N)", "aircon"],
-  ["주방후드(업소용)", "hood"], ["주방후드(가정용)", "hood"], ["후드설치", "hood"],
+  ["주방후드(업소용)", "hood"], ["주방후드(가정용)", "hood"], ["후드설치", "hood"], ["후드옵션", "hood"],
 ]);
 let _byCode = new Map([
   ["cleaning", "aircon"], ["refrigerant", "aircon"], ["leak", "aircon"], ["water_leak", "aircon"], ["install", "aircon"],

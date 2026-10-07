@@ -113,7 +113,7 @@ export function isHoodWork(input) {
     : (Array.isArray(input?.workItems) && input.workItems.length > 0 ? input.workItems[0] : (input || {}));
   const code = String(main.serviceCode || main.service_code || "");
   const wt = String(main.workType || main.work_type || "");
-  return code.startsWith("hood") || wt.startsWith("주방후드") || wt.startsWith("후드설치");
+  return code.startsWith("hood") || wt.startsWith("주방후드") || wt.startsWith("후드설치") || wt.startsWith("후드옵션");
 }
 
 // task / workItem / 문자열 → META 하나.

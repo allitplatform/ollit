@@ -25,6 +25,7 @@ import {
 } from "../lib/subcontractorsDb.js";
 import BottomSheet, { SheetButtons } from "./BottomSheet.jsx";
 import { AccountLine, copyText } from "./SubManagerMe.jsx";
+import { PrincipalRemitBox, SplitNote, useSubSplits } from "./SubPrincipalParts.jsx";
 import { fmtWon, fmtWonSigned } from "../utils/money.js";
 
 const NEG = "#3B82F6";   // 음수(차감분) 표시색
@@ -434,7 +435,7 @@ export function SubStaffSettleTab({ user, onBack }) {
 // ─────────────────────────────────────────────────────────────
 // 날짜 카드 본문 (관리자·운영자 공용): 기사별 표 또는 작업별 표
 // ─────────────────────────────────────────────────────────────
-function DayTable({ day, mode, onOpenTask, remits, onReceive, onCancelSend, busy }) {
+function DayTable({ day, mode, onOpenTask, remits, onReceive, onCancelSend, busy, splits = null }) {
   const lines = day.lines || [];
   const adjust = lines.filter(l => l.kind !== "base" || l.origin_date);
   if (mode === "engineer") {
@@ -501,6 +502,8 @@ function DayTable({ day, mode, onOpenTask, remits, onReceive, onCancelSend, busy
         {onOpenTask && (
           <button type="button" onClick={() => onOpenTask(l.task_id)} style={{ ...S.btnLink, fontSize: 11, marginLeft: 6 }}>사진 {l.photo_count || 0} · 열기</button>
         )}
+        {/* Mig 244 — 원청이 쿨가이인 작업: "쿨가이 35,000 / 올데이케어 17,500" (운영자 화면에서만 splits 가 넘어온다) */}
+        {splits && l.kind === "base" && <SplitNote split={splits.get(l.task_id)}/>}
       </>
     ),
     received: l.kind === "base" ? <Num value={l.received}/> : "",
@@ -733,6 +736,16 @@ export function SubFeeAdminScreen({ onBack, onOpenTask }) {
     return out;
   }, [subs]);
 
+  // Mig 244 — 화면에 나온 작업들의 원청 몫 (쿨가이 원청 작업에만 값이 있다)
+  const splitIds = useMemo(() => {
+    const ids = [];
+    for (const r of rows) for (const l of (r.lines || [])) if (l.task_id) ids.push(l.task_id);
+    return ids;
+  }, [rows]);
+  const splits = useSubSplits(splitIds);
+  const [remitTick, setRemitTick] = useState(0);
+  useEffect(() => { setRemitTick(n => n + 1); }, [data]);      // 입금 확인 · 취소 뒤 "원청에 보낼 돈" 도 다시 읽는다
+
   const summary = useMemo(() => {
     let unconfirmed = 0, waitingConfirm = 0, unpaid = 0;
     for (const r of rows) {
@@ -818,6 +831,8 @@ ${r.subName} · ${dayLabel(r.date)} 이월 금액을 환급 처리로 닫을까�
         status={summary.unpaid > 0 ? "미입금" : summary.waitingConfirm > 0 ? "보고됨" : "대기"}
         sub={`입금 확인 대기 ${summary.waitingConfirm}건 · 미입금 ${summary.unpaid}건`}
       />
+      {/* Mig 245 — 원청(쿨가이)에 보낼 돈: 입금 확인한 날짜의 작업분만, 날짜별 [송금 완료] */}
+      <PrincipalRemitBox refreshKey={remitTick} style={{ marginBottom: 12 }}/>
       <FilterChips value={filter} onChange={setFilter} counts={counts}/>
       {error && <ErrorBox text={error}/>}
       {!error && !loading && active.length === 0 && past.length === 0 && <Empty text="해당 상태의 정산이 없습니다."/>}
@@ -837,7 +852,7 @@ ${r.subName} · ${dayLabel(r.date)} 이월 금액을 환급 처리로 닫을까�
               {r.diff != null && Number(r.diff) !== 0 ? ` · 차액 ${fmtWonSigned(r.diff)}` : ""}
             </span>
           </div>
-          <DayTable day={r} mode="task" onOpenTask={onOpenTask}/>
+          <DayTable day={r} mode="task" onOpenTask={onOpenTask} splits={splits}/>
           {lastCarry.has(r.key) && (
             <div style={{ marginTop: 12 }}>
               {carryAgeDays(r) >= 14 && (
@@ -865,7 +880,7 @@ ${r.subName} · ${dayLabel(r.date)} 이월 금액을 환급 처리로 닫을까�
               <PastLine left={`${dayLabel(r.date)} · ${r.subName}`} count={r.task_count} amount={r.fee} status={r.status} onClick={() => setPastOpen(pastOpen === r.key ? null : r.key)}/>
               {pastOpen === r.key && (
                 <div style={{ paddingBottom: 10 }}>
-                  <DayTable day={r} mode="task" onOpenTask={onOpenTask}/>
+                  <DayTable day={r} mode="task" onOpenTask={onOpenTask} splits={splits}/>
                   {r.status !== REFUNDED && (
                     <button type="button" disabled={busy} onClick={() => confirmRow(r, false)} style={{ ...S.btnSub, marginTop: 8 }}>확인 취소</button>
                   )}

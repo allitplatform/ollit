@@ -71,6 +71,7 @@ import {
   getAppliancePool as getAppliancePoolShared,
   // 2026-06-17 — 카톡 파서 추출 (PC 폼 공유). 모바일 handleAutoFill 무변경.
   formatPhone, parseKaText, parseKakaoText,
+  hoodAutoEstimate,
 } from "../utils/receptionForm.js";
 import { AllEngineersModal } from "../components/AllEngineersModal.jsx";
 import { SettlementScreen as SettlementDailyClose } from "../components/SettlementScreen.jsx";
@@ -10737,6 +10738,14 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
   useEffect(() => {
     if (estimateTouched) return;
     if (priceTBD) return;                       // 견적 미정 토글 측 측 측 X
+    // 2026-10-07 Mig 244 — 주방후드는 원청과 상관없이 단가표 합계가 견적 (직접 입력 줄이 있으면 자동으로 채우지 않는다)
+    const hoodTotal = hoodAutoEstimate(workItems);
+    if (hoodTotal !== undefined) {
+      if (hoodTotal === null || hoodTotal <= 0) { setAutoEstimateValue(null); return; }
+      setAutoEstimateValue(hoodTotal);
+      setForm(prev => prev.estimateTotal === hoodTotal ? prev : { ...prev, estimateTotal: hoodTotal });
+      return;
+    }
     const code = PRINCIPAL_NAME_TO_CODE[form.principal];
     if (!code) { setAutoEstimateValue(null); return; }
     if (!quoteRates || Object.keys(quoteRates).length === 0) {

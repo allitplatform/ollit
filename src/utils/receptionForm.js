@@ -63,6 +63,8 @@ export const WORK_TYPES_CONFIG = {
   "주방후드(업소용)": { enabled: true, workflow: "manual_with_recommendation", needsAppliance: true, priority: 6 },
   "주방후드(가정용)": { enabled: true, workflow: "manual_with_recommendation", needsAppliance: true, priority: 6 },
   "후드설치":         { enabled: true, workflow: "manual_with_recommendation", needsAppliance: true, priority: 6 },
+  // 2026-10-07 Mig 244 — 주방후드 옵션 (화구 스팀 세척 · 자바라 · 소방후드)
+  "후드옵션":         { enabled: true, workflow: "manual_with_recommendation", needsAppliance: true, priority: 7 },
   "수리":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 5  },
   "점검":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 5  },
 };
@@ -91,9 +93,11 @@ export const APPLIANCE_POOL = {
   "누수":           ["벽걸이", "스탠드", "1way", "투인원", "4way"],
   "설치":           ["신규설치", "이전설치", "철거", "실외기중고교체", "기계중고교체"],
   "출장비":         ["(공통)"],
-  // 2026-10-06 Mig 215 — 주방후드는 기종 구분 없음 (work_types 이름 "…_(공통)" 과 대조)
-  "주방후드(업소용)": ["(공통)"],
-  "주방후드(가정용)": ["(공통)"],
+  // 2026-10-07 Mig 244 — 주방후드는 단가표 줄을 고른다 (work_types 이름 "서비스_줄 이름" 과 대조).
+  //   예전 "(공통)" 줄은 DB 에 남아 있지만(과거 작업 연결) 접수 화면에서는 더 이상 고르지 않는다.
+  "주방후드(업소용)": ["1,000mm 이하", "1,000~2,000mm(2구)", "2,000mm 초과(현장 확인)"],
+  "주방후드(가정용)": ["기본형", "2구 더블", "고급형"],
+  "후드옵션":         ["화구 스팀 세척", "자바라", "소방후드"],
   "후드설치":         ["(공통)"],
   "추가선택(YS-N)": ["송풍팬분해", "실외기", "피톤치드"],
   "냉매점검(YS-N)": ["기본", "추가발생", "출장비"],
@@ -114,7 +118,39 @@ export const REFRIGERANT_APPLIANCE_POOL = ["벽걸이", "스탠드", "4way", "�
 //     service_types.name 매칭 대상). UI 노출 텍스트는 formatWorkTypeLabel() 로 감쌀 것.
 export const WORK_TYPES = ["세척", "냉매충전", "누설", "누수", "설치", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)",
   // 2026-10-06 Mig 215 — 주방후드 (협력사 수행)
-  "주방후드(업소용)", "주방후드(가정용)", "후드설치"];
+  "주방후드(업소용)", "주방후드(가정용)", "후드설치", "후드옵션"];
+
+// 2026-10-07 Mig 244 — 주방후드 단가표 (부가세 별도 = 공급가). DB work_types.default_unit_price 와 같은 값.
+//   0 = 접수할 때 직접 입력 (현장 확인 / 범위 금액).
+export const HOOD_PRICE_LIST = {
+  "주방후드(업소용)": { "1,000mm 이하": 198000, "1,000~2,000mm(2구)": 289000, "2,000mm 초과(현장 확인)": 0 },
+  "주방후드(가정용)": { "기본형": 100000, "2구 더블": 120000, "고급형": 150000 },
+  "후드옵션":         { "화구 스팀 세척": 0, "자바라": 30000, "소방후드": 10000 },
+};
+export const HOOD_PRICE_HINT = {
+  "주방후드(업소용)|2,000mm 초과(현장 확인)": "현장 확인 후 견적을 직접 입력해 주세요",
+  "후드옵션|화구 스팀 세척": "40,000~70,000원 사이 — 견적을 직접 입력해 주세요",
+};
+// 단가표에 있는 줄이면 단가(0 포함), 주방후드가 아니면 undefined
+export function hoodListPrice(workType, appliance) {
+  const m = HOOD_PRICE_LIST[workType];
+  if (!m) return undefined;
+  return Object.prototype.hasOwnProperty.call(m, appliance) ? m[appliance] : undefined;
+}
+// 작업 항목들이 전부 단가표 줄이면 합계(직접 입력 줄이 있으면 null), 주방후드 줄이 하나도 없으면 undefined
+export function hoodAutoEstimate(workItems) {
+  const items = Array.isArray(workItems) ? workItems : [];
+  if (items.length === 0) return undefined;
+  let total = 0, any = false;
+  for (const it of items) {
+    const p = hoodListPrice(it.workType, it.appliance);
+    if (p === undefined) return undefined;          // 주방후드가 아닌 항목이 섞임 → 기존 방식(원청 단가표)으로
+    any = true;
+    if (p === 0) return null;                        // 직접 입력해야 하는 줄
+    total += p * (Number(it.qty) || 1);
+  }
+  return any ? total : undefined;
+}
 
 // 2026-07-08 — 표시 라벨 매핑 (저장값/매칭키와 표시값 분리).
 //   저장/매칭 (파서 output, category_data.workItems.workType, service_types.name,
