@@ -219,7 +219,7 @@ export default function EngineerCoverageMap() {
                 <span><span style={dotStyle("rgba(239,68,68,0.85)")}/> 아무도 없음</span>
               </div>
               <div style={{ fontSize: 10.5, color: "var(--text-secondary)", marginBottom: 8, lineHeight: 1.5 }}>
-                ⚡ 냉매 지역 = 설치·누수·누설 배정에도 사용 · 전지역 기사는 색에 포함 안 함 (빈 지역 안 가려지게)
+                ⚡ 냉매 지역 = 누수·누설 배정에도 사용 · 전지역 기사는 색에 포함 안 함 (빈 지역 안 가려지게)
               </div>
 
               {/* 서울 지도 */}
@@ -293,7 +293,7 @@ export default function EngineerCoverageMap() {
                 }}>
                   <div style={{ fontSize: 12.5, fontWeight: 800, marginBottom: 6 }}>📍 {sel}</div>
                   {[["❄ 세척", coverage[sel]?.clean || [], "clean"],
-                    ["⚡ 냉매 (설치·누수·누설 포함)", coverage[sel]?.refri || [], "refri"]].map(([lab, list, key]) => (
+                    ["⚡ 냉매 (누수·누설 포함)", coverage[sel]?.refri || [], "refri"]].map(([lab, list, key]) => (
                     <div key={lab} style={{ fontSize: 11.5, marginBottom: 4, lineHeight: 1.6 }}>
                       <span style={{ color: "var(--text-secondary)", fontWeight: 700 }}>{lab}: </span>
                       {list.length === 0

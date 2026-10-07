@@ -10112,7 +10112,10 @@ function RecommendScreen({ t, task, onBack, onAssign, onEngineerCardClick, assig
         {apiLoading ? null : totalCandidates === 0 && !apiError ? (
           <div style={{ padding: "32px 20px", textAlign: "center", background: t.bgElevated, borderRadius: 12, border: `1px solid ${t.border}` }}>
             <div style={{ fontSize: 24, marginBottom: 10, opacity: 0.4 }}>🔍</div>
-            <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 6 }}>이 지역에 등록된 프로가 없습니다</div>
+            {/* 2026-10-07 — 어떤 기술의 기사가 없는지 말해 준다 (설치는 설치 기술 기사만, 누설·누수는 냉매 기사 풀) */}
+            <div style={{ fontSize: 12, color: t.textSecondary, marginBottom: 6 }}>
+              이 지역을 맡는 {(() => { const k = getServiceKind(task); return k === "install" ? "설치" : (k === "refrigerant" || k === "leak") ? "냉매" : k === "cleaning" ? "세척" : "담당"; })()} 기사가 없습니다
+            </div>
             <div style={{ fontSize: 10, color: t.textMuted, marginBottom: 14 }}>전체 프로 중 점수가 높은 순으로 직접 선택할 수 있습니다.</div>
             <button
               type="button"
