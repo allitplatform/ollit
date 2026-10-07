@@ -12,7 +12,7 @@ import { getCategoryMeta, getTaskDurationHours, categoryTint } from "../lib/serv
 // 2026-10-07 — 타임라인 개편 (시안 v1): 왼쪽 미배정 목록 · 소속별 묶음 · 협력사 보기 전용
 import { useSubcontractorIndex, subcontractorOfEngineer, subcontractorName, adminAssignTaskToSubcontractor, listSubcontractorCategories } from "../lib/subcontractorsDb.js";
 import { ZONE_GROUPS } from "../utils/zoneGroups.js";
-import { updateTaskDb } from "../data/tasksDb.js";
+import { updateTaskDb, assignEngineerDb } from "../data/tasksDb.js";
 import { useState, useMemo, useEffect, useRef, useCallback } from "react";
 import { todayYmd, toKstYmd } from "../utils/dateLabel.js";
 
@@ -367,9 +367,25 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       if (l.tasks.length > 0 || hasOff) g.busy.push(l); else g.idle.push(l);
       g.taskCount += live(l);
     }
+    // 2026-10-07 (30) — 협력사로 넘겼는데 담당 기사가 아직 없는 작업: 그 협력사 묶음 맨 위 "기사 미정 n건" 줄 (보기 전용)
+    for (const t of (apiTasks || [])) {
+      if (!t) continue;
+      const sid = t.subcontractorId || t.subcontractor_id;
+      if (!sid) continue;
+      const { eid, ename } = engOf(t);
+      if (eid || ename) continue;
+      if (isEffectivelyCanceled(t) || DONE_STATUSES.has(t.status) || !matchCat(t)) continue;
+      const gk = `sub:${sid}`;
+      if (affFilter && affFilter !== gk) continue;
+      if (!gmap.has(gk)) {
+        gmap.set(gk, { key: gk, subId: sid, readOnly: true, label: subcontractorName(sid, subIdx), busy: [], idle: [], taskCount: 0 });
+      }
+      const g = gmap.get(gk);
+      (g.pending || (g.pending = [])).push(t);
+    }
     const glist = [...gmap.values()].sort((a, b) => (a.subId ? 1 : 0) - (b.subId ? 1 : 0) || a.label.localeCompare(b.label, "ko"));
     return { groups: glist, allLanes: lanes };
-  }, [todayTasks, apiEngineers, subIdx, regionFilter, affFilter, sortMode, offsByLaneName]);
+  }, [todayTasks, apiTasks, apiEngineers, subIdx, regionFilter, affFilter, sortMode, offsByLaneName, matchCat]);
 
   const laneCount = allLanes.length;
   const busyCount = allLanes.filter(l => l.tasks.length > 0).length;
@@ -592,7 +608,18 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
           setConfirmInfo(null);
           return;
         }
-        res = await adminReassignTask(task.id, engineerUuid, newIso);
+        if (isAssign) {
+          // 미배정 카드를 끌어다 놓은 경우 — 기존 "배정" 저장(기사 + 상태 '배정' 을 한 번에)을 그대로 쓴다.
+          //   서버의 상태 푸시(Mig 203)가 이 순간 담당 기사에게 "📥 작업 배정 완료" 를 보낸다.
+          //   이어서 일정을 넣고 '확정' 으로 바꾼다 (배정 + 일정 확정).
+          res = await assignEngineerDb(task.id, engineerUuid);
+          if (res && res.ok) {
+            const ur = await updateTaskDb(task.id, { scheduledAt: newIso, status: "확정" });
+            if (!ur?.ok) res = { ok: false, error: `배정은 됐지만 일정 확정에 실패했습니다 — ${ur?.error || ""}` };
+          }
+        } else {
+          res = await adminReassignTask(task.id, engineerUuid, newIso);
+        }
       } else {
         res = await adminRescheduleTask(task.id, newIso);
       }
@@ -607,21 +634,12 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       //   category_data.reassignRequest 는 건드리지 않음 → 여기서 해제.
       //   시간만 끄는 단순 드래그(isReassign=false)에는 적용 X — 잘못 끌었을 때
       //   요청이 소리 없이 사라지면 안 되므로.
-      if (isReassign) {
+      if (isReassign && !isAssign) {
         try {
           const cr = await clearReassignRequest(task.id);
           if (!cr?.ok) console.warn("[clearReassignRequest]", cr?.error);
         } catch (e) {
           console.warn("[clearReassignRequest]", e?.message || e);
-        }
-      }
-      // 미배정 카드를 끌어다 놓은 경우: 배정 + 일정 확정 (재배정 함수는 상태를 건드리지 않으므로 여기서 확정으로)
-      if (isAssign && (task.status === "미배정" || task.status === "배정" || !task.status)) {
-        try {
-          const ur = await updateTaskDb(task.id, { status: "확정" });
-          if (!ur?.ok) console.warn("[timeline assign] 상태 확정 실패", ur?.error);
-        } catch (e) {
-          console.warn("[timeline assign] 상태 확정 실패", e?.message || e);
         }
       }
       const msg = isAssign
@@ -987,7 +1005,7 @@ function TimeAxisView({ wrapperRef, groups, fold, onToggleFold, offsByLaneName, 
               <>
                 <span style={{ width: 12 }}>{closed ? "▶" : "▼"}</span>
                 <span>{g.label}</span>
-                <small style={{ fontWeight: 600, color: "var(--text-secondary)", fontSize: 12 }}>{g.busy.length + g.idle.length}명 · 오늘 {g.taskCount}건</small>
+                <small style={{ fontWeight: 600, color: "var(--text-secondary)", fontSize: 12 }}>{g.busy.length + g.idle.length}명 · 오늘 {g.taskCount}건{g.pending && g.pending.length > 0 ? ` · 기사 미정 ${g.pending.length}건` : ""}</small>
                 {g.readOnly && (
                   <span style={{ marginLeft: 8, fontSize: 11.5, fontWeight: 700, color: "#7C5CFA", background: "rgba(124,92,250,0.14)", padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>
                     🔒 보기 전용 · 배정은 {g.label} 관리자
@@ -995,6 +1013,25 @@ function TimeAxisView({ wrapperRef, groups, fold, onToggleFold, offsByLaneName, 
                 )}
               </>
             ), () => onToggleFold(`g:${g.key}`)),
+            ...(closed || !g.pending || g.pending.length === 0 ? [] : [
+              <div key={`p:${g.key}`} style={{ gridColumn: "1 / -1", borderBottom: "1px solid var(--border)", background: "rgba(124, 92, 250, 0.04)" }}>
+                <div style={{ position: "sticky", left: 0, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, padding: "8px 14px", boxSizing: "border-box", maxWidth: "min(100%, 1000px)" }}>
+                  <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--text-primary)", whiteSpace: "nowrap" }}>🔒 기사 미정 {g.pending.length}건</span>
+                  {g.pending.map(t => {
+                    const cat = getCategoryMeta(t);
+                    return (
+                      <button key={t.id || t.taskCode} type="button" onClick={() => onTaskClick?.(t)}
+                        title="보기 전용 — 배정은 협력사 관리자 (누르면 상세)" style={{
+                          border: `1px solid ${cat.color}`, background: "var(--bg-elevated)", color: "var(--text-primary)", borderRadius: 8,
+                          padding: "4px 9px", fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
+                        }}>
+                        <span style={{ color: cat.color }}>{cat.icon}</span> {pendingWhen(t)} · {t.customer || "—"}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>,
+            ]),
             ...(closed ? [] : g.busy.map(l => renderLane(l, false))),
             ...(closed || g.idle.length === 0 ? [] : [
               fullRow(`f:${g.key}`, { height: 32, background: "var(--bg-elevated)", fontSize: 12.5, fontWeight: 700, color: "var(--text-secondary)", position: "relative", zIndex: 4 }, (
@@ -1609,6 +1646,22 @@ function cardItems(task) {
     : String(task.workType || "").replace(/_\(공통\)$/, "");
   const est = Number(task.estimateTotal || task.productPrice || 0);
   return [first, est > 0 ? `견적 ₩${est.toLocaleString("ko-KR")}` : ""].filter(Boolean).join(" · ");
+}
+
+// "기사 미정" 칩의 시각 글자 — 일정이 있으면 "10/8 14:00", 희망일만 있으면 그 날짜, 없으면 "시간 미정"
+function pendingWhen(task) {
+  const at = task.scheduledAt || task.scheduled_at;
+  if (at) {
+    const d = new Date(at);
+    if (!isNaN(d.getTime())) return `${d.getMonth() + 1}/${d.getDate()} ${pad(d.getHours())}:${pad(d.getMinutes())}`;
+  }
+  const rd = String(task.requestedDate || "").slice(0, 10);
+  if (rd) {
+    const [, m, dd] = rd.split("-");
+    const rt = /^\d{1,2}:\d{2}/.test(String(task.requestedTime || "")) ? ` ${String(task.requestedTime).slice(0, 5)}` : "";
+    return `${Number(m)}/${Number(dd)}${rt}`;
+  }
+  return "시간 미정";
 }
 
 function UnassignedPanel({ tasks, selectedDate, onOpen, onDragMove, onDrop, onDragCancel, handOverTarget, handOverName, onHandOver }) {
