@@ -148,7 +148,7 @@ export function KbReception({ t, user, onDone }) {
 
       <div style={{ background: t.bgElevated, border: `1px solid ${t.borderStrong}`, borderRadius: 12, padding: "12px 14px", marginTop: 10 }}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-          <span style={{ fontSize: 13, color: t.textMuted }}>견적 (자동)</span>
+          <span style={{ fontSize: 13, color: t.textMuted }}>견적 (자동 · 부가세 별도)</span>
           <span style={{ fontSize: 20, fontWeight: 800, color: tbd ? t.warning : t.text }}>
             {items.length === 0 ? "—" : tbd ? "견적 미정" : fmtWon(auto)}
           </span>

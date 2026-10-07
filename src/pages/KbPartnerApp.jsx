@@ -127,7 +127,7 @@ function TaskCard({ t, row, onClick }) {
       </div>
       <div style={{ display: "flex", gap: 10, marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${t.borderStrong}` }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, color: t.textMuted }}>견적</div>
+          <div style={{ fontSize: 11, color: t.textMuted }}>견적 (부가세 별도)</div>
           <div style={{ fontSize: 14, fontWeight: 700, color: row.quote != null ? t.text : t.warning }}>{row.quote != null ? fmtWon(row.quote) : "견적 미정"}</div>
         </div>
         <div style={{ flex: 1, textAlign: "right" }}>
@@ -252,7 +252,7 @@ function TaskSheet({ t, row, onClose, onChanged }) {
           </div>
         )}
         <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 14, padding: "6px 14px", marginTop: 10 }}>
-          <KV t={t} label="견적" value={task.quote != null ? fmtWon(task.quote) : "견적 미정"} color={task.quote != null ? undefined : t.warning}/>
+          <KV t={t} label="견적 (부가세 별도)" value={task.quote != null ? fmtWon(task.quote) : "견적 미정"} color={task.quote != null ? undefined : t.warning}/>
           <KV t={t} label="쿨가이 수수료" value={fee.text} color={fee.color} strong/>
           {task.fee_state === "checking" && (
             <div style={{ fontSize: 12, color: t.textMuted, paddingBottom: 8 }}>완료는 됐고 수수료를 확인하고 있습니다. 올데이케어에 문의해 주세요.</div>

@@ -60,6 +60,7 @@ import SubAssignSheet from "./SubAssignSheet.jsx";
 import CancelBanner from "./CancelBanner.jsx";
 import { SubChangeRequestBand, SubExceptionCard } from "./SubExceptionParts.jsx";
 import { SubPrincipalSplitCard } from "./SubPrincipalParts.jsx";
+import { getCategoryMetaOfRow } from "../lib/serviceCatalog.js";
 
 // 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (0 이면 테두리 선이 화면 끝에서 잘려 12 로 — 2026-10-06 실화면 확인).
 //   여백을 다시 주고 싶으면 이 숫자 하나만 바꾸면 된다 (운영자·협력사 모드 공통).
@@ -403,7 +404,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       {/* 2026-10-06 Mig 215~217 — 협력사 작업 분배: 공급가 / 수수료 / 협력사 몫 */}
       <SubFeeSplitCard task={task}/>
       {/* 2026-10-07 Mig 244 — 원청 몫. 운영자 화면에만 — 협력사 관리자·기사에게는 보여 주지 않는다 */}
-      {!subMode && task.subcontractorId && (
+      {/* 2026-10-07 Mig 256 — 직영 주방후드도 원청 몫이 생긴다 (카드는 원청 몫 규칙이 있을 때만 그려진다) */}
+      {!subMode && (task.subcontractorId || getCategoryMetaOfRow(task).key === "hood") && (
         <SubPrincipalSplitCard task={task} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
       )}
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}

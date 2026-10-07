@@ -122,7 +122,8 @@ export function SubPrincipalSplitCard({ task, style = {} }) {
         <div style={small}>완료 후 계산됩니다. ({pname} 몫 = 견적의 35%, 수수료를 넘지 않음)</div>
       ) : (
         <>
-          {row("화이트코어에게서 받는 수수료", fmtWon(fee))}
+          {/* 2026-10-07 Mig 256 — 직영 주방후드도 같은 카드: 수수료 = 받은 공급가의 35% */}
+          {row(task && (task.subcontractorId || task.subcontractor_id) ? "화이트코어에게서 받는 수수료" : "수수료 (기사 몫을 뺀 금액)", fmtWon(fee))}
           {row(`${pname}에 줄 몫`, fmtWon(share), true, VIOLET)}
           {row("올데이케어 실제 몫", fmtWon(Math.max(0, fee - share)), true, "#FF1B8D")}
         </>
