@@ -2,8 +2,8 @@
 //   운영자 PC 화면의 배치(기사별 가로 타임라인 / 필터 한 줄 + 표)를 따르되, 데이터는 전부
 //   협력사 RPC(sub_query_tasks · sub_list_staff — 세션 확인 + 자기 협력사 작업만)에서 읽는다.
 //   운영자 RPC·운영자 화면 구성요소는 쓰지 않는다.
-import { useCallback, useEffect, useMemo, useState } from "react";
-import { subQueryTasks, subListStaff } from "../lib/subcontractorsDb.js";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { subQueryTasks, subListStaff, subListTasks, subListStaffForTask, subAssignTask, subSetSchedule } from "../lib/subcontractorsDb.js";
 import { getCategoryMeta, categoriesInTasks, getTaskDurationHours, categoryTint } from "../lib/serviceCatalog.js";
 import CategoryChip from "./CategoryChip.jsx";
 import { fmtWon } from "../utils/money.js";
@@ -39,46 +39,219 @@ function hourPos(t) {
   return h + m / 60;
 }
 
+const UN_W = 280;                 // 왼쪽 미배정 목록 폭
+const DRAG_PX = 5;
+const SUB_OPEN_DONE = ["완료", "취소", "visit_only", "정산완료", "진행중"];
+const hmOf = (x) => `${String(Math.floor(x)).padStart(2, "0")}:${String(Math.round((x % 1) * 60)).padStart(2, "0")}`;
+
+// 미배정 카드의 희망일·시간 글자. overdue = 희망일이 오늘보다 앞 (빨간 표시)
+function wishOf(t, today) {
+  const ymd = t.scheduled_at ? kstYmd(new Date(t.scheduled_at)) : (t.requested_date || "");
+  const hm = visitHm(t);
+  if (!ymd) return { text: hm ? `희망 ${hm}` : "시간 미정", overdue: false };
+  const [, m, d] = ymd.split("-");
+  return { text: `${ymd === today ? "오늘" : `${Number(m)}/${Number(d)}`}${hm ? ` ${hm}` : ""}`, overdue: ymd < today };
+}
+
+// 2026-10-07 — 왼쪽 미배정 목록 (운영자 타임라인 시안 v1 과 같은 배치).
+//   카드를 기사 줄의 시간 칸에 끌어다 놓으면 배정 + 일정 확정. 누르면 기존 배정 시트.
+//   운영자 화면의 목록 부품과 모양은 같지만, 데이터 꼴(협력사 RPC 의 snake_case 행)과 저장 함수가 달라 따로 둔다.
+function SubUnassignedPanel({ tasks, today, onPick, onDragStart, onDragMove, onDrop, onDragCancel }) {
+  const [dragging, setDragging] = useState(null);
+  const start = useRef(null);
+  return (
+    <div style={{
+      width: UN_W, flexShrink: 0, background: "var(--bg-elevated)", borderRight: "1px solid var(--border)",
+      display: "flex", flexDirection: "column", position: "sticky", top: 0, alignSelf: "flex-start", height: "100vh", boxSizing: "border-box",
+    }}>
+      <div style={{ padding: "16px 16px 12px", borderBottom: "1px solid var(--border)" }}>
+        <b style={{ fontSize: 16 }}>미배정</b>
+        <span style={{
+          display: "inline-grid", placeItems: "center", minWidth: 22, height: 22, borderRadius: 99, marginLeft: 6, padding: "0 6px", boxSizing: "border-box",
+          background: tasks.length > 0 ? "var(--danger, #E5484D)" : "var(--border)", color: "#fff", fontSize: 12, fontWeight: 800,
+        }}>{tasks.length}</span>
+      </div>
+      <div style={{ padding: "10px 12px", overflowY: "auto", flex: 1, minHeight: 0 }}>
+        {tasks.length === 0 && (
+          <div style={{ fontSize: 13, fontWeight: 700, color: "var(--text-secondary)", textAlign: "center", padding: "28px 0" }}>미배정 없음 ✓</div>
+        )}
+        {tasks.map(t => {
+          const cat = getCategoryMeta(catTask(t));
+          const wish = wishOf(t, today);
+          const amount = Number(t.product_price || t.supply_amount || 0);
+          const isDrag = dragging && dragging.id === t.id;
+          return (
+            <div
+              key={t.id}
+              onPointerDown={(e) => {
+                if (e.button !== 0) return;
+                try { e.currentTarget.setPointerCapture(e.pointerId); } catch (_e) { /* 무시 */ }
+                start.current = { id: t.id, x: e.clientX, y: e.clientY, moved: false };
+              }}
+              onPointerMove={(e) => {
+                const st = start.current;
+                if (!st || st.id !== t.id) return;
+                if (!st.moved && Math.abs(e.clientX - st.x) < DRAG_PX && Math.abs(e.clientY - st.y) < DRAG_PX) return;
+                if (!st.moved) { st.moved = true; onDragStart(t); }
+                setDragging({ id: t.id, x: e.clientX, y: e.clientY, label: `${cat.icon} ${t.customer_name || ""}`, color: cat.color });
+                onDragMove(t, e.clientX, e.clientY);
+              }}
+              onPointerUp={(e) => {
+                const st = start.current;
+                start.current = null;
+                try { e.currentTarget.releasePointerCapture(e.pointerId); } catch (_e) { /* 무시 */ }
+                if (!st || st.id !== t.id) return;
+                setDragging(null);
+                if (st.moved) onDrop(t, e.clientX, e.clientY);
+                else onPick(t);                        // 끌지 않고 누르면 기존 배정 시트
+              }}
+              onPointerCancel={() => { start.current = null; setDragging(null); onDragCancel(); }}
+              style={{
+                border: isDrag ? "1px dashed var(--border)" : "1px solid var(--border)", borderRadius: 12, padding: "10px 12px 10px 14px", marginBottom: 8,
+                position: "relative", background: "var(--bg-elevated)", cursor: isDrag ? "grabbing" : "grab",
+                opacity: isDrag ? 0.35 : 1, userSelect: "none", touchAction: "none",
+              }}>
+              <span style={{ position: "absolute", left: 0, top: 8, bottom: 8, width: 4, borderRadius: "0 4px 4px 0", background: cat.color }}/>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 6, fontSize: 12, color: "var(--text-secondary)", fontWeight: 700 }}>
+                <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                  <span style={{ display: "inline-block", fontSize: 11, fontWeight: 700, padding: "2px 7px", borderRadius: 6, marginRight: 4, background: categoryTint(cat.color, 0.16), color: cat.color }}>{cat.icon} {cat.short || cat.label}</span>
+                  {townOf(t)}
+                </span>
+                <em style={{ fontStyle: "normal", flexShrink: 0, fontWeight: 800, color: wish.overdue ? "var(--danger, #E5484D)" : "var(--accent, #FF1B8D)" }}>
+                  {wish.overdue ? "⚠ " : ""}{wish.text}
+                </em>
+              </div>
+              <div style={{ fontSize: 14, fontWeight: 800, margin: "3px 0 2px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.customer_name || "—"}</div>
+              <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                {workLabel(t)}{amount > 0 ? ` · ${fmtWon(amount)}` : ""}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+      <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)", fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.5, background: "var(--bg-secondary)" }}>
+        카드를 오른쪽 기사 줄의 원하는 시간에 <strong>끌어다 놓으면</strong> 배정 + 시간이 한 번에 정해집니다. 누르면 배정 시트.
+      </div>
+      {dragging && (
+        <div style={{
+          position: "fixed", left: dragging.x + 12, top: dragging.y + 12, zIndex: 2000, pointerEvents: "none",
+          background: dragging.color, color: "#fff", fontSize: 12, fontWeight: 800, padding: "6px 10px", borderRadius: 8,
+          boxShadow: "0 6px 18px rgba(0,0,0,0.35)", whiteSpace: "nowrap", maxWidth: 220, overflow: "hidden", textOverflow: "ellipsis",
+        }}>{dragging.label}</div>
+      )}
+    </div>
+  );
+}
+
 // preset: { day, n } — 홈에서 날짜를 정해 넘어올 때. n 이 바뀔 때마다 그 날짜로 맞춘다.
-export function SubPcTimeline({ onOpen, refreshKey = 0, preset = null }) {
+// onPick(task): 미배정 카드를 눌렀을 때 — 기존 배정 시트를 연다.  onChanged(taskId): 끌어다 배정한 뒤 바깥 목록 갱신.
+export function SubPcTimeline({ onOpen, onPick, onChanged, refreshKey = 0, preset = null }) {
   const today = kstYmd(new Date());
   const [day, setDay] = useState((preset && preset.day) || today);
   useEffect(() => { if (preset && preset.day) setDay(preset.day); }, [preset && preset.n]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [tasks, setTasks] = useState([]);
+  const [openAll, setOpenAll] = useState([]);       // 그 협력사의 전체 작업 (미배정 목록용)
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [now, setNow] = useState(() => new Date());
+  const [preview, setPreview] = useState(null);     // 놓을 자리 { rowId, hour, dur, label, tip, bad }
+  const [toast, setToast] = useState(null);
+  const [saving, setSaving] = useState(false);
+  const canDo = useRef(new Map());                  // taskId → Map(engineerId → 할 수 있는지)  (서버 판정: sub_list_staff_for_task)
 
   const load = useCallback(async () => {
     setLoading(true);
-    const [tr, sr] = await Promise.all([subQueryTasks({ from: day, to: day }), subListStaff()]);
+    const [tr, sr, ar] = await Promise.all([subQueryTasks({ from: day, to: day }), subListStaff(), subListTasks()]);
     if (!tr.ok) setError(tr.error || "작업을 불러오지 못했습니다.");
     else { setError(""); setTasks(Array.isArray(tr.tasks) ? tr.tasks : []); }
     if (sr.ok) setStaff(Array.isArray(sr.staff) ? sr.staff : []);
+    if (ar.ok) setOpenAll(Array.isArray(ar.tasks) ? ar.tasks : []);
     setLoading(false);
   }, [day]);
   useEffect(() => { load(); }, [load, refreshKey]);
   useEffect(() => { const id = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(id); }, []);
 
-  // 줄: 맨 위 "미배정", 그날 작업 있는 기사(많은 순), 없는 기사(흐리게)
+  function say(type, message) { setToast({ type, message }); setTimeout(() => setToast(null), 3200); }
+
+  // 왼쪽 목록 — 끝나지 않았고 담당 기사가 없는 작업 (날짜와 상관없이). 희망일이 이른 순.
+  const unassigned = useMemo(() => {
+    const key = (t) => (t.scheduled_at ? kstYmd(new Date(t.scheduled_at)) : (t.requested_date || "9999-99-99")) + " " + (visitHm(t) || "99:99");
+    return openAll.filter(t => !t.assigned_engineer_id && !SUB_OPEN_DONE.includes(t.status)).sort((a, b) => key(a).localeCompare(key(b)));
+  }, [openAll]);
+
+  // 줄: 그날 작업 있는 기사(많은 순), 없는 기사(흐리게). 담당 기사 없는 작업은 왼쪽 목록에만 나온다.
   const rows = useMemo(() => {
     const by = new Map();
     for (const t of tasks) {
-      const k = t.assigned_engineer_id || "none";
-      if (!by.has(k)) by.set(k, []);
-      by.get(k).push(t);
+      if (!t.assigned_engineer_id) continue;
+      if (!by.has(t.assigned_engineer_id)) by.set(t.assigned_engineer_id, []);
+      by.get(t.assigned_engineer_id).push(t);
     }
     const names = new Map(staff.map(s => [s.id, s.name]));
     for (const t of tasks) if (t.assigned_engineer_id && !names.has(t.assigned_engineer_id)) names.set(t.assigned_engineer_id, t.engineer_name || "기사");
     const withWork = [...names.keys()].filter(id => by.has(id)).sort((a, b) => by.get(b).length - by.get(a).length || String(names.get(a)).localeCompare(String(names.get(b)), "ko"));
     const idle = [...names.keys()].filter(id => !by.has(id)).sort((a, b) => String(names.get(a)).localeCompare(String(names.get(b)), "ko"));
     return [
-      { id: "none", name: "미배정", items: by.get("none") || [], warn: true },
       ...withWork.map(id => ({ id, name: names.get(id), items: by.get(id) })),
       ...idle.map(id => ({ id, name: names.get(id), items: [], dim: true })),
     ];
   }, [tasks, staff]);
+
+  // ── 끌어다 놓기 ──
+  async function handleDragStart(t) {
+    if (canDo.current.has(t.id)) return;
+    const res = await subListStaffForTask(t.id);          // 이 작업 종목을 할 수 있는 기사인지 (서버 판정)
+    if (res.ok) canDo.current.set(t.id, new Map((res.staff || []).map(x => [x.id, x.can_do !== false])));
+  }
+  function locate(x, y) {
+    const el = document.elementFromPoint(x, y);
+    const laneEl = el && el.closest ? el.closest("[data-sub-lane]") : null;
+    if (!laneEl) return null;
+    const row = rows.find(r => r.id === laneEl.dataset.subLane);
+    if (!row) return null;
+    const rect = laneEl.getBoundingClientRect();
+    if (rect.width <= 0) return null;
+    let hour = H0 + ((x - rect.left) / rect.width) * SPAN;
+    hour = Math.round(hour * 2) / 2;                       // 30분 단위
+    hour = Math.max(H0, Math.min(H1 - 0.5, hour));
+    return { row, hour };
+  }
+  const cannot = (t, rowId) => { const m = canDo.current.get(t.id); return !!m && m.get(rowId) === false; };
+  function handleDragMove(t, x, y) {
+    const hit = locate(x, y);
+    if (!hit) { setPreview(null); return; }
+    if (cannot(t, hit.row.id)) {
+      setPreview({ rowId: hit.row.id, bad: true, tip: `${hit.row.name} 님은 이 종목을 할 수 없습니다` });
+      return;
+    }
+    setPreview({
+      rowId: hit.row.id, hour: hit.hour, dur: getTaskDurationHours(catTask(t)),
+      label: `${getCategoryMeta(catTask(t)).icon} ${t.customer_name || ""}`,
+      tip: `← ${hmOf(hit.hour)} ${hit.row.name} 배정 (놓으면 확인창)`,
+    });
+  }
+  async function handleDrop(t, x, y) {
+    const hit = locate(x, y);
+    setPreview(null);
+    if (!hit || saving) return;
+    // 종목 가능 여부 — 아직 못 읽었으면 지금 읽어서 확인한다
+    if (!canDo.current.has(t.id)) await handleDragStart(t);
+    if (cannot(t, hit.row.id)) { say("error", `${hit.row.name} 님은 이 종목을 할 수 없습니다 — 다른 기사를 골라 주세요`); return; }
+    const [, m, d] = day.split("-");
+    if (!window.confirm(`${t.customer_name || "작업"}\n\n${hit.row.name} 님 · ${Number(m)}/${Number(d)} ${hmOf(hit.hour)} 에 배정하고 일정을 확정할까요?`)) return;
+    setSaving(true);
+    // 기존 협력사 함수 그대로: 담당 기사 배정 → 일정 확정
+    const ar = await subAssignTask(t.id, hit.row.id);
+    if (!ar.ok) { setSaving(false); say("error", ar.error || "배정하지 못했습니다"); return; }
+    const sr = await subSetSchedule(t.id, new Date(`${day}T${hmOf(hit.hour)}:00+09:00`).toISOString());
+    setSaving(false);
+    if (!sr.ok) say("error", `배정은 됐지만 일정을 정하지 못했습니다 — ${sr.error || ""}`);
+    else say("success", `${t.customer_name || "작업"} 배정 완료 (${hit.row.name} · ${hmOf(hit.hour)})`);
+    canDo.current.delete(t.id);
+    await load();
+    if (typeof onChanged === "function") onChanged(t.id);
+  }
 
   const nowPos = (() => {
     if (day !== today) return null;
@@ -87,9 +260,20 @@ export function SubPcTimeline({ onOpen, refreshKey = 0, preset = null }) {
     return x >= H0 && x <= H1 ? ((x - H0) / SPAN) * 100 : null;
   })();
   const NAMEW = 150;
+  const dayTasks = tasks.filter(t => t.assigned_engineer_id);
 
   return (
-    <div style={{ padding: 16 }}>
+    <div style={{ display: "flex", alignItems: "stretch", minHeight: "100%" }}>
+      <SubUnassignedPanel
+        tasks={unassigned}
+        today={today}
+        onPick={(t) => { if (typeof onPick === "function") onPick(t); else onOpen(t.id); }}
+        onDragStart={handleDragStart}
+        onDragMove={handleDragMove}
+        onDrop={handleDrop}
+        onDragCancel={() => setPreview(null)}
+      />
+    <div style={{ flex: 1, minWidth: 0, padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: 18, fontWeight: 800, marginRight: 8 }}>타임라인</div>
         <button type="button" onClick={() => setDay(addDays(day, -1))} style={btn} aria-label="이전 날">◀</button>
@@ -97,7 +281,7 @@ export function SubPcTimeline({ onOpen, refreshKey = 0, preset = null }) {
         <button type="button" onClick={() => setDay(addDays(day, 1))} style={btn} aria-label="다음 날">▶</button>
         <input type="date" value={day} onChange={e => e.target.value && setDay(e.target.value)} style={field} aria-label="날짜 선택"/>
         <span style={{ fontSize: 14, fontWeight: 700 }}>{dayTitle(day)}</span>
-        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>· {tasks.filter(t => t.status !== "취소").length}건{tasks.some(t => t.status === "취소") ? ` (취소 ${tasks.filter(t => t.status === "취소").length})` : ""}</span>
+        <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>· {dayTasks.filter(t => t.status !== "취소").length}건{dayTasks.some(t => t.status === "취소") ? ` (취소 ${dayTasks.filter(t => t.status === "취소").length})` : ""}</span>
         <span style={{ flex: 1 }}/>
         <button type="button" onClick={load} disabled={loading} style={btn}>{loading ? "…" : "새로고침"}</button>
       </div>
@@ -114,13 +298,18 @@ export function SubPcTimeline({ onOpen, refreshKey = 0, preset = null }) {
               ))}
             </div>
           </div>
+          {rows.length === 0 && (
+            <div style={{ padding: "40px 0", textAlign: "center", fontSize: 13, color: "var(--text-secondary)" }}>등록된 기사가 없습니다</div>
+          )}
           {rows.map(r => {
             const timed = r.items.filter(t => { const x = hourPos(t); return x != null; });
             const untimed = r.items.filter(t => hourPos(t) == null);
+            const pv = preview && preview.rowId === r.id ? preview : null;
+            const target = pv && !pv.bad;
             return (
-              <div key={r.id} style={{ display: "flex", borderBottom: "1px solid var(--border)", opacity: r.dim ? 0.45 : 1, minHeight: 46 }}>
+              <div key={r.id} style={{ display: "flex", borderBottom: "1px solid var(--border)", opacity: r.dim && !target ? 0.45 : 1, minHeight: 46 }}>
                 <div style={{ width: NAMEW, flexShrink: 0, padding: "8px 12px", boxSizing: "border-box" }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: r.warn && r.items.length > 0 ? "#E5484D" : "var(--text-primary)" }}>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>
                     {r.name}{r.items.length > 0 ? ` ${r.items.length}` : ""}
                   </div>
                   {/* 시각이 없는 작업은 이름 아래 칩으로 */}
@@ -132,7 +321,11 @@ export function SubPcTimeline({ onOpen, refreshKey = 0, preset = null }) {
                     }}>미정 · {t.customer_name}</button>
                   ))}
                 </div>
-                <div style={{ flex: 1, position: "relative" }}>
+                <div data-sub-lane={r.id} style={{
+                  flex: 1, position: "relative",
+                  background: target ? "var(--accent-bg, rgba(255,27,141,0.07))" : "transparent",
+                  outline: target ? "2px dashed var(--accent, #FF1B8D)" : "none", outlineOffset: -2,
+                }}>
                   {Array.from({ length: SPAN }, (_, i) => (
                     <span key={i} style={{ position: "absolute", left: `${(i / SPAN) * 100}%`, top: 0, bottom: 0, borderLeft: "1px solid var(--border)", opacity: 0.5 }}/>
                   ))}
@@ -175,6 +368,34 @@ export function SubPcTimeline({ onOpen, refreshKey = 0, preset = null }) {
                       );
                     });
                   })()}
+                  {/* 놓을 자리 미리보기: 점선 막대 + 말풍선 */}
+                  {target && (() => {
+                    const leftPct = ((pv.hour - H0) / SPAN) * 100;
+                    const widthPct = Math.min(100 - leftPct, (pv.dur / SPAN) * 100);
+                    const tipLeft = leftPct + widthPct > 70;
+                    return (
+                      <>
+                        <div style={{
+                          position: "absolute", top: 5, bottom: 5, left: `${leftPct}%`, width: `${widthPct}%`, boxSizing: "border-box",
+                          borderRadius: 8, border: "2px dashed var(--accent, #FF1B8D)", background: "rgba(255,27,141,0.12)",
+                          color: "var(--accent, #FF1B8D)", fontSize: 11.5, fontWeight: 800, display: "flex", alignItems: "center",
+                          padding: "0 8px", whiteSpace: "nowrap", overflow: "hidden", pointerEvents: "none", zIndex: 40,
+                        }}>{pv.label}</div>
+                        <div style={{
+                          position: "absolute", top: 9,
+                          ...(tipLeft ? { right: `calc(${100 - leftPct}% + 8px)` } : { left: `calc(${leftPct + widthPct}% + 8px)` }),
+                          background: "#1A1A1A", color: "#fff", fontSize: 12, fontWeight: 700, padding: "6px 10px", borderRadius: 8,
+                          whiteSpace: "nowrap", pointerEvents: "none", zIndex: 60,
+                        }}>{tipLeft ? pv.tip.replace(/^← /, "") + " →" : pv.tip}</div>
+                      </>
+                    );
+                  })()}
+                  {pv && pv.bad && (
+                    <div style={{
+                      position: "absolute", top: 9, left: 12, background: "#1A1A1A", color: "#fff", fontSize: 12, fontWeight: 700,
+                      padding: "6px 10px", borderRadius: 8, whiteSpace: "nowrap", pointerEvents: "none", zIndex: 60,
+                    }}>🚫 {pv.tip}</div>
+                  )}
                 </div>
               </div>
             );
@@ -189,6 +410,14 @@ export function SubPcTimeline({ onOpen, refreshKey = 0, preset = null }) {
         ))}
         <span>✓ 연한 막대 = 완료 · 줄무늬 = 취소 · 분홍 세로선 = 지금 · 막대 길이 = 서비스별 기본 소요 시간(표시용) · 겹친 구간은 연하게</span>
       </div>
+    </div>
+      {toast && (
+        <div style={{
+          position: "fixed", right: 24, bottom: 24, padding: "12px 16px", borderRadius: 10, zIndex: 1000,
+          background: toast.type === "success" ? "rgba(16,185,129,0.95)" : "rgba(239,68,68,0.95)",
+          color: "#fff", fontSize: 13, fontWeight: 700, boxShadow: "0 4px 16px rgba(0,0,0,0.25)",
+        }}>{toast.message}</div>
+      )}
     </div>
   );
 }

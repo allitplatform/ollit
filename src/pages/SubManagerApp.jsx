@@ -453,7 +453,7 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
               />
             </div>
           )}
-          {pcView === "timeline" && <SubPcTimeline onOpen={openDetail} refreshKey={pcTick} preset={pcPreset.timeline}/>}
+          {pcView === "timeline" && <SubPcTimeline onOpen={openDetail} onPick={(t) => setPicking(t)} onChanged={() => { load(); }} refreshKey={pcTick} preset={pcPreset.timeline}/>}
           {pcView === "search" && <SubPcSearch onOpen={openDetail} refreshKey={pcTick} preset={pcPreset.search}/>}
           {pcView === "settle" && <div style={{ maxWidth: 860, margin: "0 auto" }}><SubManagerSettleView focusRemits={settleFocus}/></div>}
           {pcView === "staff" && <div style={{ maxWidth: 860, margin: "0 auto" }}><SubStaffManage subName={subName} onCalendar={(s) => pcGo({ view: "tasks", eng: s.id })}/></div>}
