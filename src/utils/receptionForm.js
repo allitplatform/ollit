@@ -132,6 +132,30 @@ export function isHoodListItems(workItems) {
   const items = Array.isArray(workItems) ? workItems : [];
   return items.length > 0 && items.every(it => HOOD_LIST_SERVICES.includes(it.workType));
 }
+// 2026-10-07 — 항목별 단가를 실어 보낸다 (저장 트리거는 항목에 quote 가 없으면 견적 합계를 항목 수로 똑같이 나눈다
+//   → 기본형 100,000 + 자바라 30,000 이 65,000 / 65,000 으로 저장되던 문제).
+//   · 단가표에 금액이 있는 줄  → 그 단가
+//   · 0원 줄(직접 입력)        → 견적 합계에서 위 금액을 뺀 나머지를 그 줄들에 나눠 넣는다
+//   · 주방후드 접수가 아니거나, 단가표를 못 읽었거나, 견적 합계가 단가표 합계와 맞지 않으면 손대지 않는다 (기존 방식)
+export function withHoodQuotes(workItems, prices, total) {
+  if (!isHoodListItems(workItems) || !prices) return workItems;
+  const sum = Math.max(0, Math.round(Number(total) || 0));
+  let known = 0, restQty = 0;
+  const priced = workItems.map(it => {
+    const m = prices[it.workType];
+    const p = m && Object.prototype.hasOwnProperty.call(m, it.appliance) ? Number(m[it.appliance]) : NaN;
+    const qty = Number(it.qty) || 1;
+    if (Number.isFinite(p) && p > 0) { known += p * qty; return { it, price: p }; }
+    restQty += qty;
+    return { it, price: null };
+  });
+  const rest = sum - known;
+  if (rest < 0) return workItems;                         // 견적을 단가표 합계보다 낮게 고친 경우 — 나눌 기준이 없다
+  if (restQty === 0 && rest !== 0) return workItems;      // 직접 입력 줄이 없는데 합계가 다름 (견적을 직접 고침)
+  const each = restQty > 0 ? Math.floor(rest / restQty) : 0;
+  return priced.map(({ it, price }) => ({ ...it, quote: price != null ? price : each }));
+}
+
 // 단가표 합계.  prices = { 서비스 이름: { 줄 이름: 단가 } } (DB 에서 읽은 것) 또는 null(못 읽음)
 //   주방후드 줄만 있는 접수가 아니면 undefined (→ 기존 방식: 원청 단가표)
 //   단가표를 못 읽었거나, 모르는 줄이거나, 0원 줄(직접 입력)이 있으면 null (→ 자동으로 채우지 않는다)

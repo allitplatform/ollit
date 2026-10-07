@@ -71,7 +71,7 @@ import {
   getAppliancePool as getAppliancePoolShared,
   // 2026-06-17 — 카톡 파서 추출 (PC 폼 공유). 모바일 handleAutoFill 무변경.
   formatPhone, parseKaText, parseKakaoText,
-  hoodAutoEstimate, isHoodListItems,
+  hoodAutoEstimate, isHoodListItems, withHoodQuotes,
 } from "../utils/receptionForm.js";
 import { AllEngineersModal } from "../components/AllEngineersModal.jsx";
 import { SettlementScreen as SettlementDailyClose } from "../components/SettlementScreen.jsx";
@@ -2621,6 +2621,9 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
         onAssign={async (task) => {
           // Step 5-3 — 세척 카드 [기사 배정 →] → 추천 화면 (manual_with_recommendation)
           // 냉매 카드는 onAssign 호출 X (RefrigerantCard에 button 없음)
+          // 2026-10-07 — 협력사로 넘긴 작업은 보기 전용 (배정은 협력사 관리자). 직영 추천 화면을 열지 않고
+          //   작업 상세로 보낸다 — 거기에 예외 경로([기사 지정] · 변경 요청 · 회수)가 있다.
+          if (task && (task.subcontractorId || task.subcontractor_id)) { goTaskDetail(task, "newReception"); return; }
           const flow = determineWorkflow(task.workItems) || WORK_TYPES_CONFIG[task.workType]?.workflow || "manual_with_recommendation";
           setSelectedTask(task);
           setScreen(await resolveAssignScreen(flow));
@@ -10828,7 +10831,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
   }
 
   // 2026-10-06 Mig 234 — 수행(직영 / 협력사). 원청과 별개 축.
-  const performerState = usePerformer((workItems[0] && workItems[0].workType) || form.workType);
+  const performerState = usePerformer((workItems[0] && workItems[0].workType) || form.workType, PRINCIPAL_NAME_TO_CODE[form.principal]);
 
   // V14 1F — 분배 미리보기 (관리자만 catch / 기사 X)
   // 메인 항목 (workItems[0]) + 견적 박힐 때마다 debounce 500ms → calculateFee API 호출
@@ -10965,7 +10968,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
         //   기사앱 [기종 선택] 배너가 계속 뜨고, 기종 선택 시 배열이 통째로 교체된다.
         workItems:     (splitItems.length === 0 && applianceUndecided && !!form.workType)
           ? [{ workType: form.workType, appliance: "(미정)", qty: 1, quote: 0 }]
-          : splitItems,
+          : withHoodQuotes(splitItems, hoodPrices.ok ? hoodPrices.list : null, form.estimateTotal || 0),
         // 2026-07-11 — 사장님 spec: 기종 미정 플래그 (category_data 저장).
         applianceUndecided: workItems.length === 0 && applianceUndecided,
         quote:         form.estimateTotal,

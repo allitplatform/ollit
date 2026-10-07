@@ -140,6 +140,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   const [loading, setLoading] = useState(!isInitialFull);
   const [fetchError, setFetchError] = useState(null);
   // 2026-06-28 — 견적 수정 후 재 fetch + 정규화 (Mig 153 적용 결과 표시).
+  const [subPick, setSubPick] = useState(false);     // 협력사 작업의 기사 고르기 시트 (운영자 예외 경로)
   const reloadTask = async () => {
     if (!initialTask?.id) return;
     try {
@@ -392,7 +393,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       <WorkInfoCard
         task={task}
         apiEngineers={apiEngineers}
-        onAssign={onAssign}
+        onAssign={(!subMode && task.subcontractorId) ? () => setSubPick(true) : onAssign}
         onScheduleChange={onScheduleChange}
         onSendMessage={subMode ? undefined : () => setShowMessageModal(true)}
         subMode={subMode}
@@ -455,6 +456,17 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       {/* 카드 7 — 작업 사진 */}
       <PhotoSection taskId={task.id} taskType={task.type} photoLoader={photoLoader}/>
       <CompletionNotice task={task} subMode={subMode}/>
+      {/* 2026-10-07 — 협력사로 넘긴 작업의 [배정 ›] · [변경 ›]: 직영 추천 화면이 아니라 그 협력사 기사 고르기 시트
+            (상단 "수행" 카드의 [기사 지정] 과 같은 예외 경로) */}
+      {subPick && !subMode && task.subcontractorId && (
+        <SubAssignSheet
+          taskId={task.id}
+          mode="admin"
+          subtitle={task.customer || ""}
+          onClose={() => setSubPick(false)}
+          onAssigned={() => { setSubPick(false); reloadTask(); }}
+        />
+      )}
       {/* 2026-10-07 Mig 242 — 협력사 작업 예외 처리 (운영자 전용): 변경 요청 · 올데이케어로 회수 */}
       {!subMode && task.subcontractorId && (
         <SubExceptionCard task={task} onChanged={reloadTask} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>

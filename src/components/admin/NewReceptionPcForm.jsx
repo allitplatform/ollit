@@ -27,7 +27,7 @@ import {
   getAppliancePool,
   // 2026-06-17 Phase 2 — 카톡/KA 파서 (모바일 폼과 공유, Stage 1 확장).
   parseKakaoText, formatPhone,
-  hoodAutoEstimate, isHoodListItems,
+  hoodAutoEstimate, isHoodListItems, withHoodQuotes,
 } from "../../utils/receptionForm.js";
 import { lookupRate, autoGenerateCustomer } from "../principal/NewReceptionScreenLite.jsx";
 import { calculateCommissionMultiRpc } from "../../lib/commissionPoliciesDb.js";
@@ -199,7 +199,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
   }, [form.principal, workItems, quoteRates, estimateTouched, priceTBD, hoodPrices]);
 
   // 2026-10-06 Mig 234 — 수행(직영 / 협력사). 원청과 별개 축.
-  const performerState = usePerformer((workItems[0] && workItems[0].workType) || form.workType);
+  const performerState = usePerformer((workItems[0] && workItems[0].workType) || form.workType, PRINCIPAL_NAME_TO_CODE[form.principal]);
 
   // ── 분배 미리보기 (유솔N 제외, debounce 500ms) ──
   useEffect(() => {
@@ -423,7 +423,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
         //   기사가 기종을 고르면 이 자리표시 줄은 깨끗이 덮인다.
         workItems:     (splitItems.length === 0 && applianceUndecided && !!form.workType)
           ? [{ workType: form.workType, appliance: "(미정)", qty: 1, quote: 0 }]
-          : splitItems,
+          : withHoodQuotes(splitItems, hoodPrices.ok ? hoodPrices.list : null, priceTBD ? 0 : (form.estimateTotal || 0)),
         // 2026-07-11 — 사장님 spec: 기종 미정 플래그 (category_data 저장).
         applianceUndecided: workItems.length === 0 && applianceUndecided,
         __log_note:    "see console [NewReceptionPc SAVE]",

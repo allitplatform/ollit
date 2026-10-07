@@ -31,13 +31,17 @@ function ruleCovers(rule, group) {
   const code = String(rule.service_code || "");
   return !code || code.startsWith(group);
 }
-function ruleFor(rules, subId, group) {
-  const mine = rules.filter(r => r.subcontractor_id === subId);
-  return mine.find(r => ruleCovers(r, group)) || mine.find(r => !r.service_code) || null;
+// 규칙 고르기 — 서버 계산과 같은 순서: 그 원청 전용 줄이 먼저, 없으면 "모든 원청" 줄.
+//   (다른 원청 전용 줄은 쓰지 않는다)
+function ruleFor(rules, subId, group, principalCode) {
+  const code = String(principalCode || "");
+  const mine = rules.filter(r => r.subcontractor_id === subId && (!r.principal_code || r.principal_code === code));
+  const pick = (list) => list.find(r => ruleCovers(r, group)) || list.find(r => !r.service_code) || null;
+  return pick(mine.filter(r => r.principal_code === code && code)) || pick(mine.filter(r => !r.principal_code));
 }
 
 // 수행 선택 상태. workType: 대표 종목 이름.
-export function usePerformer(workType) {
+export function usePerformer(workType, principalCode = "") {
   const idx = useSubcontractorIndex();
   const subs = useMemo(() => [...idx.names.values()].filter(s => s.active !== false)
     .sort((a, b) => String(a.name).localeCompare(String(b.name), "ko")), [idx]);
@@ -70,7 +74,7 @@ export function usePerformer(workType) {
     return ids.length === 1 ? ids[0] : "";
   }, [rules, group, subs, subCats]);
 
-  const rule = performer ? ruleFor(rules, performer, group) : null;
+  const rule = performer ? ruleFor(rules, performer, group, principalCode) : null;
   const name = performer ? (subs.find(s => s.id === performer)?.name || "협력사") : "";
   return { subs, performer, setPerformer, recommended, rule, name };
 }
@@ -129,12 +133,19 @@ export function SubFeePreview({ state, estimate, colors = {} }) {
   const isRate = rule.fee_type === "rate";
   const fee = isRate ? Math.round(supply * Number(rule.fee_rate || 0)) : Math.round(Number(rule.fee_amount || 0));
   const pct = isRate ? `${Math.round(Number(rule.fee_rate || 0) * 1000) / 10}%` : "";
+  // 2026-10-07 Mig 244 — 원청 몫 규칙이 있는 원청이면 수수료를 원청 · 올데이케어로 나눠 보여 준다 (이름 대신 "원청").
+  //   원청 몫 = LEAST(견적 × 율, 수수료). 규칙에 원청 몫 율이 없으면 예전 문구 그대로.
+  const pRate = rule.principal_rate == null ? null : Number(rule.principal_rate);
+  const share = pRate == null || !Number.isFinite(pRate) ? null : Math.max(0, Math.min(Math.round(supply * pRate), fee));
   return (
     <div style={{ fontSize: 12, color: text, fontWeight: 600, lineHeight: 1.7 }}>
       협력사 분배: {isRate ? `공급가 × ${pct} 수수료` : `건당 수수료 ${fmtWon(fee)}`}
       {supply > 0 && (
         <>
-          <br/>견적 {fmtWon(supply)} 기준 → 올데이케어 수수료 <b>{fmtWon(fee)}</b> · {name} 몫 <b>{fmtWon(supply - fee)}</b>
+          <br/>
+          {share != null
+            ? <>견적 {fmtWon(supply)} 기준 → 수수료 <b>{fmtWon(fee)}</b> → 원청 <b>{fmtWon(share)}</b> · 올데이케어 <b>{fmtWon(Math.max(0, fee - share))}</b> · {name} 몫 <b>{fmtWon(supply - fee)}</b></>
+            : <>견적 {fmtWon(supply)} 기준 → 올데이케어 수수료 <b>{fmtWon(fee)}</b> · {name} 몫 <b>{fmtWon(supply - fee)}</b></>}
         </>
       )}
       <div style={{ fontSize: 11, color: muted, marginTop: 4 }}>
