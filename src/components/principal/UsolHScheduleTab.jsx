@@ -15,6 +15,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { ChevronDown, ChevronLeft, ChevronRight } from "lucide-react";
+import { getCategoryMetaOfRow } from "../../lib/serviceCatalog.js";
 import { supabase } from "../../lib/supabase.js";
 import { getStatusBadge, getStatusLabel } from "../../utils/principalStatusBadge.js";
 // 2026-06-11 — PC 분기 (1024+).
@@ -132,13 +133,12 @@ function getKind(task) {
   return "clean";
 }
 
-function ServiceIcon({ kind, size = 14 }) {
-  if (kind === "visit")       return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
-  if (kind === "refrigerant") return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>⚡</span>;
-  // 2026-06-28 — install/leak 아이콘 추가 (allday 원청 외엔 거의 안 보이지만 일관 처리).
-  if (kind === "install")     return <span style={{ fontSize: size, color: "#8B5CF6" }}>🔧</span>;
-  if (kind === "leak")        return <span style={{ fontSize: size, color: "#DC2626" }}>💧</span>;
-  return <span style={{ fontSize: size, color: CLEAN_COLOR }}>❄️</span>;
+// 2026-10-07 — 아이콘·색은 종목 기준표(serviceCatalog)에서. 출장 전용 🚗 표시만 따로 둔다.
+//   (전에는 여기서 세척/냉매만 구분해 그려서 주방후드 작업도 ❄ 로 보였다)
+function ServiceIcon({ kind, task, size = 14 }) {
+  if (kind === "visit") return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
+  const m = getCategoryMetaOfRow(task);
+  return <span title={m.label} style={{ fontSize: size, color: m.color, lineHeight: 1 }}>{m.icon}</span>;
 }
 
 // 일정 행 — PrincipalListTab.TaskRow 동일 형식 + 시간(앞) + 상태배지(뒤).
@@ -182,7 +182,7 @@ function ScheduleRow({ task, onClick }) {
       }}>{time}</span>
       {/* 아이콘 (PrincipalListTab 동일 컴포넌트) */}
       <div style={{ flexShrink: 0, width: 14, textAlign: "center" }}>
-        <ServiceIcon kind={kind}/>
+        <ServiceIcon kind={kind} task={task}/>
       </div>
       {/* 고객명 (primary) */}
       <span style={{

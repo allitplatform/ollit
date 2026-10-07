@@ -6166,18 +6166,10 @@ function AssignedCard({ t, task, onMemo, onEdit, onClick }) {
       {/* top: 원청 + 아이콘 + 고객 + (재배정) + 상태(우측) */}
       <div style={{ display: "flex", alignItems: "center", gap: 7, padding: "11px 15px 8px", minWidth: 0 }}>
         <PrincipalLabel name={task.principal} short/>
-        {serviceKinds.has("cleaning") && (
-          <Snowflake size={13} style={{ color: "#378ADD", flexShrink: 0 }} aria-label="세척"/>
-        )}
-        {serviceKinds.has("refrigerant") && (
-          <Zap size={13} style={{ color: "#EF9F27", flexShrink: 0 }} aria-label="냉매충전"/>
-        )}
-        {serviceKinds.has("install") && (
-          <Wrench size={13} style={{ color: "#8B5CF6", flexShrink: 0 }} aria-label="설치"/>
-        )}
-        {serviceKinds.has("leak") && (
-          <AlertTriangle size={13} style={{ color: "#DC2626", flexShrink: 0 }} aria-label="누설"/>
-        )}
+        {/* 2026-10-07 — 아이콘·색은 종목 기준표에서 (전에는 세척·냉매·설치·누설만 따로 그려 주방후드가 빠졌다) */}
+        {(() => { const _m = getCategoryMeta(task); return (
+          <span title={_m.label} aria-label={_m.label} style={{ fontSize: 13, lineHeight: 1, color: _m.color, flexShrink: 0 }}>{_m.icon}</span>
+        ); })()}
         <span style={{ fontSize: 15, fontWeight: 800, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{task.customer}</span>
         {task.hasRefrigerant && task.workType !== "냉매충전" && !serviceKinds.has("refrigerant") && (
           <Zap size={12} style={{ color: t.warning, flexShrink: 0 }} aria-label="냉매 포함"/>
@@ -6888,7 +6880,7 @@ function ReceptionCardInfo({ t, task, extraRows = null }) {
     <div style={{ display: "flex", gap: 10 }}>
       <div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column", gap: 4 }}>
         <ReceptionInfoRow t={t} icon="📍"><b style={{ color: t.text, fontWeight: 700 }}>{task.region || "—"}</b></ReceptionInfoRow>
-        <ReceptionInfoRow t={t} icon="❄"><b style={{ color: t.text, fontWeight: 700 }}>{appliance}</b>{task.workType ? ` · ${task.workType}` : ""}</ReceptionInfoRow>
+        <ReceptionInfoRow t={t} icon={getCategoryMeta(task).icon}><b style={{ color: t.text, fontWeight: 700 }}>{appliance}</b>{task.workType ? ` · ${task.workType}` : ""}</ReceptionInfoRow>
         {scheduleText && (
           <ReceptionInfoRow t={t} icon="📅">희망 <b style={{ color: t.text, fontWeight: 700 }}>{scheduleText}</b></ReceptionInfoRow>
         )}
@@ -7816,16 +7808,11 @@ function SettlementEngineerCard({ t, group, open, onToggle, onTaskClick, user, o
             // 2026-07-15 — 사장님 발견: 냉매 아니면 무조건 ❄(세척) 이분법이라
             //   누설/설치/수리가 전부 세척 아이콘으로 표시 → getServiceKind 5분기로 교체.
             const kind = getServiceKind(task);
-            const WorkIcon = kind === "refrigerant" ? Zap
-                           : kind === "leak"        ? Droplet
-                           : kind === "install"     ? Wrench
-                           : kind === "cleaning"    ? Snowflake
-                           : Settings;   // 수리/기타
-            const workColor = kind === "refrigerant" ? "#EF9F27"
-                            : kind === "leak"        ? "#DC2626"
-                            : kind === "install"     ? "#8B5CF6"
-                            : kind === "cleaning"    ? t.info
-                            : t.textSecondary;
+            // 2026-10-07 — 아이콘·색은 종목 기준표에서 (kind 는 아래 다른 판단에 그대로 쓴다)
+            void kind;
+            const _cm = getCategoryMeta(task);
+            const WorkIcon = ({ size = 13, style }) => <span title={_cm.label} style={{ fontSize: size, lineHeight: 1, ...style }}>{_cm.icon}</span>;
+            const workColor = _cm.color;
             // 2026-05-17 Round 2 Fix #14 — 작업당 표시값 = principal + owner (= 회사+원청 수수료).
             // 그룹 합계(groupDoneByEngineer)와 동일 계산식.
             const earning = (Number(task.principal_amount) || 0) + (Number(task.owner_amount) || 0);
@@ -8233,16 +8220,10 @@ function TaskCard({ t, task, groupColor, onClick, showCompanyProfit }) {
   // 2026-07-20 — 5종 통일 (7b4c992 원칙). '그 외 = 세척' 폴백 폐기.
   //   kind='other' 는 회색 (Settings 아이콘) 로 명시. 세척 아이콘·색 잘못 표시 사고 방지.
   const _serviceKind = getServiceKind(task);
-  const WorkIcon = _serviceKind === "cleaning"    ? Snowflake
-                  : _serviceKind === "refrigerant" ? Zap
-                  : _serviceKind === "install"    ? Wrench
-                  : _serviceKind === "leak"       ? AlertTriangle
-                  : Settings;                       // other (수리/점검/기타)
-  const workColor = _serviceKind === "cleaning"    ? t.info
-                   : _serviceKind === "refrigerant" ? "#EF9F27"
-                   : _serviceKind === "install"    ? "#8B5CF6"
-                   : _serviceKind === "leak"       ? "#DC2626"
-                   : t.textSecondary;               // other
+  // 2026-10-07 — 아이콘·색은 종목 기준표에서 (주방후드 🔥 · 설치 🛠 · 누수 💧 · 미정 🔧 포함)
+  const _cm = getCategoryMeta(task);
+  const WorkIcon = ({ size = 13, style }) => <span title={_cm.label} style={{ fontSize: size, lineHeight: 1, ...style }}>{_cm.icon}</span>;
+  const workColor = _cm.color;
   const isRef = _serviceKind === "refrigerant";  // 옛 코드 호환
   // 2026-06-09 — visit (출장비) 표시.
   //   pure visit (status='visit_only' 또는 활성 items 전부 visit) → 🚗 메인 아이콘.
@@ -11059,7 +11040,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
       { icon: "👤", label: "고객",   value: form.customer || null },
       { icon: "📱", label: "연락처", value: form.phone || null },
       { icon: "📍", label: "주소",   value: form.address || null },
-      { icon: "❄",  label: "작업",   value: workSummary },
+      { icon: getCategoryMeta({ workItems, workType: form.workType }).icon, label: "작업", value: workSummary },
       { icon: "📅", label: "일정",   value: scheduleLabel },
       { icon: "💰", label: "견적",   value: priceLabel,
         hint: (!priceLabel && autoEstimateValue)

@@ -13,7 +13,8 @@
 // 호환: 측 컴포넌트 측 catch 측 catch fetch (AdminApp apiTasks prop 측 catch X).
 
 import { useState, useEffect, useMemo } from "react";
-import { Search, Snowflake, Zap } from "lucide-react";
+import { Search } from "lucide-react";
+import { getCategoryMetaOfRow } from "../../lib/serviceCatalog.js";
 import { fetchUsolNTasks, isUsolNActionNeeded } from "../../lib/usolNTasksDb.js";
 import { useRealtimeTasks, useRealtimeTable } from "../../hooks/useRealtimeSubscription.js";
 import { formatYmdHm } from "../../utils/dateLabel.js";
@@ -71,13 +72,12 @@ function getServiceKind(task) {
   return "main";
 }
 
-function ServiceIcon({ kind, size = 14 }) {
+// 2026-10-07 — 아이콘·색은 종목 기준표(serviceCatalog)에서. 출장 전용 🚗 표시만 따로 둔다.
+//   (전에는 여기서 세척/냉매만 구분해 그려서 주방후드 작업도 ❄ 로 보였다)
+function ServiceIcon({ kind, task, size = 14 }) {
   if (kind === "visit") return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
-  if (kind === "addon") return <Zap size={size} style={{ color: REFRIGERANT_COLOR }}/>;
-  // 2026-06-28 — install/leak 아이콘 추가.
-  if (kind === "install") return <span style={{ fontSize: size, color: "#8B5CF6" }}>🔧</span>;
-  if (kind === "leak")    return <span style={{ fontSize: size, color: "#DC2626" }}>💧</span>;
-  return <Snowflake size={size} style={{ color: CLEAN_COLOR }}/>;
+  const m = getCategoryMetaOfRow(task);
+  return <span title={m.label} style={{ fontSize: size, color: m.color, lineHeight: 1 }}>{m.icon}</span>;
 }
 
 function getStatusBadge(status) {
@@ -343,7 +343,7 @@ export function TaskRowOperator({ task, onClick, principalBadge = null, timeStrO
         minHeight: 38,
       }}>
       <div style={{ flexShrink: 0, width: 14, textAlign: "center" }}>
-        <ServiceIcon kind={kind}/>
+        <ServiceIcon kind={kind} task={task}/>
       </div>
       <span style={{
         flexShrink: 0, fontSize: 12, fontWeight: 600,

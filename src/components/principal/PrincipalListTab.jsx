@@ -6,6 +6,7 @@
 //   · KST 기준 오늘 비교 (utils/dateLabel.toKstYmd / todayYmd 사용)
 import { useState, useMemo, useEffect, useCallback, useRef } from "react";
 import { Search, ArrowLeft } from "lucide-react";
+import { getCategoryMetaOfRow } from "../../lib/serviceCatalog.js";
 import { filterTasksForPrincipal } from "../../shared/tasks.js";
 import { loadTasksForRole as getTasks } from "../../data/tasksDb.js";
 import { v14NormalizeTask, v14FindTaskList } from "../../utils/v14Task.js";
@@ -110,18 +111,12 @@ function ChannelBadge({ task }) {
     }}>N</span>
   );
 }
-// 2026-06-06 — AdminApp WORK_TYPE_ICONS 매핑과 동일하게 정렬.
-//   세척 → ❄️ (Snowflake) / 냉매충전 → ⚡ (Zap) / addon → ⚡ / visit → 🚗.
-//   직전 수정 (clean=💧, refrigerant=❄️) 거꾸로 매핑 → 사장님 flag 받고 원위치.
-//   색은 Principal 의미 부여 (파랑/주황/회색) 유지 — Admin 회색 통일과 다르지만 아이콘만 일치.
-function ServiceIcon({ kind, size = 14 }) {
-  if (kind === "visit")       return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
-  if (kind === "addon")       return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>⚡</span>;
-  if (kind === "refrigerant") return <span style={{ fontSize: size, color: REFRIGERANT_COLOR }}>⚡</span>;
-  // 2026-06-28 — install/leak 아이콘 추가 (Mig 122/124/125 활성화).
-  if (kind === "install")     return <span style={{ fontSize: size, color: "#8B5CF6" }}>🔧</span>;
-  if (kind === "leak")        return <span style={{ fontSize: size, color: "#DC2626" }}>💧</span>;
-  return <span style={{ fontSize: size, color: CLEAN_COLOR }}>❄️</span>;
+// 2026-10-07 — 아이콘·색은 종목 기준표(serviceCatalog)에서. 출장 전용 🚗 표시만 따로 둔다.
+//   (전에는 여기서 세척/냉매만 구분해 그려서 주방후드 작업도 ❄ 로 보였다)
+function ServiceIcon({ kind, task, size = 14 }) {
+  if (kind === "visit") return <span style={{ fontSize: size, color: VISIT_COLOR }}>🚗</span>;
+  const m = getCategoryMetaOfRow(task);
+  return <span title={m.label} style={{ fontSize: size, color: m.color, lineHeight: 1 }}>{m.icon}</span>;
 }
 
 // 2026-06-11 — 유솔H ↔ 유솔N 탭 전환 가속용 in-memory 캐시.
@@ -794,7 +789,7 @@ function TaskRow({ task, onClick }) {
       opacity: isCancelled ? 0.45 : 1,
     }}>
       <div style={{ flexShrink: 0, width: 14, textAlign: "center" }}>
-        <ServiceIcon kind={kind}/>
+        <ServiceIcon kind={kind} task={task}/>
       </div>
       <span style={{
         flexShrink: 0, fontSize: 12, fontWeight: 500,

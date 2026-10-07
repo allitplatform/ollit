@@ -279,6 +279,31 @@ export function getCategoryMeta(input) {
   return direct ? categoryMetaByCode(direct) : CATEGORY_OTHER;
 }
 
+// 2026-10-07 — DB 원본 행(작업 항목이 task_items → work_types → service_types 로 붙어 있는 꼴)용.
+//   원청 앱 · 유솔N 목록처럼 정규화하지 않은 행을 그대로 그리는 화면이 같은 기준표를 쓰게 한다.
+//   이미 정규화된 작업(workItems 가 있는 것)이면 getCategoryMeta 와 같다.
+export function getCategoryMetaOfRow(row) {
+  if (!row) return CATEGORY_UNKNOWN;
+  if (Array.isArray(row.workItems) && row.workItems.length > 0) return getCategoryMeta(row);
+  const raw = Array.isArray(row.task_items) ? row.task_items : (Array.isArray(row.taskItems) ? row.taskItems : []);
+  const cd = row.category_data || row.categoryData || {};
+  const fromCd = Array.isArray(cd.workItems) ? cd.workItems : [];
+  const items = raw.length > 0
+    ? raw.map(it => ({
+        serviceCode: (it && it.work_types && it.work_types.service_types && it.work_types.service_types.code) || (it && it.serviceCode) || "",
+        workType: (it && it.work_types && it.work_types.name) || (it && it.workType) || "",
+        isCanceled: !!(it && (it.is_canceled || it.isCanceled)),
+      }))
+    : fromCd;
+  return getCategoryMeta({
+    workItems: items,
+    workType: row.workType || row.work_type || cd.workType || "",
+    serviceCode: row.serviceCode || row.service_code || "",
+    categoryId: row.categoryId || row.category_id || null,
+    categoryCode: row.categoryCode || row.category_code || "",
+  });
+}
+
 // 작업의 항목(서비스)으로 종목 id(categories.id) 를 정한다 — 저장할 때 쓴다 (2026-10-07).
 //   "공통(출장비 등)" 을 뺀 첫 항목의 종목. 못 정하면(목록을 아직 못 읽었거나 모르는 이름) null → 부르는 쪽이 기본값을 쓴다.
 //   사고: 접수 폼이 종목을 안 넣어 주방후드 작업이 전부 에어컨으로 저장 → 협력사 기사 전원 "이 종목 불가".
