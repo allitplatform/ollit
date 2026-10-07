@@ -23,6 +23,19 @@ const smallBtn = {
   fontSize: 12, fontWeight: 700, color: "var(--text-primary)", fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
 };
 
+// 완료 전인가 (받은 돈을 아직 입력하지 않는 단계): 미배정 · 배정 · 일정 확정.
+//   단, 일정 확정인데 일정 시각이 이미 지났으면 완료 전으로 보지 않는다 (운영자가 대신 마무리할 수 있게).
+export function isBeforeWork(task) {
+  const s = String(task?.status || "");
+  if (!["미배정", "약속대기", "배정", "확정", "접수"].includes(s)) return false;
+  if (s === "확정") {
+    const at = task.scheduledAt || task.scheduled_at;
+    const ts = at ? new Date(at).getTime() : NaN;
+    if (!isNaN(ts) && ts <= Date.now()) return false;
+  }
+  return true;
+}
+
 export function usePanelWidth() {
   const ref = useRef(null);
   const [w, setW] = useState(0);
@@ -268,7 +281,7 @@ export function PcMoneySplit({ task, onEditMaterial = null }) {
   const got = Number(task.receivedTotal ?? task.totalAmount ?? 0) || 0;
   const vat = (!isSub && task.vatIncluded === true && got > 0) ? Math.max(0, got - Math.round(got / 1.1)) : 0;
   // 완료 전(접수 · 배정 · 일정 확정)에는 견적 기준으로 계산된 값이라 "예상" 이라고 적는다
-  const beforeWork = ["미배정", "약속대기", "배정", "확정", "접수"].includes(String(task.status || ""));
+  const beforeWork = isBeforeWork(task);
   const isInstall = (() => {
     const wi = Array.isArray(task.workItems) ? task.workItems : [];
     if (wi.length > 0) return wi.every(x => x.serviceCode === "install" || /설치/.test(String(x.workType || x.appliance || "")));

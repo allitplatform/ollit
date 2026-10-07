@@ -5,6 +5,7 @@
 // 호출자: 새 RPC 헬퍼 (cancelRpc.js) 호출 — 옛 어댑터와 섞지 말 것.
 
 import { useState } from "react";
+import { workItemName } from "../utils/workItemName.js";
 import { getWorkTypeColors } from "../utils/workTypeColors.js";
 
 // ============================================================================
@@ -179,10 +180,11 @@ export function PartialCancelDialog({ task, onClose, onConfirm }) {
             const checked = checkedIds.has(it.id);
             const workTypeRaw = it.workType || it.work_type || "";
             // 2026-10-07 — 설치 5종(이전설치 · 철거 등)은 기종 칸이 비어 있고 설명 칸에 이름이 있다 → 금액 표와 같은 이름으로
-            const applianceName = it.appliance || it.appliance_type || it.description || "";
             const qty = it.qty || 1;
             const amount = Number(it.subtotal) || (Number(it.unitPrice) * qty) || 0;
             const colors = getWorkTypeColors(workTypeRaw);
+            // 2026-10-07 — 금액 표와 같은 이름 규칙 (이전설치 / 철거 등이 "설치" 로만 나오던 문제)
+            const applianceName = workItemName(it, colors.name);
             return (
               <label key={it.id} style={{
                 display: "flex", alignItems: "center", gap: 10,

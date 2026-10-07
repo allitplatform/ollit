@@ -56,6 +56,7 @@ const PAYMENT_SELECT = `
     order_type, product_order_id,
     is_canceled, canceled_reason, canceled_at,
     received_amount,
+    description,
     work_types (
       id, name,
       service_types ( id, code )
@@ -260,6 +261,8 @@ export function rowToTask(row) {
                          unitPrice:      Number(it.unit_price) || 0,
                          subtotal:       Number(it.subtotal) || 0,
                          productOrderId: it.product_order_id || null,
+                         // 2026-10-07 — 항목 설명 (Mig 154: 설치 5종 이름 등). 품목별 취소 창 · 금액 표의 항목 이름에 쓴다.
+                         description:    it.description || null,
                          // 2026-05-25 Round 1 마이그 070 — 부분취소 플래그
                          isCanceled:     !!it.is_canceled,
                          canceledReason: it.canceled_reason || null,

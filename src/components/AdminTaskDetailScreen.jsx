@@ -63,7 +63,8 @@ import { SubPrincipalSplitCard } from "./SubPrincipalParts.jsx";
 import { getCategoryMetaOfRow } from "../lib/serviceCatalog.js";
 import { isRelocationTask } from "../utils/relocation.js";
 import { useIsPc } from "../utils/useIsPc.js";
-import { usePanelWidth, PcStatusStrip, PcCustomerCard, PcPlaceCard, PcExceptionCard, PcSection, PcPerformerCard, PcMoneySplit } from "./AdminTaskDetailPcParts.jsx";
+import { usePanelWidth, PcStatusStrip, PcCustomerCard, PcPlaceCard, PcExceptionCard, PcSection, PcPerformerCard, PcMoneySplit, isBeforeWork } from "./AdminTaskDetailPcParts.jsx";
+import { workItemName } from "../utils/workItemName.js";
 import { RelocationBlocks } from "./RelocationParts.jsx";
 
 // 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (0 이면 테두리 선이 화면 끝에서 잘려 12 로 — 2026-10-06 실화면 확인).
@@ -1704,7 +1705,8 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
   if (pc) {
     const grid = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 104px 118px auto", gap: 8, alignItems: "center" };
     // 2026-10-07 — 완료 전(접수 · 미배정 · 배정 · 일정 확정)에는 받은 돈을 입력하지 않는다 (미리 받는 돈 없음). 진행부터 입력칸.
-    const beforeWork = ["미배정", "약속대기", "배정", "확정", "접수"].includes(String(task?.status || ""));
+    //   일정 확정인데 일정 시각이 지난 작업은 연다 (운영자가 대신 마무리).
+    const beforeWork = isBeforeWork(task);
     const sumQuote = items.reduce((s, it) => s + (it.isCanceled || isVisitOnly ? 0 : (Number(it.subtotal) || (Number(it.unitPrice) || 0) * (Number(it.qty) || 1))), 0);
     return (
       <div style={{ padding: D1_OUTER_PAD }}>
@@ -1736,7 +1738,7 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
             const isMain    = (it.orderType || it.order_type) !== '추가선택';
             const isCanceled = !!it.isCanceled;
             const canShowInput = usesReceivedTotalFlow && isMain && !isCanceled && !isVisitOnly;
-            const name = it.appliance || it.description || ((it.workType && it.workType !== colors.name) ? it.workType : colors.name);
+            const name = workItemName(it, colors.name);
             return (
               <div key={it.id || idx} style={{ ...grid, padding: "9px 0", borderBottom: "1px solid var(--border)", opacity: isCanceled ? 0.55 : 1 }}>
                 <span style={{ minWidth: 0, fontSize: 13.5, fontWeight: 700, color: isCanceled ? "#9CA3AF" : "var(--text-primary)", textDecoration: isCanceled ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

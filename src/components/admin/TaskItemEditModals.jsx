@@ -4,6 +4,7 @@
 //   클라는 1차 검증 + confirm + 적용 후 reload 콜백.
 
 import { formatWorkTypeLabel } from "../../utils/receptionForm.js";
+import { workItemName } from "../../utils/workItemName.js";
 import { useState, useEffect, useMemo, useRef } from "react";
 import { X } from "lucide-react";
 import {
@@ -75,6 +76,7 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
   const [sReason, setSReason]     = useState("");
   const [sMemo, setSMemo]         = useState("");
   const [sRemove, setSRemove]     = useState(false);               // 삭제 확인 줄 열림
+  const [sConfirm, setSConfirm]   = useState(false);               // 금액 차이가 클 때 저장 전 확인 줄
 
   // 2026-08-03 — window.confirm 제거 (사장님 실사용에서 확인창이 차단돼
   //   버튼이 조용히 죽는 사고: A-260802-082 종목 변경 무반응).
@@ -267,7 +269,9 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
     const newUnit  = Math.round(newTotal / Math.max(1, sQty));
     const diff     = newTotal - oldTotal;
     const dirty    = newUnit !== _u0 || sQty !== _q0;
-    const itemName = item?.appliance || item?.description || item?.workType || "항목";
+    const itemName = workItemName(item, "") || "항목";
+    // 2026-10-07 — 0 을 하나 더 붙이는 실수 방지: 차이가 50% 이상이거나 10만 원 이상이면 저장 전에 한 번 묻는다
+    const bigDiff = Math.abs(diff) >= 100000 || (oldTotal > 0 && Math.abs(diff) >= oldTotal * 0.5);
     const fmt = (n) => Number(n || 0).toLocaleString("ko-KR");
     const noteText = () => `견적 수정: ${sReason}${sMemo.trim() ? ` · ${sMemo.trim()}` : ""}`;
 
@@ -276,6 +280,8 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
       if (!sReason) { setError("왜 바꾸는지 골라 주세요"); return; }
       if (sReason === "기타" && sMemo.trim().length < 2) { setError("기타를 고르면 메모를 적어 주세요"); return; }
       if (!actorId) { setError("로그인 운영자 확인 실패"); return; }
+      if (bigDiff && !sConfirm) { setSConfirm(true); setError(""); return; }
+      setSConfirm(false);
       setSubmitting(true); setError("");
       const res = await adminUpdateTaskItem({
         actorId, itemId: item.id,
@@ -312,7 +318,7 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
                 <input
                   type="text" inputMode="numeric" autoFocus
                   value={newTotal ? fmt(newTotal) : ""}
-                  onChange={(e) => setSTotal(e.target.value.replace(/\D/g, ""))}
+                  onChange={(e) => { setSTotal(e.target.value.replace(/\D/g, "")); setSConfirm(false); }}
                   style={{ ...inputStyle(t), fontSize: 26, fontWeight: 800, textAlign: "right", padding: "12px 14px" }}
                 />
                 <span style={{ fontSize: 16, fontWeight: 700, color: t?.textSecondary || "var(--text-secondary)" }}>원</span>
@@ -320,9 +326,9 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
             </div>
             <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 13, fontWeight: 700, color: t?.textSecondary || "var(--text-secondary)" }}>수량</span>
-              <button type="button" onClick={() => setSQty(q => Math.max(1, q - 1))} disabled={sQty <= 1} style={{ ...stepBtn, opacity: sQty <= 1 ? 0.35 : 1 }} aria-label="수량 줄이기">−</button>
+              <button type="button" onClick={() => { setSQty(q => Math.max(1, q - 1)); setSConfirm(false); }} disabled={sQty <= 1} style={{ ...stepBtn, opacity: sQty <= 1 ? 0.35 : 1 }} aria-label="수량 줄이기">−</button>
               <b style={{ minWidth: 22, textAlign: "center", fontSize: 16 }}>{sQty}</b>
-              <button type="button" onClick={() => setSQty(q => Math.min(99, q + 1))} style={stepBtn} aria-label="수량 늘리기">+</button>
+              <button type="button" onClick={() => { setSQty(q => Math.min(99, q + 1)); setSConfirm(false); }} style={stepBtn} aria-label="수량 늘리기">+</button>
               <span style={{ fontSize: 12, color: t?.textMuted || "var(--text-tertiary)" }}>1대당 {fmt(newUnit)}</span>
             </div>
             <div style={{ fontSize: 14, fontWeight: 700, padding: "10px 12px", borderRadius: 10, background: t?.bgInset || "var(--bg-secondary)" }}>
@@ -350,10 +356,31 @@ export function EditTaskItemModal({ t, item, task, actorId, onClose, onApplied }
               <input type="text" value={sMemo} onChange={(e) => setSMemo(e.target.value)} placeholder="예: 실외기 거치대 추가" style={inputStyle(t)}/>
             </div>
             {error && <ErrorBox text={error}/>}
+            {sConfirm ? (
+              <div style={{ padding: "12px 14px", borderRadius: 12, border: "1.5px solid #F59E0B", background: "rgba(245,158,11,0.10)" }}>
+                <div style={{ fontSize: 14.5, fontWeight: 800, lineHeight: 1.5 }}>
+                  {fmt(newTotal)}원으로 바꿀까요?
+                  <span style={{ display: "block", fontSize: 13, fontWeight: 700, color: diff > 0 ? "#059669" : "#DC2626" }}>
+                    지금보다 {diff > 0 ? "+" : "−"}{fmt(Math.abs(diff))}
+                  </span>
+                </div>
+                <div style={{ display: "flex", gap: 8, marginTop: 10 }}>
+                  <button type="button" onClick={saveSimple} disabled={busy} style={{
+                    flex: 1, padding: "12px", borderRadius: 10, border: "none", background: "#FF1B8D", color: "#fff",
+                    fontSize: 14, fontWeight: 800, fontFamily: "inherit", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
+                  }}>{submitting ? "저장 중…" : "맞아요"}</button>
+                  <button type="button" onClick={() => setSConfirm(false)} disabled={busy} style={{
+                    flex: 1, padding: "12px", borderRadius: 10, background: "transparent", color: t?.text || "var(--text-primary)",
+                    border: `1px solid ${t?.border || "var(--border)"}`, fontSize: 14, fontWeight: 800, fontFamily: "inherit", cursor: "pointer",
+                  }}>다시 입력</button>
+                </div>
+              </div>
+            ) : (
             <button type="button" onClick={saveSimple} disabled={busy} style={{
               padding: "14px", borderRadius: 12, border: "none", background: "#FF1B8D", color: "#fff",
               fontSize: 15, fontWeight: 800, fontFamily: "inherit", cursor: busy ? "default" : "pointer", opacity: busy ? 0.6 : 1,
             }}>{submitting ? "저장 중…" : "견적 바꾸기"}</button>
+            )}
             <div style={{ display: "flex", justifyContent: "space-between", gap: 10, fontSize: 12 }}>
               <button type="button" onClick={() => { setMode("full"); setTypeMode(true); setError(""); }} disabled={busy} style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: t?.textSecondary || "var(--text-secondary)", textDecoration: "underline" }}>종목이 잘못됐어요</button>
               <button type="button" onClick={() => { setSRemove(v => !v); setError(""); }} disabled={busy} style={{ background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit", fontSize: 12, color: "#DC2626", textDecoration: "underline" }}>잘못 넣은 항목 삭제</button>
