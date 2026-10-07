@@ -24,6 +24,7 @@ import { getServiceKind, leakDisplayLabel } from "../utils/workTypeKind.js";
 import { isEffectivelyCanceled } from "../utils/taskCancelState.js";
 // 2026-07-11 — visit_only 판정 (색 판정에서 냉매 등 prefill 잔존 workType 무시).
 import { isPureVisitOnly, isAllItemsVisit } from "../utils/visitFeeDetect.js";
+import { TimelineDatePicker } from "../components/TimelineDatePicker.jsx";
 import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
 import { adminRescheduleTask, adminReassignTask, clearReassignRequest } from "../lib/adminTaskRpc.js";
 import { supabase } from "../lib/supabase.js";
@@ -33,15 +34,15 @@ import { formatOffDayType, formatOffAlertText } from "../lib/offDaysDb.js";
 const START_HOUR    = 7;
 const END_HOUR      = 24;
 const TOTAL_HOURS   = END_HOUR - START_HOUR;  // 17
-const LANE_HEIGHT   = 52;
-const ENGINEER_COL  = 150;
+const LANE_HEIGHT   = 62;            // 2026-10-07 시안 v2 — 줄 높이 키움
+const ENGINEER_COL  = 190;           // 2026-10-07 시안 v2 — 이름 16px + 아래 줄
 // 2026-06-19 — 시간당 고정폭 (사장님 spec). 컨테이너 fit X → 가로 스크롤.
 //   1시간 = 80px → 7~24시 = 17 × 80 = 1360px.
 const HOUR_WIDTH       = 80;
 const TIME_AREA_WIDTH  = HOUR_WIDTH * TOTAL_HOURS; // 1360
 const SNAP_MINUTES  = 30;
 const DRAG_THRESHOLD_PX = 5;
-const UNASSIGNED_COL = 290;            // 왼쪽 미배정 목록 폭
+const UNASSIGNED_COL = 300;            // 왼쪽 미배정 목록 폭
 const FOLD_KEY = "ollit_pc_timeline_fold_v1";   // 묶음 접힘 · "일 없는 기사" 펼침 기억 (기기별)
 const DONE_STATUSES = new Set(["완료", "취소", "visit_only", "정산완료"]);
 
@@ -288,6 +289,36 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
     };
     return list.sort((a, b) => when(a) - when(b));
   }, [apiTasks, matchCat, regionFilter]);
+
+  // 2026-10-07 시안 v2 — 협력사로 넘겼고 기사가 아직 없는 작업 (왼쪽 목록 둘째 칸, 보기 전용)
+  const subPending = useMemo(() => {
+    const when = (t) => {
+      const at = t.scheduledAt || t.scheduled_at;
+      if (at) return new Date(at).getTime();
+      if (t.requestedDate) return new Date(`${t.requestedDate}T${/^\d{1,2}:\d{2}/.test(t.requestedTime || "") ? t.requestedTime.slice(0, 5).padStart(5, "0") : "23:59"}:00`).getTime();
+      return Infinity;
+    };
+    return (apiTasks || []).filter(t => {
+      if (!t || isEffectivelyCanceled(t) || DONE_STATUSES.has(t.status) || t.status === "진행중") return false;
+      if (!(t.subcontractorId || t.subcontractor_id)) return false;
+      const { eid, ename } = engOf(t);
+      if (eid || ename) return false;
+      if (!matchCat(t)) return false;
+      if (regionFilter && !textInRegion(`${t.address || ""} ${t.region || ""} ${t.district || ""}`, regionFilter)) return false;
+      return true;
+    }).sort((a, b) => when(a) - when(b));
+  }, [apiTasks, matchCat, regionFilter]);
+
+  // 달력의 "작업 있는 날" 점 — 이미 읽어 온 작업 목록의 일정 날짜 (취소 제외)
+  const markedDates = useMemo(() => {
+    const set = new Set();
+    for (const t of (apiTasks || [])) {
+      if (!t || isEffectivelyCanceled(t)) continue;
+      const at = t.scheduledAt || t.scheduled_at;
+      if (at) set.add(toKstYmd(at));
+    }
+    return set;
+  }, [apiTasks]);
 
   // 2026-07-08 — 그 날 전 기사 휴무 fetch (name → offs[]).
   const { byNameDate: offByNameDate } = useOffDaysInRange(selectedDate, selectedDate);
@@ -686,6 +717,8 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       {/* 왼쪽 미배정 목록 (타임라인 맨 위 "(미배정)" 줄 대신) */}
       <UnassignedPanel
         tasks={unassigned}
+        subTasks={subPending}
+        subLabel={subOptions.length === 1 ? subOptions[0].name : "협력사"}
         selectedDate={selectedDate}
         onOpen={onTaskClick}
         onDragMove={handleCardDragMove}
@@ -699,12 +732,12 @@ export function AdminPcTimelineScreen({ apiTasks = [], apiEngineers = [], onTask
       <div style={{ flex: 1, minWidth: 0, padding: "16px 18px 24px", display: "flex", flexDirection: "column", gap: 12 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
           <div style={{ fontSize: 18, fontWeight: 800, color: "var(--text-primary)", letterSpacing: "-0.4px", marginRight: 4 }}>타임라인</div>
-          <AdminPcDateNav
+          {/* 2026-10-07 시안 v2 — 날짜를 누르면 달력(작업 있는 날 점), 옆에 어제·오늘·내일·모레 */}
+          <TimelineDatePicker
             selectedDate={selectedDate}
-            onPrev={() => handleManualDate(d => shiftDate(d, -1))}
-            onNext={() => handleManualDate(d => shiftDate(d, 1))}
-            onToday={() => handleManualDate(today)}
-            isToday={isToday}
+            today={today}
+            onChange={(ymd) => handleManualDate(ymd)}
+            markedDates={markedDates}
           />
           <span style={{ fontSize: 12, color: "var(--text-secondary)", fontWeight: 600 }}>
             기사 {laneCount}명 중 {busyCount}명 · {todayTasks.filter(t => !isEffectivelyCanceled(t)).length}건
@@ -930,11 +963,12 @@ function TimeAxisView({ wrapperRef, groups, fold, onToggleFold, offsByLaneName, 
       }}>조건에 맞는 기사가 없습니다</div>
     );
   }
-  const renderLane = (lane, idle) => (
+  const renderLane = (lane, idle, alt = false) => (
     <Lane
       key={lane.key}
       lane={lane}
       idle={idle}
+      alt={alt}
       offs={offsByLaneName.get(lane.name) || []}
       onTaskClick={onTaskClick}
       onTaskDragCommit={onTaskDragCommit}
@@ -1010,20 +1044,27 @@ function TimeAxisView({ wrapperRef, groups, fold, onToggleFold, offsByLaneName, 
           const closed = !!fold[`g:${g.key}`];
           const idleOpen = !!fold[`i:${g.key}`];
           return [
-            fullRow(`h:${g.key}`, { height: 34, background: "var(--bg-secondary)", fontSize: 13, fontWeight: 800, color: "var(--text-primary)", position: "relative", zIndex: 4 }, (
+            fullRow(`h:${g.key}`, {
+              // 2026-10-07 시안 v2 — 소속 색 띠 + 왼쪽 굵은 선 (직영 분홍 / 협력사 보라)
+              height: 46, fontSize: 16, fontWeight: 800, color: "var(--text-primary)", position: "relative", zIndex: 4,
+              background: g.readOnly
+                ? "linear-gradient(90deg, rgba(139,92,246,0.20), rgba(139,92,246,0.02))"
+                : "linear-gradient(90deg, rgba(233,24,96,0.18), rgba(233,24,96,0.02))",
+              borderLeft: `5px solid ${g.readOnly ? "#8B5CF6" : "#E91860"}`,
+            }, (
               <>
-                <span style={{ width: 12 }}>{closed ? "▶" : "▼"}</span>
+                <span style={{ width: 12, fontSize: 12 }}>{closed ? "▶" : "▼"}</span>
                 <span>{g.label}</span>
-                <small style={{ fontWeight: 600, color: "var(--text-secondary)", fontSize: 12 }}>{g.busy.length + g.idle.length}명 · 오늘 {g.taskCount}건{g.pending && g.pending.length > 0 ? ` · 기사 미정 ${g.pending.length}건` : ""}</small>
+                <small style={{ fontWeight: 600, color: "var(--text-secondary)", fontSize: 13 }}>{g.busy.length + g.idle.length}명 · 오늘 {g.taskCount}건{g.pending && g.pending.length > 0 ? ` · 기사 미정 ${g.pending.length}건` : ""}</small>
                 {g.repeatOff.length > 0 && (
-                  <span style={{ position: "relative" }}>
+                  <span style={{ position: "relative", marginLeft: 12 }}>
                     <button type="button" onClick={(e) => { e.stopPropagation(); setOffTip(v => v === g.key ? null : g.key); }} style={{
-                      background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit",
-                      fontSize: 12, fontWeight: 600, color: "var(--text-secondary)", textDecoration: "underline dotted",
-                    }}>· 정기 휴무 {g.repeatOff.length}명</button>
+                      border: "none", cursor: "pointer", fontFamily: "inherit", background: "rgba(0,0,0,0.28)", borderRadius: 8, padding: "4px 9px",
+                      fontSize: 12, fontWeight: 700, color: "var(--text-primary)", whiteSpace: "nowrap",
+                    }}>정기 휴무 {g.repeatOff.length}명</button>
                     {offTip === g.key && (
                       <span onClick={(e) => { e.stopPropagation(); setOffTip(null); }} style={{
-                        position: "absolute", top: 24, left: 0, zIndex: 80, background: "#1A1A1A", color: "#fff",
+                        position: "absolute", top: 30, left: 0, zIndex: 80, background: "#1A1A1A", color: "#fff",
                         fontSize: 12, fontWeight: 600, padding: "8px 11px", borderRadius: 8, whiteSpace: "nowrap",
                         boxShadow: "0 4px 14px rgba(0,0,0,0.35)", lineHeight: 1.6, cursor: "pointer",
                       }}>
@@ -1034,40 +1075,25 @@ function TimeAxisView({ wrapperRef, groups, fold, onToggleFold, offsByLaneName, 
                   </span>
                 )}
                 {g.readOnly && (
-                  <span style={{ marginLeft: 8, fontSize: 11.5, fontWeight: 700, color: "#7C5CFA", background: "rgba(124,92,250,0.14)", padding: "3px 8px", borderRadius: 6, whiteSpace: "nowrap" }}>
+                  <span style={{ marginLeft: 12, fontSize: 12, fontWeight: 700, color: "var(--text-primary)", background: "rgba(0,0,0,0.28)", padding: "4px 9px", borderRadius: 8, whiteSpace: "nowrap" }}>
                     🔒 보기 전용 · 배정은 {g.label} 관리자
                   </span>
                 )}
               </>
             ), () => onToggleFold(`g:${g.key}`)),
-            ...(closed || !g.pending || g.pending.length === 0 ? [] : [
-              <div key={`p:${g.key}`} style={{ gridColumn: "1 / -1", borderBottom: "1px solid var(--border)", background: "rgba(124, 92, 250, 0.04)" }}>
-                <div style={{ position: "sticky", left: 0, display: "flex", alignItems: "center", flexWrap: "wrap", gap: 6, padding: "8px 14px", boxSizing: "border-box", maxWidth: "min(100%, 1000px)" }}>
-                  <span style={{ fontSize: 12.5, fontWeight: 800, color: "var(--text-primary)", whiteSpace: "nowrap" }}>🔒 기사 미정 {g.pending.length}건</span>
-                  {g.pending.map(t => {
-                    const cat = getCategoryMeta(t);
-                    return (
-                      <button key={t.id || t.taskCode} type="button" onClick={() => onTaskClick?.(t)}
-                        title="보기 전용 — 배정은 협력사 관리자 (누르면 상세)" style={{
-                          border: `1px solid ${cat.color}`, background: "var(--bg-elevated)", color: "var(--text-primary)", borderRadius: 8,
-                          padding: "4px 9px", fontSize: 12, fontWeight: 700, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
-                        }}>
-                        <span style={{ color: cat.color }}>{cat.icon}</span> {pendingWhen(t)} · {t.customer || "—"}
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>,
-            ]),
-            ...(closed ? [] : g.busy.map(l => renderLane(l, false))),
+            // "기사 미정" 작업은 왼쪽 목록의 "배정 대기" 칸으로 옮겼다 (시안 v2)
+            ...(closed ? [] : g.busy.map((l, i) => renderLane(l, false, i % 2 === 1))),
             ...(closed || g.idle.length === 0 ? [] : [
-              fullRow(`f:${g.key}`, { height: 32, background: "var(--bg-elevated)", fontSize: 12.5, fontWeight: 700, color: "var(--text-secondary)", position: "relative", zIndex: 4 }, (
+              fullRow(`f:${g.key}`, { height: 40, background: "var(--bg-secondary)", fontSize: 13.5, fontWeight: 600, color: "var(--text-secondary)", position: "relative", zIndex: 4, borderTop: "1px dashed var(--border)" }, (
                 <>
-                  <span style={{ width: 12 }}>{idleOpen ? "▼" : "▶"}</span>
-                  <span>오늘 일 없는 기사 {g.idle.length}명{!idleOpen && !g.readOnly ? " (펼치면 끌어다 배정 가능)" : ""}</span>
+                  <span style={{ width: 12 }}>{idleOpen ? "▾" : "▸"}</span>
+                  <span>
+                    <b style={{ color: "var(--text-primary)" }}>오늘 일 없는 {g.label} 기사 {g.idle.length}명</b>
+                    {!idleOpen && !g.readOnly ? " · 펼치면 끌어다 배정 가능" : ""}
+                  </span>
                 </>
               ), () => onToggleFold(`i:${g.key}`)),
-              ...(idleOpen ? g.idle.map(l => renderLane(l, true)) : []),
+              ...(idleOpen ? g.idle.map((l, i) => renderLane(l, true, i % 2 === 1)) : []),
             ]),
           ];
         })}
@@ -1112,7 +1138,7 @@ function TimeAxisView({ wrapperRef, groups, fold, onToggleFold, offsByLaneName, 
   );
 }
 
-function Lane({ lane, idle = false, offs = [], onTaskClick, onTaskDragCommit, onDragPreview, dropPreview, highlightTaskId }) {
+function Lane({ lane, idle = false, alt = false, offs = [], onTaskClick, onTaskDragCommit, onDragPreview, dropPreview, highlightTaskId }) {
   // 시간 영역 폭 측정용 ref — 드래그 거리(px → 분) 환산에 사용.
   const laneRef = useRef(null);
   // 2026-07-08 — 이 lane 그 날 휴무 (offs) 분류.
@@ -1123,14 +1149,15 @@ function Lane({ lane, idle = false, offs = [], onTaskClick, onTaskDragCommit, on
   const hasFullDayOff = fullDayOffs.length > 0;
   const liveCount = lane.tasks.filter(t => !isEffectivelyCanceled(t)).length;
   const isDropTarget = !!dropPreview && !dropPreview.bad;
-  const baseBg = hasFullDayOff ? "rgba(148, 163, 184, 0.10)" : lane.readOnly ? "rgba(124, 92, 250, 0.04)" : "var(--bg-elevated)";
+  // 2026-10-07 시안 v2 — 한 줄 걸러 배경색
+  const baseBg = hasFullDayOff ? "rgba(148, 163, 184, 0.10)" : alt ? "var(--bg-secondary)" : "var(--bg-elevated)";
   return (
     <>
       <div style={{
-        padding: "6px 14px",
+        padding: "8px 16px",
         borderRight: "1px solid var(--border)",
         borderBottom: "1px solid var(--border)",
-        background: hasFullDayOff ? "rgba(148, 163, 184, 0.14)" : "var(--bg-elevated)",
+        background: hasFullDayOff ? "rgba(148, 163, 184, 0.14)" : alt ? "var(--bg-secondary)" : "var(--bg-elevated)",
         display: "flex", flexDirection: "column", justifyContent: "center",
         minHeight: LANE_HEIGHT, boxSizing: "border-box",
         // 가로 스크롤 시 각 행의 기사 셀도 고정 (헤더와 동일).
@@ -1139,7 +1166,7 @@ function Lane({ lane, idle = false, offs = [], onTaskClick, onTaskDragCommit, on
         zIndex: 6,
       }}>
         <span style={{
-          fontSize: 13, fontWeight: 700,
+          fontSize: 16, fontWeight: 800,
           color: idle ? "var(--text-secondary)" : "var(--text-primary)",
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
         }}>
@@ -1153,9 +1180,9 @@ function Lane({ lane, idle = false, offs = [], onTaskClick, onTaskDragCommit, on
           )}
         </span>
         <small style={{
-          fontSize: 11, color: "var(--text-secondary)", fontWeight: 600,
+          fontSize: 12.5, color: "var(--text-secondary)", fontWeight: 600, marginTop: 2,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-        }}>{[lane.region, `${liveCount}건`].filter(Boolean).join(" · ")}</small>
+        }}>{[lane.skillLabel, lane.region, `${liveCount}건`].filter(Boolean).join(" · ")}</small>
       </div>
 
       <div
@@ -1609,30 +1636,30 @@ function TaskBar({ task, laneRef, sourceLaneKey, readOnly = false, siblings, lan
         gap: 1,
       }}>
         <span style={{
-          fontSize: 11, fontWeight: 800,
+          fontSize: 12.5, fontWeight: 800,
           color: textCol,
           overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-          lineHeight: 1.1,
+          lineHeight: 1.2,
           // 2026-07-09 — 취소 시 취소선.
           textDecoration: isCanceled ? "line-through" : "none",
-        }}>{isCanceled ? "취소 · " : isVisitOnly ? "출장 · " : isDone ? "✓ " : `${getCategoryMeta(task).icon || ""} `}{customer}</span>
+        }}>{isCanceled ? "취소 · " : isVisitOnly ? "출장 · " : isDone ? "✓ " : `${getCategoryMeta(task).icon || ""} `}{barWork(task)}{customer}</span>
         {showPreview ? (
           <span style={{
-            fontSize: 9, fontWeight: 800,
+            fontSize: 11, fontWeight: 800,
             color: textCol,
             letterSpacing: "-0.1px",
             lineHeight: 1.1,
             fontVariantNumeric: "tabular-nums",
           }}>{baseTimeStr} → {shownTimeStr}</span>
-        ) : region ? (
+        ) : (
           <span style={{
-            fontSize: 9, fontWeight: 600,
+            fontSize: 11.5, fontWeight: 500,
             color: textCol,
-            opacity: 0.8,
+            opacity: 0.88,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            lineHeight: 1.1,
-          }}>{region}</span>
-        ) : null}
+            lineHeight: 1.2,
+          }}>{[region, baseTimeStr].filter(Boolean).join(" · ")}</span>
+        )}
       </div>
       <span style={{
         width: 6, height: 6, borderRadius: "50%",
@@ -1646,6 +1673,24 @@ function TaskBar({ task, laneRef, sourceLaneKey, readOnly = false, siblings, lan
 // ──────────────────────────────────────────────────────────────────
 // 2026-10-07 — 왼쪽 미배정 목록 (시안 v1). 카드를 기사 줄의 원하는 시간에 끌어다 놓으면 배정 + 일정 확정.
 // ──────────────────────────────────────────────────────────────────
+// 막대 첫 줄의 작업 이름 ("이전설치 · "). 이름이 없으면 빈 글자.
+function barWork(task) {
+  const items = Array.isArray(task.workItems) ? task.workItems.filter(w => w && !(w.isCanceled || w.is_canceled)) : [];
+  const nm = String((items[0] && (items[0].workType || items[0].name)) || task.workType || "").replace(/_\(공통\)$/, "").trim();
+  return nm ? `${nm} · ` : "";
+}
+// 희망(또는 잡힌) 시각이 이미 지났는가 — 배정 대기 카드의 빨간 ⚠ 표시용
+function cardIsLate(task) {
+  const at = task.scheduledAt || task.scheduled_at;
+  let ts = null;
+  if (at) ts = new Date(at).getTime();
+  else if (task.requestedDate) {
+    const rt = /^\d{1,2}:\d{2}/.test(String(task.requestedTime || "")) ? String(task.requestedTime).slice(0, 5).padStart(5, "0") : "23:59";
+    ts = new Date(`${String(task.requestedDate).slice(0, 10)}T${rt}:00`).getTime();
+  }
+  return ts != null && !isNaN(ts) && ts < Date.now();
+}
+
 function cardWhen(task, selectedDate) {
   const at = task.scheduledAt || task.scheduled_at;
   if (at) {
@@ -1697,15 +1742,27 @@ function pendingWhen(task) {
   return "시간 미정";
 }
 
-function UnassignedPanel({ tasks, selectedDate, onOpen, onDragMove, onDrop, onDragCancel, handOverTarget, handOverName, onHandOver }) {
+function UnassignedPanel({ tasks, subTasks = [], subLabel = "협력사", selectedDate, onOpen, onDragMove, onDrop, onDragCancel, handOverTarget, handOverName, onHandOver }) {
   const [tab, setTab] = useState("all");            // all / none(시간 미정) / has(시간 있음)
   const [dragging, setDragging] = useState(null);   // { id, x, y, label, color }
   const start = useRef(null);
 
   const rows = useMemo(() => tasks.map(t => ({ t, when: cardWhen(t, selectedDate) })), [tasks, selectedDate]);
-  const nNone = rows.filter(r => !r.when.has).length;
-  const nHas  = rows.length - nNone;
-  const shown = rows.filter(r => tab === "all" || (tab === "has" ? r.when.has : !r.when.has));
+  // 2026-10-07 시안 v2 — 둘째 칸: 협력사로 넘겼고 기사 미정인 작업 (보기 전용). 탭은 두 칸 모두에 적용한다.
+  const subRows = useMemo(() => subTasks.map(t => ({ t, when: cardWhen(t, selectedDate) })), [subTasks, selectedDate]);
+  const all = rows.length + subRows.length;
+  const nNone = rows.filter(r => !r.when.has).length + subRows.filter(r => !r.when.has).length;
+  const nHas  = all - nNone;
+  const byTab = (r) => tab === "all" || (tab === "has" ? r.when.has : !r.when.has);
+  const shown = rows.filter(byTab);
+  const subShown = subRows.filter(byTab);
+  const secHead = (text, n, purple) => (
+    <div style={{
+      display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: 14, fontWeight: 700,
+      padding: "8px 10px", borderRadius: 10, marginBottom: 8,
+      background: purple ? "rgba(139,92,246,0.14)" : "rgba(233,24,96,0.12)", color: purple ? "#A78BFA" : "#FF5C93",
+    }}><span>{text}</span><span>{n}</span></div>
+  );
 
   const tabBtn = (key, text) => (
     <button key={key} type="button" onClick={() => setTab(key)} style={{
@@ -1722,21 +1779,22 @@ function UnassignedPanel({ tasks, selectedDate, onOpen, onDragMove, onDrop, onDr
       display: "flex", flexDirection: "column", position: "sticky", top: 0, alignSelf: "flex-start", height: "100vh", boxSizing: "border-box",
     }}>
       <div style={{ padding: "16px 16px 10px", borderBottom: "1px solid var(--border)" }}>
-        <b style={{ fontSize: 16, color: "var(--text-primary)" }}>미배정</b>
+        <b style={{ fontSize: 18, color: "var(--text-primary)" }}>배정 대기</b>
         <span style={{
-          display: "inline-grid", placeItems: "center", minWidth: 22, height: 22, borderRadius: 99, marginLeft: 6, padding: "0 6px",
-          background: rows.length > 0 ? "var(--danger, #E5484D)" : "var(--border)", color: "#fff", fontSize: 12, fontWeight: 800, boxSizing: "border-box",
-        }}>{rows.length}</span>
+          display: "inline-grid", placeItems: "center", minWidth: 24, height: 24, borderRadius: 99, marginLeft: 8, padding: "0 7px",
+          background: rows.length > 0 ? "var(--danger, #E5484D)" : "var(--border)", color: "#fff", fontSize: 13, fontWeight: 800, boxSizing: "border-box",
+        }}>{all}</span>
         <div style={{ display: "flex", gap: 6, marginTop: 10, flexWrap: "wrap" }}>
-          {tabBtn("all", `전체 ${rows.length}`)}
+          {tabBtn("all", `전체 ${all}`)}
           {tabBtn("none", `시간 미정 ${nNone}`)}
           {tabBtn("has", `시간 있음 ${nHas}`)}
         </div>
       </div>
 
       <div style={{ padding: "10px 12px", overflowY: "auto", flex: 1, minHeight: 0 }}>
+        {secHead("직영 미배정", shown.length, false)}
         {shown.length === 0 && (
-          <div style={{ fontSize: 12.5, color: "var(--text-secondary)", textAlign: "center", padding: "28px 0" }}>미배정 작업이 없습니다</div>
+          <div style={{ fontSize: 13, color: "var(--text-secondary)", padding: "4px 10px 10px" }}>미배정 작업이 없습니다 ✓</div>
         )}
         {shown.map(({ t, when }) => {
           const cat = getCategoryMeta(t);
@@ -1797,10 +1855,48 @@ function UnassignedPanel({ tasks, selectedDate, onOpen, onDragMove, onDrop, onDr
             </div>
           );
         })}
+
+        {/* 둘째 칸 — 협력사 배정 대기 (보기 전용: 끌 수 없고, 누르면 작업 상세) */}
+        {subRows.length > 0 && (
+          <div style={{ marginTop: 14 }}>
+            {secHead(`🔒 ${subLabel} 배정 대기`, subShown.length, true)}
+            {subShown.length === 0 && (
+              <div style={{ fontSize: 13, color: "var(--text-secondary)", padding: "4px 10px 10px" }}>이 조건에 해당하는 작업이 없습니다</div>
+            )}
+            {subShown.map(({ t, when }) => {
+              const cat = getCategoryMeta(t);
+              const id = t.id || t.taskCode;
+              const town = t.region || t.district || "";
+              const late = cardIsLate(t);
+              return (
+                <button key={id} type="button" onClick={() => onOpen && onOpen(t)} title="보기 전용 — 배정은 협력사 관리자 (누르면 상세)" style={{
+                  display: "block", width: "100%", textAlign: "left", fontFamily: "inherit", cursor: "pointer",
+                  border: "1px solid var(--border)", borderLeft: `4px solid ${cat.color}`, borderRadius: 12, padding: "10px 12px", marginBottom: 8,
+                  background: "var(--bg-elevated)",
+                }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", gap: 6, fontSize: 13, color: "var(--text-secondary)" }}>
+                    <span style={{ minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{t.taskCode || t.taskNo || ""} · {cat.icon} {cat.label}</span>
+                    <span style={{ flexShrink: 0, fontSize: 11, color: "#A78BFA", background: "rgba(139,92,246,0.16)", borderRadius: 6, padding: "1px 6px", fontWeight: 700 }}>보기 전용</span>
+                  </div>
+                  <div style={{ fontSize: 15, fontWeight: 700, margin: "4px 0 2px", color: "var(--text-primary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {t.customer || "—"}{town ? ` · ${town}` : ""}
+                  </div>
+                  <div style={{ fontSize: 12.5, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                    {late
+                      ? <span style={{ color: "#FF6B6B", fontWeight: 700 }}>⚠ {pendingWhen(t)} 지남</span>
+                      : <span style={{ color: when.has ? "var(--accent, #FF1B8D)" : "var(--text-secondary)", fontWeight: 700 }}>{pendingWhen(t)}</span>}
+                    {" · "}{cardItems(t)}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       <div style={{ padding: "10px 14px", borderTop: "1px solid var(--border)", fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.5, background: "var(--bg-secondary)" }}>
-        카드를 오른쪽 기사 줄의 원하는 시간에 <strong>끌어다 놓으면</strong> 배정 + 시간이 한 번에 정해집니다. 누르면 상세.
+        직영 카드는 오른쪽 기사 줄의 원하는 시간에 <strong>끌어다 놓으면</strong> 배정 + 시간이 한 번에 정해집니다. 누르면 상세.
+        {subRows.length > 0 ? " 🔒 카드는 보기 전용입니다 (배정은 협력사 관리자)." : ""}
       </div>
 
       {/* 끌고 있는 카드 (커서를 따라다니는 작은 표식) */}

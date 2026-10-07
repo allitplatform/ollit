@@ -3,6 +3,7 @@
 //   협력사 RPC(sub_query_tasks · sub_list_staff — 세션 확인 + 자기 협력사 작업만)에서 읽는다.
 //   운영자 RPC·운영자 화면 구성요소는 쓰지 않는다.
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { TimelineDatePicker } from "./TimelineDatePicker.jsx";
 import { subQueryTasks, subListStaff, subListTasks, subListStaffForTask, subAssignTask, subSetSchedule, subListStaffOffs } from "../lib/subcontractorsDb.js";
 import { getCategoryMeta, categoriesInTasks, getTaskDurationHours, categoryTint } from "../lib/serviceCatalog.js";
 import CategoryChip from "./CategoryChip.jsx";
@@ -159,6 +160,7 @@ export function SubPcTimeline({ onOpen, onPick, onChanged, refreshKey = 0, prese
   const [preview, setPreview] = useState(null);     // 놓을 자리 { rowId, hour, dur, label, tip, bad }
   const [toast, setToast] = useState(null);
   const [saving, setSaving] = useState(false);
+  const [idleOpen, setIdleOpen] = useState(false);  // "오늘 일 없는 기사" 펼침
   const canDo = useRef(new Map());                  // taskId → Map(engineerId → 할 수 있는지)  (서버 판정: sub_list_staff_for_task)
 
   const load = useCallback(async () => {
@@ -274,7 +276,17 @@ export function SubPcTimeline({ onOpen, onPick, onChanged, refreshKey = 0, prese
     const x = h + m / 60;
     return x >= H0 && x <= H1 ? ((x - H0) / SPAN) * 100 : null;
   })();
-  const NAMEW = 150;
+  const NAMEW = 180;
+  // 달력의 "작업 있는 날" 점 — 이미 읽어 온 작업 목록의 일정 날짜
+  const markedDates = new Set();
+  for (const t of [...(openAll || []), ...(tasks || [])]) {
+    if (!t || t.status === "취소" || !t.scheduled_at) continue;
+    markedDates.add(kstYmd(new Date(t.scheduled_at)));
+  }
+  // 오늘 일 없는 기사는 기본으로 접는다 (한 줄 요약). 펼치면 전처럼 줄이 나온다.
+  const busyRows = rows.filter(r => r.items.length > 0 || r.dayOff);
+  const idleRows = rows.filter(r => !(r.items.length > 0 || r.dayOff));
+  const shownRows = idleOpen ? [...busyRows, ...idleRows] : busyRows;
   const dayTasks = tasks.filter(t => t.assigned_engineer_id);
 
   return (
@@ -291,11 +303,8 @@ export function SubPcTimeline({ onOpen, onPick, onChanged, refreshKey = 0, prese
     <div style={{ flex: 1, minWidth: 0, padding: 16 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
         <div style={{ fontSize: 18, fontWeight: 800, marginRight: 8 }}>타임라인</div>
-        <button type="button" onClick={() => setDay(addDays(day, -1))} style={btn} aria-label="이전 날">◀</button>
-        <button type="button" onClick={() => setDay(today)} style={{ ...btn, borderColor: day === today ? "var(--accent, #FF1B8D)" : "var(--border)" }}>오늘</button>
-        <button type="button" onClick={() => setDay(addDays(day, 1))} style={btn} aria-label="다음 날">▶</button>
-        <input type="date" value={day} onChange={e => e.target.value && setDay(e.target.value)} style={field} aria-label="날짜 선택"/>
-        <span style={{ fontSize: 14, fontWeight: 700 }}>{dayTitle(day)}</span>
+        {/* 2026-10-07 시안 v2 — 운영자 타임라인과 같은 날짜 고르기 (달력 + 어제·오늘·내일·모레) */}
+        <TimelineDatePicker selectedDate={day} today={today} onChange={setDay} markedDates={markedDates}/>
         <span style={{ fontSize: 13, color: "var(--text-secondary)" }}>· {dayTasks.filter(t => t.status !== "취소").length}건{dayTasks.some(t => t.status === "취소") ? ` (취소 ${dayTasks.filter(t => t.status === "취소").length})` : ""}</span>
         {rows.hiddenOff && rows.hiddenOff.length > 0 && (
           <button type="button" onClick={() => window.alert(`🏖️ 이 날 정기 휴무
@@ -324,18 +333,19 @@ ${rows.hiddenOff.join(", ")}`)} title={rows.hiddenOff.join(", ")} style={{
           {rows.length === 0 && (
             <div style={{ padding: "40px 0", textAlign: "center", fontSize: 13, color: "var(--text-secondary)" }}>등록된 기사가 없습니다</div>
           )}
-          {rows.map(r => {
+          {shownRows.map((r, rowIdx) => {
             const timed = r.items.filter(t => { const x = hourPos(t); return x != null; });
             const untimed = r.items.filter(t => hourPos(t) == null);
             const pv = preview && preview.rowId === r.id ? preview : null;
             const target = pv && !pv.bad;
             return (
-              <div key={r.id} style={{ display: "flex", borderBottom: "1px solid var(--border)", opacity: r.dim && !target ? 0.45 : 1, minHeight: 46 }}>
-                <div style={{ width: NAMEW, flexShrink: 0, padding: "8px 12px", boxSizing: "border-box" }}>
-                  <div style={{ fontSize: 13, fontWeight: 800, color: "var(--text-primary)" }}>
+              <div key={r.id} style={{ display: "flex", borderBottom: "1px solid var(--border)", opacity: r.dim && !target ? 0.45 : 1, minHeight: 62, background: rowIdx % 2 === 1 ? "var(--bg-secondary)" : "transparent" }}>
+                <div style={{ width: NAMEW, flexShrink: 0, padding: "10px 14px", boxSizing: "border-box", display: "flex", flexDirection: "column", justifyContent: "center" }}>
+                  <div style={{ fontSize: 16, fontWeight: 800, color: "var(--text-primary)" }}>
                     {r.dayOff && <span title="휴무" style={{ marginRight: 3 }}>🏖️</span>}
-                    {r.name}{r.items.length > 0 ? ` ${r.items.length}` : ""}
+                    {r.name}
                   </div>
+                  <div style={{ fontSize: 12.5, color: "var(--text-secondary)", marginTop: 2 }}>{r.items.length}건</div>
                   {r.offWork && (
                     <span title="정기 휴무일에 작업이 잡혀 있습니다" style={{
                       display: "inline-block", marginTop: 3, fontSize: 10.5, fontWeight: 800, padding: "1px 6px", borderRadius: 5,
@@ -430,6 +440,18 @@ ${rows.hiddenOff.join(", ")}`)} title={rows.hiddenOff.join(", ")} style={{
               </div>
             );
           })}
+          {/* 2026-10-07 시안 v2 — 오늘 일 없는 기사: 기본 접힘, 한 줄 요약 */}
+          {idleRows.length > 0 && (
+            <button type="button" onClick={() => setIdleOpen(v => !v)} style={{
+              display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "11px 16px", cursor: "pointer", fontFamily: "inherit",
+              background: "var(--bg-secondary)", border: "none", borderTop: "1px dashed var(--border)",
+              fontSize: 13.5, color: "var(--text-secondary)", textAlign: "left",
+            }}>
+              <span>{idleOpen ? "▾" : "▸"}</span>
+              <b style={{ color: "var(--text-primary)" }}>오늘 일 없는 기사 {idleRows.length}명</b>
+              {!idleOpen && <span>· 펼치면 끌어다 배정 가능</span>}
+            </button>
+          )}
         </div>
       </div>
       <div style={{ display: "flex", gap: 14, marginTop: 10, fontSize: 12, color: "var(--text-secondary)", flexWrap: "wrap" }}>
