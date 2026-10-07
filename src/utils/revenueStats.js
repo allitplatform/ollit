@@ -30,12 +30,13 @@ const EMPTY = {
   // 2026-10-06 Mig 229 — 협력사 작업(track S). 수수료만 회사 수입, 받은 금액은 참고(거래액).
   //   owner       = 회사 수입 합계 (직영·원청 + 협력사 수수료)
   //   ownerDirect = 협력사 수수료를 뺀 기존 회사 수입 (기존 숫자와 대조용)
-  ownerDirect: 0, subFee: 0, subGross: 0, subCount: 0,
+  //   subFee      = 협력사 수수료 가운데 회사 몫 (= 수수료 − 원청 몫)   subShare = 원청 몫 (회사 수입 아님)
+  ownerDirect: 0, subFee: 0, subShare: 0, subGross: 0, subCount: 0,
 };
 
 // 협력사 작업 집계 — 완료 + track S + 완료일(KST)이 기간 안.
 function _sumSubFee(apiTasks, startYmd, endYmd) {
-  let subFee = 0, subGross = 0, subCount = 0;
+  let subFee = 0, subShare = 0, subGross = 0, subCount = 0;
   for (const t of (apiTasks || [])) {
     if (!t || t.status !== "완료") continue;
     const track = t.track || t.payment?.track;
@@ -44,11 +45,14 @@ function _sumSubFee(apiTasks, startYmd, endYmd) {
     if (!completed) continue;
     const ymd = toKstYmd(completed);
     if (!ymd || ymd < startYmd || ymd > endYmd) continue;
-    subFee   += Number(t.owner_amount || 0);
+    // 2026-10-07 Mig 244 — 수수료 가운데 원청 몫은 회사 수입이 아니다. 회사 몫 = 수수료 − 원청 몫.
+    const share = Math.max(0, Number(t.sub_principal_share || 0));
+    subFee   += Number(t.owner_amount || 0) - share;
+    subShare += share;
     subGross += Number(t.receivedTotal ?? t.received_total ?? 0) || 0;
     subCount += 1;
   }
-  return { subFee, subGross, subCount };
+  return { subFee, subShare, subGross, subCount };
 }
 
 // 기존 집계 결과(서버 요약 또는 클라이언트 계산의 직영·원청분)에 협력사 수수료를 얹는다.
@@ -57,7 +61,7 @@ function _sumSubFee(apiTasks, startYmd, endYmd) {
 export function withSubFee(rev, apiTasks, startYmd, endYmd, user) {
   if (!rev) return rev;
   if (!canSeeField(user, "task.total_amount") || !startYmd || !endYmd) {
-    return { ...rev, ownerDirect: Number(rev.owner) || 0, subFee: 0, subGross: 0, subCount: 0 };
+    return { ...rev, ownerDirect: Number(rev.owner) || 0, subFee: 0, subShare: 0, subGross: 0, subCount: 0 };
   }
   const sub = _sumSubFee(apiTasks, startYmd, endYmd);
   const ownerDirect = Number(rev.owner) || 0;

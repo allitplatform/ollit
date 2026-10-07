@@ -691,6 +691,7 @@ function _v14NormalizeTask(t) {
     engineer_amount:  t.engineer_amount  ?? 0,
     principal_amount: t.principal_amount ?? 0,
     owner_amount:     t.owner_amount     ?? 0,
+    sub_principal_share: t.sub_principal_share ?? 0,   // Mig 244 — 협력사 수수료 가운데 원청 몫
     payment_status:   t.payment_status   ?? null,
     is_balanced:      t.is_balanced      ?? null,
     // 2026-05-17 Round 1 Fix #5 — total_amount 패스스루 (오늘 매출 카드에 extra_fee 포함되도록).

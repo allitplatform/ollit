@@ -258,6 +258,7 @@ export function v14NormalizeTask(t) {
     engineer_amount:  t.engineer_amount  ?? 0,
     principal_amount: t.principal_amount ?? 0,
     owner_amount:     t.owner_amount     ?? 0,
+    sub_principal_share: t.sub_principal_share ?? 0,   // Mig 244 — 협력사 수수료 가운데 원청 몫
     calc_method:      t.calc_method      ?? null,
     payment_status:   t.payment_status   ?? null,
     is_balanced:      t.is_balanced      ?? null,

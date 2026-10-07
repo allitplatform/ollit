@@ -185,6 +185,13 @@ export function RevenueOverviewBlock({ t, apiTasks = [], user, onDetailClick, se
             </span>
           </div>
         )}
+        {/* 2026-10-07 Mig 244 — 원청 몫 (회사 수입에 포함되지 않는 금액). 위 협력사 수수료는 이 금액을 뺀 회사 몫이다. */}
+        {(current.subShare || 0) !== 0 && (
+          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginTop: 4 }}>
+            <span style={{ fontSize: 11, fontWeight: 700, color: t.textSecondary }}>원청 몫 <span style={{ fontWeight: 600, color: t.textMuted }}>(회사 수입 아님)</span></span>
+            <span style={{ fontSize: 12, fontWeight: 700, color: t.textSecondary }}>{fmtKRW(current.subShare)}</span>
+          </div>
+        )}
       </div>
 
       {/* 2026-06-03 — 측측 측측 (= 매출 자세히 screen). onDetailClick 측측 측측 측측 측측 측측 X. */}
