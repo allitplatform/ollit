@@ -1416,6 +1416,11 @@ function AdvertiserForm({ t, actor, actorName, advs = [], initial, onClose, onSa
           <option value="">손으로 입력 (광고주·운영자)</option>
           <option value="inquiries:install">홈페이지 접수함 자동 — 에어컨 설치만</option>
           <option value="inquiries:refrigerant">홈페이지 접수함 자동 — 냉매충전만</option>
+          <option value="inquiries:hood">홈페이지 접수함 자동 — 주방후드만</option>
+          <option value="inquiries:grave">홈페이지 접수함 자동 — 벌초만</option>
+          <option value="inquiries:move_in">홈페이지 접수함 자동 — 입주청소만</option>
+          <option value="inquiries:leak">홈페이지 접수함 자동 — 누수만</option>
+          <option value="inquiries:cleaning">홈페이지 접수함 자동 — 세척만</option>
           <option value="inquiries:all">홈페이지 접수함 자동 — 전체 (스팸 제외)</option>
         </select>
         <span style={{ fontSize: 10.5, color: t.textMuted, fontWeight: 600 }}>올데이케어처럼 접수함이 올잇 안에 있는 광고주만</span>
