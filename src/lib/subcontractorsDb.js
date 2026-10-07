@@ -223,6 +223,9 @@ export const adminCancelSubFeeExtra = (id, reason) =>
 export const partnerKbListTasks = () => _call("partner_kb_list_tasks", {});
 export const partnerKbGetTask = (taskId) => _call("partner_kb_get_task", { p_task_id: taskId });
 export const partnerKbListRemits = () => _call("partner_kb_list_remits", {});
+// Mig 255 — 쿨가이가 접수한 작업을 배정 전에 취소
+export const partnerKbCancelTask = (taskId, reason) =>
+  _call("partner_kb_cancel_task", { p_task_id: taskId, p_reason: reason });
 export const adminListPrincipalRemits = () => _call("admin_list_principal_remits", {});
 export const adminMarkPrincipalRemitPaid = (remitId, paid = true) =>
   _call("admin_mark_principal_remit_paid", { p_remit_id: remitId, p_paid: !!paid });

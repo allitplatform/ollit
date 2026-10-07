@@ -3269,7 +3269,7 @@ function SettleTab({ t, tasks }) {
 }
 
 // 2026-10-07 — 쿨가이 전용 화면(KbPartnerApp)에서도 쓴다 (내용 변경 없음, 내보내기만)
-export function InfoTab({ t, user, mode, setMode, onLogout }) {
+export function InfoTab({ t, user, mode, setMode, onLogout, accountReadOnly = false }) {
   const isPcInfo = useIsPc();
   const principalLabel = getPrincipalLabel(user) || "원청";
   const userName       = user?.name || `${principalLabel} 대표`;
@@ -3522,6 +3522,7 @@ export function InfoTab({ t, user, mode, setMode, onLogout }) {
               account={acc}
               userId={user?.user_id || user?.id}
               isPcInfo={isPcInfo}
+              readOnly={accountReadOnly}
               onUpdated={async () => {
                 await reloadAccounts();
                 showAccountToast("계좌가 업데이트되었습니다");
@@ -3746,7 +3747,7 @@ export function InfoTab({ t, user, mode, setMode, onLogout }) {
 //   1) 현재 은행/번호/예금주 표시 + "수정" 버튼.
 //   2) 수정 모드: 입력 폼 (3개 필드 모두 필수, 형식 검증 없음).
 //   3) "저장" → 확인 다이얼로그 (변경 내용 표시) → 확인 시 RPC 호출 → onUpdated 콜백.
-function AccountCard({ t, account, userId, onUpdated, onError, isPcInfo = false }) {
+function AccountCard({ t, account, userId, onUpdated, onError, isPcInfo = false, readOnly = false }) {
   const [editing, setEditing]   = useState(false);
   const [bankName, setBankName] = useState(account?.bank_name      || "");
   const [accNum,   setAccNum]   = useState(account?.account_number || "");
@@ -3820,7 +3821,11 @@ function AccountCard({ t, account, userId, onUpdated, onError, isPcInfo = false 
         <div style={{ fontSize: isPcInfo ? TEXT.BODY : 13, fontWeight: 800, color: t.text }}>
           {account?.name || "원청"}
         </div>
-        {!editing && (
+        {/* 2026-10-07 — 보기 전용(쿨가이 화면): 수정 버튼 대신 안내 문구 */}
+        {readOnly && (
+          <span style={{ fontSize: 11, color: t.textMuted }}>변경은 올데이케어에 요청해 주세요</span>
+        )}
+        {!editing && !readOnly && (
           <button
             onClick={() => setEditing(true)}
             style={{

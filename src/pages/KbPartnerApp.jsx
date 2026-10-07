@@ -1,16 +1,18 @@
-// 2026-10-07 Mig 254 — 쿨가이(KB) 원청 전용 화면. 보기 전용.
-//   · 기존 원청 앱(PrincipalApp)은 표를 직접 읽는다. 이 화면은 서버 함수 3개(partner_kb_*)만 부른다.
-//     → 전화번호·상세 주소·수행 협력사·기사·받은 금액·실제 공급가·협력사 수수료는 아예 내려오지 않는다.
-//   · 이번 범위는 협력사가 수행한 작업만. 직영 작업은 나오지 않는다 (사장님 결정 2026-10-07).
-//   · 수행은 "올데이케어" 고정. 접수·취소·변경 없음.
-//   탭: 작업 · 수수료 · 내 정보(기존 원청 앱의 내 정보 그대로)
+// 2026-10-07 Mig 254·255 — 쿨가이(KB) 원청 전용 화면.
+//   · 기존 원청 앱(PrincipalApp)은 표를 직접 읽는다. 이 화면의 작업·수수료는 서버 함수(partner_kb_*)만 부른다.
+//     → 수행 협력사·기사·받은 금액·실제 공급가·협력사 수수료·올데이케어 몫은 아예 내려오지 않는다.
+//   · 보이는 작업 = 원청 KB + 주방후드 전체 (협력사로 넘긴 것 + 직영 + 미배정). 고객 정보는 전부 보인다 (쿨가이 고객).
+//   · 수행은 "올데이케어" 고정. 금액은 견적 · 쿨가이 수수료만.
+//   · 접수 가능(주방후드 단가표에서 고르기, 견적 자동). 취소는 배정 전까지만.
+//   탭: 작업 · 접수 · 수수료 · 내 정보(기존 원청 앱의 내 정보, 계좌는 보기 전용)
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ClipboardList, Wallet, User, RefreshCw, X, ChevronDown, ChevronUp } from "lucide-react";
+import { ClipboardList, Wallet, User, RefreshCw, X, ChevronDown, ChevronUp, Plus, Phone } from "lucide-react";
 import SafeTopCover from "../components/SafeTopCover.jsx";
 import { applyTheme as applyThemeVars, loadTheme } from "../styles/themes.js";
 import { THEMES, InfoTab } from "./PrincipalApp.jsx";
 import { getCategoryMetaOfRow } from "../lib/serviceCatalog.js";
-import { partnerKbListTasks, partnerKbGetTask, partnerKbListRemits } from "../lib/subcontractorsDb.js";
+import { partnerKbListTasks, partnerKbGetTask, partnerKbListRemits, partnerKbCancelTask } from "../lib/subcontractorsDb.js";
+import { KbReception } from "../components/principal/KbReception.jsx";
 import { fmtWon, fmtWonSigned } from "../utils/money.js";
 
 const WEEK = ["일", "월", "화", "수", "목", "금", "토"];
@@ -112,18 +114,21 @@ function TaskCard({ t, row, onClick }) {
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: 12, color: t.textMuted, fontFamily: "'JetBrains Mono', monospace" }}>{row.task_no}</div>
           <div style={{ fontSize: 15, fontWeight: 800, color: t.text, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-            {row.customer}{row.area ? <span style={{ fontWeight: 600, color: t.textSecondary }}> · {row.area}</span> : null}
+            {row.customer}
           </div>
         </div>
         <span style={{ fontSize: 12, fontWeight: 800, color: st.color, whiteSpace: "nowrap" }}>{st.label}</span>
       </div>
-      <div style={{ fontSize: 12.5, color: t.textSecondary, marginTop: 8 }}>
+      {row.address && (
+        <div style={{ fontSize: 12.5, color: t.textSecondary, marginTop: 8, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{row.address}</div>
+      )}
+      <div style={{ fontSize: 12.5, color: t.textSecondary, marginTop: row.address ? 2 : 8 }}>
         {meta.label} · {fmtSchedule(row.scheduled_at)} · 수행 {row.performer || "올데이케어"}
       </div>
       <div style={{ display: "flex", gap: 10, marginTop: 10, paddingTop: 10, borderTop: `1px dashed ${t.borderStrong}` }}>
         <div style={{ flex: 1 }}>
-          <div style={{ fontSize: 11, color: t.textMuted }}>견적 (공급가)</div>
-          <div style={{ fontSize: 14, fontWeight: 700, color: t.text }}>{row.quote != null ? fmtWon(row.quote) : "—"}</div>
+          <div style={{ fontSize: 11, color: t.textMuted }}>견적</div>
+          <div style={{ fontSize: 14, fontWeight: 700, color: row.quote != null ? t.text : t.warning }}>{row.quote != null ? fmtWon(row.quote) : "견적 미정"}</div>
         </div>
         <div style={{ flex: 1, textAlign: "right" }}>
           <div style={{ fontSize: 11, color: t.textMuted }}>쿨가이 수수료</div>
@@ -140,16 +145,17 @@ const TASK_FILTERS = [
   { key: "all",  label: "전체", test: () => true },
 ];
 
-function TasksTab({ t, onOpen }) {
+function TasksTab({ t, onOpen, reloadKey = 0 }) {
   const fn = useCallback(() => partnerKbListTasks(), []);
   const { data, error, loading, load } = useLoad(fn);
+  useEffect(() => { if (reloadKey > 0) load(); }, [reloadKey, load]);
   const rows = (data && data.rows) || [];
   const [filter, setFilter] = useState("open");
   const f = TASK_FILTERS.find(x => x.key === filter) || TASK_FILTERS[0];
   const shown = rows.filter(f.test);
   return (
     <div>
-      <TopBar t={t} title="작업" sub="올데이케어가 수행하는 작업입니다" onReload={load} loading={loading}/>
+      <TopBar t={t} title="작업" sub="주방후드 · 올데이케어가 수행합니다" onReload={load} loading={loading}/>
       <div style={{ display: "flex", gap: 8, padding: "0 16px 12px" }}>
         {TASK_FILTERS.map(x => {
           const on = x.key === filter;
@@ -172,9 +178,23 @@ function TasksTab({ t, onOpen }) {
   );
 }
 
-function TaskSheet({ t, row, onClose }) {
+function TaskSheet({ t, row, onClose, onChanged }) {
   const [detail, setDetail] = useState(null);
   const [error, setError] = useState("");
+  const [busy, setBusy] = useState(false);
+  // 접수 취소 — 배정 전까지만 (서버가 다시 확인한다)
+  async function cancel() {
+    if (busy) return;
+    const reason = window.prompt("접수를 취소합니다.\n취소 사유를 입력해 주세요.");
+    if (reason == null) return;
+    if (!String(reason).trim()) { window.alert("취소 사유를 입력해 주세요."); return; }
+    setBusy(true);
+    const res = await partnerKbCancelTask(row.id, String(reason).trim());
+    setBusy(false);
+    if (!res.ok) { window.alert(res.error || "취소하지 못했습니다."); return; }
+    if (onChanged) onChanged();
+    onClose();
+  }
   useEffect(() => {
     let alive = true;
     partnerKbGetTask(row.id).then(res => {
@@ -208,7 +228,15 @@ function TaskSheet({ t, row, onClose }) {
         <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 14, padding: "6px 14px", marginTop: 14 }}>
           <KV t={t} label="상태" value={st.label} color={st.color} strong/>
           <KV t={t} label="종목" value={meta.label}/>
-          <KV t={t} label="지역" value={task.area || "—"}/>
+          <KV t={t} label="주소" value={task.address || "—"}/>
+          {task.phone && (
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12, padding: "7px 0", fontSize: 14 }}>
+              <span style={{ color: t.textMuted }}>전화</span>
+              <a href={`tel:${String(task.phone).replace(/[^0-9+]/g, "")}`} style={{ color: t.accent, fontWeight: 700, textDecoration: "none", display: "inline-flex", alignItems: "center", gap: 6 }}>
+                <Phone size={14}/>{task.phone}
+              </a>
+            </div>
+          )}
           <KV t={t} label="일정" value={fmtSchedule(task.scheduled_at)}/>
           {task.completed_at && <KV t={t} label="완료" value={fmtDateTime(task.completed_at)}/>}
           <KV t={t} label="수행" value={task.performer || "올데이케어"}/>
@@ -224,12 +252,23 @@ function TaskSheet({ t, row, onClose }) {
           </div>
         )}
         <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 14, padding: "6px 14px", marginTop: 10 }}>
-          <KV t={t} label="견적 (공급가)" value={task.quote != null ? fmtWon(task.quote) : "—"}/>
+          <KV t={t} label="견적" value={task.quote != null ? fmtWon(task.quote) : "견적 미정"} color={task.quote != null ? undefined : t.warning}/>
           <KV t={t} label="쿨가이 수수료" value={fee.text} color={fee.color} strong/>
           {task.fee_state === "checking" && (
             <div style={{ fontSize: 12, color: t.textMuted, paddingBottom: 8 }}>완료는 됐고 수수료를 확인하고 있습니다. 올데이케어에 문의해 주세요.</div>
           )}
         </div>
+        {task.can_cancel && (
+          <button type="button" onClick={cancel} disabled={busy} style={{
+            width: "100%", marginTop: 12, padding: 13, borderRadius: 12, fontFamily: "inherit", cursor: "pointer",
+            background: "transparent", border: `1px solid ${t.danger}`, color: t.danger, fontSize: 14, fontWeight: 800, opacity: busy ? 0.6 : 1,
+          }}>접수 취소</button>
+        )}
+        {!task.can_cancel && !["완료", "취소", "visit_only"].includes(task.status) && (
+          <div style={{ fontSize: 12, color: t.textMuted, textAlign: "center", marginTop: 12 }}>
+            이미 배정된 작업입니다. 취소·변경은 올데이케어에 연락해 주세요.
+          </div>
+        )}
         {remits.length > 0 && (
           <div style={{ background: t.bgElevated, border: `1px solid ${t.border}`, borderRadius: 14, padding: "10px 14px", marginTop: 10 }}>
             <div style={{ fontSize: 12, color: t.textMuted, marginBottom: 4 }}>올데이케어 → 쿨가이 송금</div>
@@ -308,16 +347,17 @@ function FeeTab({ t }) {
             <div style={{ fontSize: 28, fontWeight: 800, color: t.accent, marginTop: 2 }}>{fmtWon(month.total)}</div>
             <div style={{ display: "flex", gap: 10, marginTop: 12, paddingTop: 12, borderTop: `1px dashed ${t.borderStrong}` }}>
               <div style={{ flex: 1 }}>
-                <div style={{ fontSize: 11, color: t.textMuted }}>받은 금액</div>
+                <div style={{ fontSize: 11, color: t.textMuted }}>{month.label} 받은 금액</div>
                 <div style={{ fontSize: 16, fontWeight: 800, color: t.success }}>{fmtWon(month.received)}</div>
               </div>
               <div style={{ flex: 1, textAlign: "right" }}>
-                <div style={{ fontSize: 11, color: t.textMuted }}>남은 금액</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: Number(month.remaining) > 0 ? t.warning : t.text }}>{fmtWon(month.remaining)}</div>
+                <div style={{ fontSize: 11, color: t.textMuted }}>송금 예정</div>
+                <div style={{ fontSize: 16, fontWeight: 800, color: Number(month.waiting) > 0 ? t.warning : t.text }}>{fmtWon(month.waiting)}</div>
               </div>
             </div>
             <div style={{ fontSize: 11.5, color: t.textMuted, marginTop: 10, lineHeight: 1.5 }}>
-              이번 달에 완료된 작업 기준입니다. 송금 줄은 올데이케어가 그 날짜 작업분의 입금을 확인한 뒤에 생깁니다.
+              합계는 이번 달에 완료된 작업 기준, 받은 금액은 이번 달에 송금된 금액 기준입니다.
+              송금 예정은 올데이케어가 작업분 입금을 확인해 줄이 생긴 금액입니다.
             </div>
           </div>
         )}
@@ -335,6 +375,7 @@ function FeeTab({ t }) {
 // ── 본체 ──
 const TABS = [
   { id: "tasks", icon: ClipboardList, label: "작업" },
+  { id: "new",   icon: Plus,          label: "접수" },
   { id: "fee",   icon: Wallet,        label: "수수료" },
   { id: "info",  icon: User,          label: "내 정보" },
 ];
@@ -343,18 +384,30 @@ export default function KbPartnerApp({ user, onLogout }) {
   const [mode, setMode] = useState(() => loadTheme());
   const [tab, setTab] = useState("tasks");
   const [openTask, setOpenTask] = useState(null);
+  const [reloadKey, setReloadKey] = useState(0);
   const t = THEMES[mode] || THEMES.dark;
+  const afterReception = ({ taskNo, tbd }) => {
+    window.alert(`접수했습니다${taskNo ? ` (${taskNo})` : ""}.\n${tbd ? "견적은 올데이케어가 확인한 뒤 넣습니다." : "올데이케어가 일정을 잡습니다."}`);
+    setTab("tasks");
+    setReloadKey(k => k + 1);
+  };
   useEffect(() => { applyThemeVars(mode); }, [mode]);
 
   return (
     <div style={{ minHeight: "100vh", background: t.bg, color: t.text, paddingTop: "env(safe-area-inset-top, 12px)" }}>
       <SafeTopCover background={t.bg}/>
       <div style={{ maxWidth: 560, margin: "0 auto", paddingBottom: "calc(84px + env(safe-area-inset-bottom, 0px))" }}>
-        {tab === "tasks" && <TasksTab t={t} onOpen={setOpenTask}/>}
+        {tab === "tasks" && <TasksTab t={t} onOpen={setOpenTask} reloadKey={reloadKey}/>}
+        {tab === "new" && (
+          <div>
+            <TopBar t={t} title="접수" sub="주방후드 작업을 올데이케어에 접수합니다"/>
+            <KbReception t={t} user={user} onDone={afterReception}/>
+          </div>
+        )}
         {tab === "fee" && <FeeTab t={t}/>}
-        {tab === "info" && <InfoTab t={t} user={user} mode={mode} setMode={setMode} onLogout={onLogout}/>}
+        {tab === "info" && <InfoTab t={t} user={user} mode={mode} setMode={setMode} onLogout={onLogout} accountReadOnly/>}
       </div>
-      {openTask && <TaskSheet t={t} row={openTask} onClose={() => setOpenTask(null)}/>}
+      {openTask && <TaskSheet t={t} row={openTask} onClose={() => setOpenTask(null)} onChanged={() => setReloadKey(k => k + 1)}/>}
       <div style={{
         position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 100, background: t.bgElevated, borderTop: `1px solid ${t.border}`,
         paddingBottom: "env(safe-area-inset-bottom, 0px)",
