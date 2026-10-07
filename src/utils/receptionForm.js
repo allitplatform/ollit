@@ -136,24 +136,47 @@ export function isHoodListItems(workItems) {
 //   → 기본형 100,000 + 자바라 30,000 이 65,000 / 65,000 으로 저장되던 문제).
 //   · 단가표에 금액이 있는 줄  → 그 단가
 //   · 0원 줄(직접 입력)        → 견적 합계에서 위 금액을 뺀 나머지를 그 줄들에 나눠 넣는다
-//   · 주방후드 접수가 아니거나, 단가표를 못 읽었거나, 견적 합계가 단가표 합계와 맞지 않으면 손대지 않는다 (기존 방식)
-export function withHoodQuotes(workItems, prices, total) {
-  if (!isHoodListItems(workItems) || !prices) return workItems;
+//   · 직접 입력 줄이 없는데 견적 합계를 단가표 합계와 다르게 고친 경우 (사장님 결정 2026-10-07):
+//       차액은 "첫 번째 본작업 항목"(후드옵션이 아닌 첫 줄)에 반영하고, 옵션은 단가표 금액을 유지한다.
+//       예: 기본형 + 자바라, 합계 120,000 → 90,000 / 30,000
+//   · 그렇게 해도 맞출 수 없으면(첫 항목이 0 아래로 내려감 / 직접 입력 줄에 넣을 금액이 음수) 손대지 않는다
+//     → 전처럼 똑같이 나뉜다. 이때 hoodQuoteMismatch 가 true → 접수 화면이 "단가표와 맞지 않음" 을 알린다.
+//   · 주방후드 접수가 아니거나 단가표를 못 읽었으면 손대지 않는다 (기존 방식).
+function _hoodQuotePlan(workItems, prices, total) {
+  if (!isHoodListItems(workItems) || !prices) return { items: workItems, applied: false, mismatch: false };
   const sum = Math.max(0, Math.round(Number(total) || 0));
   let known = 0, restQty = 0;
   const priced = workItems.map(it => {
     const m = prices[it.workType];
     const p = m && Object.prototype.hasOwnProperty.call(m, it.appliance) ? Number(m[it.appliance]) : NaN;
     const qty = Number(it.qty) || 1;
-    if (Number.isFinite(p) && p > 0) { known += p * qty; return { it, price: p }; }
+    if (Number.isFinite(p) && p > 0) { known += p * qty; return { it, price: p, qty }; }
     restQty += qty;
-    return { it, price: null };
+    return { it, price: null, qty };
   });
   const rest = sum - known;
-  if (rest < 0) return workItems;                         // 견적을 단가표 합계보다 낮게 고친 경우 — 나눌 기준이 없다
-  if (restQty === 0 && rest !== 0) return workItems;      // 직접 입력 줄이 없는데 합계가 다름 (견적을 직접 고침)
-  const each = restQty > 0 ? Math.floor(rest / restQty) : 0;
-  return priced.map(({ it, price }) => ({ ...it, quote: price != null ? price : each }));
+  const bad = { items: workItems, applied: false, mismatch: sum > 0 };
+  if (restQty > 0) {
+    if (rest < 0) return bad;                             // 직접 입력 줄에 넣을 금액이 음수
+    const each = Math.floor(rest / restQty);
+    return { items: priced.map(x => ({ ...x.it, quote: x.price != null ? x.price : each })), applied: true, mismatch: false };
+  }
+  if (rest !== 0) {
+    // 차액을 첫 번째 본작업 항목에 (없으면 첫 줄)
+    let i = priced.findIndex(x => x.it.workType !== "후드옵션");
+    if (i < 0) i = 0;
+    const unit = priced[i].price + Math.trunc(rest / priced[i].qty);
+    if (unit < 0 || rest % priced[i].qty !== 0) return bad;     // 0 아래로 내려가거나 수량으로 나눠떨어지지 않음
+    return { items: priced.map((x, k) => ({ ...x.it, quote: k === i ? unit : x.price })), applied: true, mismatch: false };
+  }
+  return { items: priced.map(x => ({ ...x.it, quote: x.price })), applied: true, mismatch: false };
+}
+export function withHoodQuotes(workItems, prices, total) {
+  return _hoodQuotePlan(workItems, prices, total).items;
+}
+// 견적 합계가 단가표와 맞지 않아 항목 금액을 정하지 못한 경우 (접수 화면 안내용)
+export function hoodQuoteMismatch(workItems, prices, total) {
+  return _hoodQuotePlan(workItems, prices, total).mismatch;
 }
 
 // 단가표 합계.  prices = { 서비스 이름: { 줄 이름: 단가 } } (DB 에서 읽은 것) 또는 null(못 읽음)

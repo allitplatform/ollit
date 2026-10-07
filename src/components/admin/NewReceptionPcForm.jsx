@@ -27,7 +27,7 @@ import {
   getAppliancePool,
   // 2026-06-17 Phase 2 — 카톡/KA 파서 (모바일 폼과 공유, Stage 1 확장).
   parseKakaoText, formatPhone,
-  hoodAutoEstimate, isHoodListItems, withHoodQuotes,
+  hoodAutoEstimate, isHoodListItems, withHoodQuotes, hoodQuoteMismatch,
 } from "../../utils/receptionForm.js";
 import { lookupRate, autoGenerateCustomer } from "../principal/NewReceptionScreenLite.jsx";
 import { calculateCommissionMultiRpc } from "../../lib/commissionPoliciesDb.js";
@@ -159,6 +159,8 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
   // 2026-10-07 — 주방후드 단가표 (DB). 못 읽으면 자동 견적 없이 직접 입력 + 안내.
   const hoodPrices = useHoodPrices();
   const hoodPriceNotice = isHoodListItems(workItems) && hoodPrices.ready && !hoodPrices.ok;
+  // 견적 합계가 단가표와 맞지 않아 항목별 금액을 정하지 못하는 경우 (2026-10-07)
+  const hoodMismatchNotice = !priceTBD && hoodPrices.ok && hoodQuoteMismatch(workItems, hoodPrices.list, form.estimateTotal || 0);
 
   // ── 자동 견적 ──
   useEffect(() => {
@@ -718,6 +720,11 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
 
           {/* 견적 금액 */}
           <Card t={t} title="견적금액" error={errors.estimateTotal}>
+            {hoodMismatchNotice && (
+              <div style={{ fontSize: 12, fontWeight: 700, color: "#E5484D", marginBottom: 8, lineHeight: 1.5 }}>
+                견적이 단가표와 맞지 않습니다 — 항목별 금액은 똑같이 나뉘어 저장됩니다. 견적을 다시 확인해 주세요.
+              </div>
+            )}
             {hoodPriceNotice && (
               <div style={{ fontSize: 12, fontWeight: 700, color: "#E5484D", marginBottom: 8, lineHeight: 1.5 }}>
                 주방후드 단가표를 불러오지 못했습니다 — 견적을 직접 입력해 주세요.
