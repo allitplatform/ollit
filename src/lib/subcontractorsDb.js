@@ -219,6 +219,10 @@ export const adminConfirmSubFeeExtra = (id, confirm = true) =>
   _call("admin_confirm_sub_fee_extra", { p_id: id, p_confirm: confirm });
 export const adminCancelSubFeeExtra = (id, reason) =>
   _call("admin_cancel_sub_fee_extra", { p_id: id, p_reason: reason });
+// 쿨가이(KB) 원청 전용 화면 (Mig 254) — 보기 전용, 허용된 칸만 내려온다
+export const partnerKbListTasks = () => _call("partner_kb_list_tasks", {});
+export const partnerKbGetTask = (taskId) => _call("partner_kb_get_task", { p_task_id: taskId });
+export const partnerKbListRemits = () => _call("partner_kb_list_remits", {});
 export const adminListPrincipalRemits = () => _call("admin_list_principal_remits", {});
 export const adminMarkPrincipalRemitPaid = (remitId, paid = true) =>
   _call("admin_mark_principal_remit_paid", { p_remit_id: remitId, p_paid: !!paid });

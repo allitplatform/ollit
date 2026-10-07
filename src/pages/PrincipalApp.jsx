@@ -203,7 +203,7 @@ const SAMPLES = [
   },
 ];
 
-const THEMES = {
+export const THEMES = {
   dark: {
     name: "🌑 다크",
     bg: "#1A1512", bgElevated: "#221C18", bgInset: "#13100E",
@@ -3268,7 +3268,8 @@ function SettleTab({ t, tasks }) {
   );
 }
 
-function InfoTab({ t, user, mode, setMode, onLogout }) {
+// 2026-10-07 — 쿨가이 전용 화면(KbPartnerApp)에서도 쓴다 (내용 변경 없음, 내보내기만)
+export function InfoTab({ t, user, mode, setMode, onLogout }) {
   const isPcInfo = useIsPc();
   const principalLabel = getPrincipalLabel(user) || "원청";
   const userName       = user?.name || `${principalLabel} 대표`;

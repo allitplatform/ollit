@@ -7,6 +7,7 @@ import EngineerApp from "./pages/EngineerApp.jsx";
 import HappycallApp from "./pages/HappycallApp.jsx";
 import AdminApp from "./pages/AdminApp.jsx";
 import PrincipalApp from "./pages/PrincipalApp.jsx";
+import KbPartnerApp from "./pages/KbPartnerApp.jsx";
 import SubManagerApp from "./pages/SubManagerApp.jsx";
 import LandingApp from "./pages/LandingApp.jsx";
 import MarketingPwaApp, { ClientAdView } from "./pages/MarketingPwaApp.jsx";
@@ -245,6 +246,10 @@ export default function App() {
       case "admin":
         return <AdminApp user={currentUser} onLogout={handleLogout} onSwitchRole={handleSwitchRole} />;
       case "principal":
+        // 2026-10-07 Mig 254 — 쿨가이(KB) 원청은 전용 화면 (보기 전용, 서버 함수만). 다른 원청은 그대로.
+        if (Array.isArray(currentUser.principals) && currentUser.principals.some(p => p && p.code === "KB")) {
+          return <KbPartnerApp user={currentUser} onLogout={handleLogout} />;
+        }
         return <PrincipalApp user={currentUser} onLogout={handleLogout} />;
       case "sub_manager":
         // 2026-10-06 Mig 212~214 — 협력사 관리자 화면 (원청 화면과 별개, RPC 전용)
