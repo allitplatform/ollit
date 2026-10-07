@@ -18,6 +18,7 @@ import { Copy, Pencil } from "lucide-react";
 import { supabase } from "../../lib/supabase.js";
 import { currentUserId } from "../../lib/cancelRpc.js";
 import { parseRegion } from "../../utils/regionParser.js";
+import { relocationLine } from "../../utils/relocation.js";
 
 async function editTaskAddress(task, onToast) {
   const cur = task.fullAddress || task.address || "";
@@ -117,9 +118,17 @@ function DestAddressLine({ task, iconColor }) {
   );
 }
 
+//   compact: 목록 카드용 — 이전설치면 "철거 강남구 → 설치 도봉구" 한 줄만 (두 줄은 상세 · 작업 화면에서)
 export function AddressLine(props) {
   const dest = String(props?.task?.destAddress || props?.task?.dest_address || "").trim();
   if (!dest) return <AddressLineBase {...props}/>;
+  if (props.compact) {
+    return (
+      <div style={{ ...(props.baseStyle || {}), minWidth: 0, fontWeight: 700, color: "#6366F1", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+        {relocationLine(props.task) || dest}
+      </div>
+    );
+  }
   return (
     <div style={{ minWidth: 0 }}>
       <div style={{ fontSize: 11, fontWeight: 800, color: "#F97316", marginBottom: 2 }}>① 철거 (출발)</div>

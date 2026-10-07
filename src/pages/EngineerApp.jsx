@@ -1490,6 +1490,7 @@ function MainScreen({
                   <AddressLine
                     task={task}
                     variant="plain"
+                    compact
                     lineClamp={1}
                     iconColor="var(--text-secondary)"
                     baseStyle={{

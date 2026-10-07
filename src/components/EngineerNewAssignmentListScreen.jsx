@@ -158,6 +158,7 @@ function AssignmentCard({ task, onClick }) {
       <AddressLine
         task={task}
         variant="plain"
+        compact
         iconColor="var(--text-secondary)"
         baseStyle={{
           fontSize: 14, color: "var(--text-secondary)",
