@@ -11,7 +11,7 @@ import { engineerDisplayName } from "../lib/subcontractorsDb.js";
 import { formatDateTimeKST } from "../utils/dateLabel.js";
 import { isRelocationTask, relocationLine, mapSearchLinks, mapAppLinks } from "../utils/relocation.js";
 import { RelocationBlocks } from "./RelocationParts.jsx";
-import { splitAddress } from "../utils/addressParts.js";
+import { splitAddress, addressHead } from "../utils/addressParts.js";
 
 const GUT = 12;
 const cardBox = {
@@ -74,7 +74,8 @@ function whenText(task) {
 }
 
 //   embedded: 맨 위 카드 안에 넣을 때 (자기 카드 테두리 없이)
-export function PcStatusStrip({ task, embedded = false, canceled = false, onAssign, onScheduleChange, onComplete, onShowMoney, onCall, onMessage, onEngineerCall }) {
+//   mobile: 좁은 화면 — 지금 할 일 버튼 한 줄(같은 폭) + 통화 · 문자 한 줄, 지역은 구·동
+export function PcStatusStrip({ task, embedded = false, mobile = false, canceled = false, onAssign, onScheduleChange, onComplete, onShowMoney, onCall, onMessage, onEngineerCall }) {
   const stage = stageOfTask(task);
   const isSub = !!task.subcontractorId;
   const steps = [
@@ -86,10 +87,11 @@ export function PcStatusStrip({ task, embedded = false, canceled = false, onAssi
   ];
   const eng = engineerDisplayName(task, "담당 없음");
   const pay = PAYMENT_METHOD_LABELS[task.paymentMethod] || task.paymentMethod || "결제 미정";
-  const area = relocationLine(task) || task.region || "";
+  const area = relocationLine(task) || (mobile ? addressHead(task.fullAddress || task.address || "") : "") || task.region || "";
   const main = {
-    border: "none", borderRadius: 10, padding: "10px 14px", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit",
+    border: "none", borderRadius: 10, padding: mobile ? "12px 8px" : "10px 14px", fontSize: 13.5, fontWeight: 800, fontFamily: "inherit",
     cursor: "pointer", background: "var(--accent, #FF1B8D)", color: "#fff", whiteSpace: "nowrap",
+    ...(mobile ? { flex: 1, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis" } : {}),
   };
   const ghost = { ...main, background: "var(--bg-secondary)", color: "var(--text-primary)", border: "1px solid var(--border)" };
 
@@ -141,12 +143,23 @@ export function PcStatusStrip({ task, embedded = false, canceled = false, onAssi
       </div>
       {canceled && <div style={{ fontSize: 12.5, fontWeight: 800, color: "var(--danger, #E5484D)", marginTop: 8 }}>취소된 작업입니다</div>}
 
+      {mobile ? (
+        <>
+          {actions.length > 0 && <div style={{ display: "flex", gap: 8, marginTop: 14 }}>{actions}</div>}
+          <div style={{ display: "flex", gap: 8, marginTop: actions.length > 0 ? 8 : 14 }}>
+            {onCall && <button type="button" onClick={onCall} style={ghost}>📞 통화</button>}
+            {onMessage && <button type="button" onClick={onMessage} style={ghost}>💬 문자</button>}
+            {onEngineerCall && task.engineerPhone && <button type="button" onClick={onEngineerCall} style={ghost}>📞 기사</button>}
+          </div>
+        </>
+      ) : (
       <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 14 }}>
         {actions}
         {onCall && <button type="button" onClick={onCall} style={ghost}>📞 고객 통화</button>}
         {onMessage && <button type="button" onClick={onMessage} style={ghost}>💬 문자</button>}
         {onEngineerCall && task.engineerPhone && <button type="button" onClick={onEngineerCall} style={ghost}>📞 기사 통화</button>}
       </div>
+      )}
     </div>
   );
 }
@@ -226,19 +239,20 @@ export function PcPlaceCard({ task, onSaveDest }) {
 
 // 기존 동작을 그대로 부른다: 출장비만 정산 · 작업 전체 취소(사유 입력 창) / 품목별 취소는 금액 카드의 항목 줄에서.
 //   children: 협력사 작업의 [변경 요청] [직영으로 회수] (기존 부품)
-export function PcExceptionCard({ task, onVisitOnly, onCancel, onPartialCancel, children = null }) {
+//   compact: 모바일 — 버튼 4개를 2×2 로
+export function PcExceptionCard({ task, onVisitOnly, onCancel, onPartialCancel, children = null, compact = false }) {
   const closed = ["완료", "정산완료", "취소", "visit_only"].includes(String(task.status || ""));
   const item = (emoji, title, desc, onClick, danger) => (
     <button type="button" onClick={onClick} disabled={!onClick} style={{
-      display: "flex", alignItems: "center", gap: 10, width: "100%", textAlign: "left", fontFamily: "inherit",
+      display: "flex", alignItems: compact ? "flex-start" : "center", gap: compact ? 7 : 10, width: "100%", textAlign: "left", fontFamily: "inherit",
       cursor: onClick ? "pointer" : "default", opacity: onClick ? 1 : 0.45,
       background: "transparent", border: `1px solid ${danger ? "rgba(229,72,77,0.5)" : "var(--border)"}`, borderRadius: 10,
-      padding: "10px 12px", marginBottom: 6,
+      padding: compact ? "10px 9px" : "10px 12px", marginBottom: compact ? 0 : 6,
     }}>
       <span style={{ fontSize: 16 }}>{emoji}</span>
       <span style={{ minWidth: 0 }}>
         <b style={{ display: "block", fontSize: 13.5, color: danger ? "var(--danger, #E5484D)" : "var(--text-primary)" }}>{title}</b>
-        <span style={{ fontSize: 12, color: "var(--text-secondary)" }}>{desc}</span>
+        <span style={{ fontSize: compact ? 11 : 12, color: "var(--text-secondary)", lineHeight: 1.35, display: "block" }}>{desc}</span>
       </span>
     </button>
   );
@@ -246,12 +260,14 @@ export function PcExceptionCard({ task, onVisitOnly, onCancel, onPartialCancel, 
     <div style={{ ...cardBox, borderColor: "rgba(229,72,77,0.55)" }}>
       <div style={cardTitle}>
         <span>⚙️ 예외 처리</span>
-        <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-tertiary)" }}>드물게 쓰는 기능 · 누르면 사유 입력</span>
+        <span style={{ fontSize: 11.5, fontWeight: 600, color: "var(--text-tertiary)" }}>{compact ? "누르면 사유 입력" : "드물게 쓰는 기능 · 누르면 사유 입력"}</span>
       </div>
-      {item("💸", "출장비만 정산", "현장에 갔지만 작업을 못 한 경우", closed ? null : onVisitOnly, false)}
-      {item("✂️", "품목별 취소", "일부 항목만 취소 (예: 설치만 취소)", closed ? null : onPartialCancel, false)}
-      {item("🚫", "작업 전체 취소", "사유 필수 · 고객 사정 / 일정 조율 실패 / 현장 불가 / 기타", task.status === "취소" ? null : onCancel, true)}
-      {item("🗑", "오접수 처리", "실수 접수 · 통계에서 빠짐 (기록은 남음) — 취소 사유에서 '오접수'를 고릅니다", task.status === "취소" ? null : onCancel, true)}
+      <div style={compact ? { display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 1fr)", gap: 6, marginBottom: 6 } : undefined}>
+      {item("💸", "출장비만 정산", compact ? "갔지만 작업 못 함" : "현장에 갔지만 작업을 못 한 경우", closed ? null : onVisitOnly, false)}
+      {item("✂️", "품목별 취소", compact ? "일부 항목만 취소" : "일부 항목만 취소 (예: 설치만 취소)", closed ? null : onPartialCancel, false)}
+      {item("🚫", "작업 전체 취소", compact ? "사유 필수" : "사유 필수 · 고객 사정 / 일정 조율 실패 / 현장 불가 / 기타", task.status === "취소" ? null : onCancel, true)}
+      {item("🗑", "오접수 처리", compact ? "사유에서 '오접수' 선택" : "실수 접수 · 통계에서 빠짐 (기록은 남음) — 취소 사유에서 '오접수'를 고릅니다", task.status === "취소" ? null : onCancel, true)}
+      </div>
       {children}
     </div>
   );

@@ -152,8 +152,11 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
   const isPcScreen = useIsPc();
   const [panelRef, panelW] = usePanelWidth();
   const moneyRef = useRef(null);
-  const pcLayout = !subMode && isPcScreen;
-  const twoCol = pcLayout && panelW >= 760;
+  // 2026-10-07 (67) — 모바일(운영자)도 같은 새 배치를 쓴다 (1단). pcLayout = "새 배치를 쓰는가" (협력사 관리자 화면만 예전 배치).
+  //   mobileLayout: 새 배치 + 좁은 화면 → 순서가 고객 → 장소 → 금액 → 수행 → 예외 처리 → 이력.
+  const pcLayout = !subMode;
+  const mobileLayout = pcLayout && !isPcScreen;
+  const twoCol = pcLayout && isPcScreen && panelW >= 760;
   const reloadTask = async () => {
     if (!initialTask?.id) return;
     try {
@@ -403,6 +406,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
           <MainCard task={task} onStatusChange={onStatusChange} pc>
           <PcStatusStrip
             embedded
+            mobile={mobileLayout}
             task={task}
             canceled={isEffectivelyCanceled(task)}
             onAssign={task.subcontractorId ? () => setSubPick(true) : onAssign}
@@ -417,9 +421,11 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
           <div style={{ height: 12 }}/>
           <SubChangeRequestBand task={task} subMode={false} onChanged={reloadTask} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
           <CancelBanner task={task} force={isEffectivelyCanceled(task)} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
-          <div style={{ display: "grid", gridTemplateColumns: twoCol ? "minmax(0, 1fr) minmax(0, 1fr)" : "minmax(0, 1fr)", alignItems: "start", gap: 0 }}>
-            {/* 금액 · 수행 — 2단이면 오른쪽(스크롤을 따라옴), 1단이면 맨 위 카드 바로 아래 */}
-            <div style={{ order: twoCol ? 2 : 1, position: twoCol ? "sticky" : "static", top: 8, minWidth: 0 }}>
+          <div style={{ display: "grid", gridTemplateColumns: twoCol ? "minmax(0, 1fr) minmax(0, 1fr)" : "minmax(0, 1fr)", gridTemplateRows: twoCol ? "auto 1fr" : undefined, alignItems: "start", gap: 0 }}>
+            {/* 금액 · 수행 — 2단이면 오른쪽(스크롤을 따라옴), PC 1단이면 맨 위 카드 바로 아래, 모바일이면 고객 · 장소 다음 */}
+            <div style={twoCol
+              ? { gridColumn: 2, gridRow: "1 / span 2", position: "sticky", top: 8, minWidth: 0 }
+              : { order: mobileLayout ? 2 : 1, minWidth: 0 }}>
               <PcSection title="금액" anchorRef={moneyRef}>
                 <SubFeeSplitCard task={task}/>
                 {(task.subcontractorId || getCategoryMetaOfRow(task).key === "hood") && (
@@ -427,7 +433,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
                 )}
                 {/* 2차 — 표 하나: 항목 | 견적 | 받은 돈 → 합계 → 비율 막대 → 자재비 · 부가세 */}
                 {task.principalCode !== "usol_n" && (
-                  <TaskItemsCard task={task} user={user} onReload={reloadTask} pc
+                  <TaskItemsCard task={task} user={user} onReload={reloadTask} pc narrow={mobileLayout}
                     onPartialCancel={() => setShowPartialCancelDialog(true)}
                     footer={<PcMoneySplit task={task} onEditMaterial={async () => {
                       const cur = Number(task.materialCost || 0);
@@ -454,7 +460,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
               {/* 직영 작업을 협력사로 넘기는 기존 카드 (그 협력사가 맡는 종목일 때만 나온다) */}
               {!task.subcontractorId && <SubcontractorCard task={task} onChanged={reloadTask}/>}
             </div>
-            <div style={{ order: twoCol ? 1 : 2, minWidth: 0 }}>
+            <div style={twoCol ? { gridColumn: 1, gridRow: 1, minWidth: 0 } : { order: mobileLayout ? 1 : 2, minWidth: 0 }}>
               <PcCustomerCard task={task} onEdit={() => setEditingBasic(true)}>
                 <RequestMemoCard task={task} memos={memos} onMemoAdd={onMemoAdd} embedded/>
               </PcCustomerCard>
@@ -463,6 +469,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
                 if (res && res.ok !== false) reloadTask();
                 return res;
               }}/>
+            </div>
+            <div style={twoCol ? { gridColumn: 1, gridRow: 2, minWidth: 0 } : { order: 3, minWidth: 0 }}>
               {task.reassignRequest?.requestedAt && task.status !== "취소" && <ReassignRequestCard request={task.reassignRequest} subMode={false}/>}
               {task.consent?.signedAt && <ConsentCard consent={task.consent}/>}
               {!task.consent?.signedAt
@@ -477,6 +485,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
               )}
               <PcExceptionCard
                 task={task}
+                compact={mobileLayout}
                 onVisitOnly={() => setShowVisitOnlyDialog(true)}
                 onCancel={() => setShowCancelDialog(true)}
                 onPartialCancel={() => setShowPartialCancelDialog(true)}
@@ -1591,7 +1600,8 @@ function SettlementRow({ label, value, color, bold }) {
 // 2026-05-31 — task_items per-item 표시 + 신규 흐름 (non-usol_n / non-prepaid) 측 받은 돈 input.
 // onBlur 측 setTaskItemReceivedAmount 호출 → DB 트리거 chain → tasks.received_total + extra_fee + compute_payment 자동 sync.
 //   pc: 운영자 PC 새 배치(표 하나) / footer: 합계 아래에 넣을 내용 / onPartialCancel: 품목별 취소 창 열기
-function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPartialCancel = null }) {
+//   narrow: 모바일 — 표는 3칸(항목 | 견적 | 받은 돈), 버튼(✏️ ✂️ · + 항목 추가)은 줄 아래 작은 줄로
+function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPartialCancel = null, narrow = false }) {
   if (task?.type === "external") return null;
 
   const items = Array.isArray(task?.workItems) ? task.workItems : [];
@@ -1703,7 +1713,11 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
   // 2026-10-07 — 운영자 PC 새 배치: 표 하나 (항목 | 견적 | 받은 돈) → 합계 → 아래 내용(footer).
   //   입력칸 · 저장(handleBlur) · 수정 · 추가 창은 위에서 쓰는 것과 똑같은 것이다. 모양만 다르다.
   if (pc) {
-    const grid = { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 104px 118px auto", gap: 8, alignItems: "center" };
+    const grid = narrow
+      ? { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 76px 96px", gap: "4px 8px", alignItems: "center" }
+      : { display: "grid", gridTemplateColumns: "minmax(0, 1fr) 104px 118px auto", gap: 8, alignItems: "center" };
+    const btnCell = narrow ? { gridColumn: "1 / -1", display: "flex", gap: 6, justifyContent: "flex-end" } : { display: "inline-flex", gap: 4, justifyContent: "flex-end" };
+    const rowBtnSize = narrow ? { padding: "6px 12px", fontSize: 12 } : {};
     // 2026-10-07 — 완료 전(접수 · 미배정 · 배정 · 일정 확정)에는 받은 돈을 입력하지 않는다 (미리 받는 돈 없음). 진행부터 입력칸.
     //   일정 확정인데 일정 시각이 지난 작업은 연다 (운영자가 대신 마무리).
     const beforeWork = isBeforeWork(task);
@@ -1719,13 +1733,14 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
             {!isVisitOnly ? (
               <button type="button" onClick={() => canEdit && setShowAdd(true)} disabled={!canEdit}
                 title={canEdit ? "항목 추가 (정책 검증)" : disabledReason} style={{
-                  padding: "4px 9px", borderRadius: 7, fontSize: 11, fontWeight: 800, fontFamily: "inherit", whiteSpace: "nowrap",
+                  ...(narrow ? { gridColumn: "1 / -1", justifySelf: "end", order: -1, marginBottom: 4 } : {}),
+                  padding: narrow ? "6px 12px" : "4px 9px", borderRadius: 7, fontSize: narrow ? 12 : 11, fontWeight: 800, fontFamily: "inherit", whiteSpace: "nowrap",
                   background: canEdit ? "rgba(255,27,141,0.1)" : "var(--bg-secondary)",
                   border: `1px dashed ${canEdit ? "#FF1B8D" : "var(--border)"}`,
                   color: canEdit ? "#FF1B8D" : "var(--text-tertiary, var(--text-secondary))",
                   cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.5,
                 }}>+ 항목 추가</button>
-            ) : <span/>}
+            ) : (narrow ? null : <span/>)}
           </div>
           {items.length === 0 && (
             <div style={{ padding: "14px 0", fontSize: 12.5, fontWeight: 700, color: "#B45309" }}>⚠️ 작업 항목이 없습니다. [항목 추가]로 등록해 주세요.</div>
@@ -1741,7 +1756,7 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
             const name = workItemName(it, colors.name);
             return (
               <div key={it.id || idx} style={{ ...grid, padding: "9px 0", borderBottom: "1px solid var(--border)", opacity: isCanceled ? 0.55 : 1 }}>
-                <span style={{ minWidth: 0, fontSize: 13.5, fontWeight: 700, color: isCanceled ? "#9CA3AF" : "var(--text-primary)", textDecoration: isCanceled ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                <span style={{ minWidth: 0, fontSize: 13.5, fontWeight: 700, color: isCanceled ? "#9CA3AF" : "var(--text-primary)", textDecoration: isCanceled ? "line-through" : "none", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: narrow ? "normal" : "nowrap", wordBreak: "keep-all" }}>
                   <span style={{ marginRight: 5, filter: isCanceled ? "grayscale(1)" : "none" }}>{colors.icon}</span>
                   {name} ×{qty}
                   {isCanceled && <span style={{ marginLeft: 6, fontSize: 10, fontWeight: 800, color: "#A32D2D" }}>취소</span>}
@@ -1784,23 +1799,23 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
                 ) : (
                   <span style={{ textAlign: "right", fontSize: 12, color: "var(--text-tertiary)" }}>—</span>
                 )}
-                <span style={{ display: "inline-flex", gap: 4, justifyContent: "flex-end" }}>
+                <span style={btnCell}>
                   {!isCanceled && it.id && !isVisitOnly && (
                     <button type="button" onClick={() => canEdit ? setEditItem(it) : null} disabled={!canEdit}
                       title={canEdit ? "견적 수정" : disabledReason} aria-label="견적 수정" style={{
-                        padding: "3px 7px", borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: "inherit",
+                        padding: "3px 7px", borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: "inherit", ...rowBtnSize,
                         background: canEdit ? "rgba(255,27,141,0.1)" : "var(--bg-secondary)",
                         border: `1px solid ${canEdit ? "#FF1B8D" : "var(--border)"}`,
                         color: canEdit ? "#FF1B8D" : "var(--text-tertiary, var(--text-secondary))",
                         cursor: canEdit ? "pointer" : "not-allowed", opacity: canEdit ? 1 : 0.5, whiteSpace: "nowrap",
-                      }}>✏️</button>
+                      }}>{narrow ? "✏️ 견적 수정" : "✏️"}</button>
                   )}
                   {/* 2-2 — 품목별 취소도 같은 줄에서 (기존 품목별 취소 창을 연다) */}
                   {!isCanceled && it.id && !isVisitOnly && onPartialCancel && (
                     <button type="button" onClick={onPartialCancel} title="품목별 취소" aria-label="품목별 취소" style={{
-                      padding: "3px 7px", borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: "inherit",
+                      padding: "3px 7px", borderRadius: 6, fontSize: 10, fontWeight: 700, fontFamily: "inherit", ...rowBtnSize,
                       background: "transparent", border: "1px solid var(--border)", color: "var(--text-secondary)", cursor: "pointer",
-                    }}>✂️</button>
+                    }}>{narrow ? "✂️ 취소" : "✂️"}</button>
                   )}
                   
                 </span>
@@ -1811,7 +1826,7 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
             <span style={{ color: "var(--text-primary)" }}>합계</span>
             <span className="mono" style={{ textAlign: "right", color: "var(--text-primary)" }}>{sumQuote.toLocaleString("ko-KR")}</span>
             <span className="mono" style={{ textAlign: "right", color: "#D4537E" }}>{beforeWork ? "" : (usesReceivedTotalFlow ? Number(task?.receivedTotal || 0).toLocaleString("ko-KR") : "—")}</span>
-            <span/>
+            {!narrow && <span/>}
           </div>
           {footer}
           {!isVisitOnly && !canEdit && disabledReason && (
