@@ -25,6 +25,7 @@ import { isEffectivelyCanceled } from "../utils/taskCancelState.js";
 // 2026-07-11 — visit_only 판정 (색 판정에서 냉매 등 prefill 잔존 workType 무시).
 import { isPureVisitOnly, isAllItemsVisit } from "../utils/visitFeeDetect.js";
 import { TimelineDatePicker } from "../components/TimelineDatePicker.jsx";
+import { relocationLine } from "../utils/relocation.js";
 import { AdminPcDateNav, shiftDate } from "./AdminPcDateNav.jsx";
 import { adminRescheduleTask, adminReassignTask, clearReassignRequest } from "../lib/adminTaskRpc.js";
 import { supabase } from "../lib/supabase.js";
@@ -1658,7 +1659,7 @@ function TaskBar({ task, laneRef, sourceLaneKey, readOnly = false, siblings, lan
             opacity: 0.88,
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             lineHeight: 1.2,
-          }}>{[region, baseTimeStr].filter(Boolean).join(" · ")}</span>
+          }}>{[relocationLine(task) || region, baseTimeStr].filter(Boolean).join(" · ")}</span>
         )}
       </div>
       <span style={{
@@ -1846,6 +1847,9 @@ function UnassignedPanel({ tasks, subTasks = [], subLabel = "협력사", selecte
               <div style={{ fontSize: 12, color: "var(--text-secondary)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                 {cardItems(t)}{t.principal && t.principal !== "올데이케어" ? ` · 원청 ${t.principal}` : ""}
               </div>
+              {relocationLine(t) && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: "#6366F1", marginTop: 2, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{relocationLine(t)}</div>
+              )}
               {subTarget && (
                 <button type="button" data-no-drag="1" onClick={(e) => { e.stopPropagation(); onHandOver(t, subTarget); }} style={{
                   marginTop: 6, background: "transparent", border: "none", padding: 0, cursor: "pointer", fontFamily: "inherit",

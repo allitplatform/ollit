@@ -78,6 +78,8 @@ import { SettlementScreen as SettlementDailyClose } from "../components/Settleme
 import { PrincipalSettlementScreen } from "../components/PrincipalSettlementScreen.jsx";
 import { startDailyAlertScheduler, stopDailyAlertScheduler } from "../utils/dailyAlertScheduler.js";
 import { computeDashboardStats, TASK_FILTERS, _getEffectiveStatus } from "../utils/dashboardStats.js";
+import { isRelocationItems, splitRelocationItems } from "../utils/relocation.js";
+import { RelocationFields } from "../components/RelocationParts.jsx";
 // 2026-07-14 — Stage 3: 기간 집계 RPC 날짜 계산용 (매출 카드와 동일 규칙).
 import { getMonthStart, getPrevMonthSameDay, getPrevMonthStart, getMonthRange, computeRevenueByYmRange } from "../utils/revenueStats.js";
 import { engineerDisplayName } from "../lib/subcontractorsDb.js";
@@ -635,6 +637,9 @@ function _v14NormalizeTask(t) {
     supplyAmount: t.supplyAmount ?? t.supply_amount ?? null,
     supplyShortfallReason: t.supplyShortfallReason ?? t.supply_shortfall_reason ?? null,
     vatIncluded: (t.vatIncluded ?? t.vat_included) === true,
+    // Mig 259 — 이전설치: 설치(도착) 주소 · 메모. 3곳 매핑.
+    destAddress: t.destAddress ?? t.dest_address ?? "",
+    destDetail:  t.destDetail ?? t.dest_detail ?? "",
     // 2026-05-21 Phase 5 Step 0.G-6-C — task 레벨 boolean (유솔N 본작업 + 냉매)
     hasUsolNMainRefrigerant: !!t.hasUsolNMainRefrigerant,
     paymentMethod,
@@ -10507,6 +10512,8 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
 
   // Step 2-B-2 — KA 1way 자동 견적 계산 — 사용자가 견적을 직접 입력하면 자동 X
   const [estimateTouched, setEstimateTouched] = useState(false);
+  // 2026-10-07 Mig 259 — 이전설치: 설치 주소 · 메모 · 철거비 · 설치비
+  const [reloc, setReloc] = useState({ destAddress: "", destDetail: "", removeFee: 0, installFee: 0 });
 
   // 2026-06-08 — 자동 견적 (quote_rates 측 측 측 측) — 원청별 가격표 + 측 측 표시값
   //   quoteRates : 측 원청 principals.quote_rates jsonb (null = 측 측 측 / {} = 빈 가격표)
@@ -10931,6 +10938,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
     if (!form.principal)            errs.principal = "원청 선택";
     if (!form.phone.trim())         errs.phone = "연락처 입력";
     if (!form.address.trim())       errs.address = "주소 입력";
+    if (isRelocationItems(workItems) && !String(reloc.destAddress || "").trim()) errs.destAddress = "설치 주소를 입력해 주세요";
     // 2026-07-11 — 사장님 spec: workItems 비어있으면 '기종 미정' 체크 필수.
     if (workItems.length === 0 && !applianceUndecided) {
       errs.workItems = "작업 항목 1개 이상 or '기종 미정' 체크";
@@ -10979,6 +10987,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
         customer:      finalCustomer,
         phone:         form.phone,
         address:       form.address,
+        ...(isRelocationItems(workItems) ? { destAddress: reloc.destAddress, destDetail: reloc.destDetail } : {}),
         region,
         // 2026-07-11 — 사장님 spec: workItems 비어있어도 종목(workType) 보존 (홈페이지 전환).
         workType:      head.workType || form.workType || "",
@@ -10992,7 +11001,8 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
         //   기사앱 [기종 선택] 배너가 계속 뜨고, 기종 선택 시 배열이 통째로 교체된다.
         workItems:     (splitItems.length === 0 && applianceUndecided && !!form.workType)
           ? [{ workType: form.workType, appliance: "(미정)", qty: 1, quote: 0 }]
-          : withHoodQuotes(splitItems, hoodPrices.ok ? hoodPrices.list : null, form.estimateTotal || 0),
+          : withHoodQuotes(isRelocationItems(splitItems) ? splitRelocationItems(splitItems, reloc.removeFee, reloc.installFee) : splitItems,
+                           hoodPrices.ok ? hoodPrices.list : null, form.estimateTotal || 0),
         // 2026-07-11 — 사장님 spec: 기종 미정 플래그 (category_data 저장).
         applianceUndecided: workItems.length === 0 && applianceUndecided,
         quote:         form.estimateTotal,
@@ -11326,6 +11336,18 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
             className={justFilled.has("address") ? "flash-highlight" : undefined}
             style={inputStyle(!!errors.address)}
           />
+          {/* 2026-10-07 Mig 259 — 이전설치를 고르면 설치 주소 · 철거비 · 설치비 칸이 나온다 (위 주소 = 철거 주소) */}
+          {isRelocationItems(workItems) && (
+            <RelocationFields
+              value={reloc}
+              error={errors.destAddress || ""}
+              onChange={(v) => {
+                setReloc(v);
+                const sum = (Number(v.removeFee) || 0) + (Number(v.installFee) || 0);
+                if (sum > 0) { update("estimateTotal", sum); setEstimateTouched(true); }
+              }}
+            />
+          )}
           {region && (
             <div style={{ marginTop: 6, fontSize: 10, color: t.textMuted, fontWeight: 600 }}>
               <MapPin size={10} style={{ display: "inline", verticalAlign: "middle", marginRight: 3 }}/>

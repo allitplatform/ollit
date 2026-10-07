@@ -1,5 +1,7 @@
 import { subStaffSetReceived, engineerSetHoodVat } from "../lib/subcontractorsDb.js";
 import { getCategoryMetaOfRow } from "../lib/serviceCatalog.js";
+import { isRelocationTask } from "../utils/relocation.js";
+import { RelocationBlocks } from "./RelocationParts.jsx";
 // V13-FINAL — 기사 PWA 작업 상세 (3 상태 + 부분 취소 + 일정 변경 + 출장비만)
 // V14 — 사진 분류 X / 완료 분기 3가지 (완료 / 부분 / 출장비만)
 // 진입: 오늘 화면 / 새 배정 리스트 / 다음 일정
@@ -1047,6 +1049,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
       )}
 
       {/* V14 — 확정/진행중 = 통합 메인 카드 (시간 + 작업 항목 + 고객) */}
+      {/* 2026-10-07 Mig 259 — 이전설치: 철거(출발) / 설치(도착) 두 블록 + 지도 열기 · 주소 복사 */}
+      {isRelocationTask(task) && <RelocationBlocks task={task} style={{ margin: "0 16px 12px" }}/>}
       {(isConfirmed || isInProgress) && <WorkMainCard task={task} itemEngineerAmounts={itemEngineerAmounts}/>}
       {isCompleted && <StatusBlockCompleted task={task}/>}
       {isWaiting && <StatusBlockWaiting task={task}/>}

@@ -134,6 +134,9 @@ export function rowToTask(row) {
     customer:     row.customer_name,
     phone:        row.phone,
     address:      row.address,
+    // Mig 259 — 이전설치: 설치(도착) 주소 · 메모. (address = 철거 주소) 3곳 매핑.
+    destAddress:  row.dest_address || "",
+    destDetail:   row.dest_detail || "",
     region:       row.district,
 
     // 요청 (채널 컬럼은 DB 보존 / 코드 측 미사용 — usol_n bulk insert "네이버" fingerprint 전용)
@@ -359,6 +362,9 @@ export function taskToRow(task, partial = false) {
   //   이미 스트립하나 시트 import / 수동 paste 등 우회 경로 있어 저장 지점에서 재차 방어.
   if (task.phone    !== undefined) row.phone         = typeof task.phone === "string" ? task.phone.trim() : task.phone;
   if (task.address  !== undefined) row.address       = task.address;
+  // Mig 259 — 값이 있을 때만 싣는다 (259 실행 전에도 이전설치가 아닌 접수는 그대로 저장되게)
+  if (task.destAddress) row.dest_address = String(task.destAddress).trim();
+  if (task.destDetail)  row.dest_detail  = String(task.destDetail).trim();
   if (task.region   !== undefined) row.district      = task.region;
 
   // 2026-06-05 — channel write 활성화 (Mig 098 가드용).
@@ -1026,6 +1032,8 @@ export async function createTaskAdapter(taskData, actor = null) {
         customer:      taskData.customer  || "",
         phone:         taskData.phone     || "",
         address:       taskData.address   || "",
+        destAddress:   taskData.destAddress || "",     // Mig 259 — 이전설치 설치 주소
+        destDetail:    taskData.destDetail  || "",
         region:        taskData.region    || taskData.district || "",
         paymentMethod: taskData.paymentMethod || null,
         requestNote:   taskData.memo      || taskData.request || taskData.requestNote || "",

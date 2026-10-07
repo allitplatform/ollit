@@ -42,6 +42,8 @@ import { parseRegion } from "../../utils/regionParser.js";
 import { resolveAddressDistrict } from "../../lib/jusoApi.js";
 import { ALL_REGIONS } from "../../data/engineers.js";
 import { useServiceCatalog, shortServiceLabel, useHoodPrices } from "../../lib/serviceCatalog.js";
+import { isRelocationItems, splitRelocationItems } from "../../utils/relocation.js";
+import { RelocationFields } from "../RelocationParts.jsx";
 
 // formatPhone 은 receptionForm.js 에서 import (DRY).
 function fmtKRW(n) { return `₩${(Number(n) || 0).toLocaleString("ko-KR")}`; }
@@ -89,6 +91,9 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
   //   init.applianceUndecided true 로 넘어오면 기본 체크 (홈페이지 전환 흐름).
   const [applianceUndecided, setApplianceUndecided] = useState(init.applianceUndecided === true);
   const [estimateTouched, setEstimateTouched] = useState(false);
+  // 2026-10-07 Mig 259 — 이전설치: 설치 주소 · 메모 · 철거비 · 설치비
+  const [reloc, setReloc] = useState({ destAddress: "", destDetail: "", removeFee: 0, installFee: 0 });
+  const [relocError, setRelocError] = useState("");
   const [workItems, setWorkItems] = useState(Array.isArray(init.workItems) ? init.workItems : []);
   const [editItem, setEditItem] = useState({ workType: "", appliance: "", qty: 1 });
   const [pasteText, setPasteText] = useState("");
@@ -368,6 +373,12 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
     if (!form.principal) errs.principal = "원청을 선택하세요.";
     if (!form.phone || form.phone.replace(/\D/g, "").length < 9) errs.phone = "연락처를 입력하세요.";
     if (!form.address) errs.address = "주소를 입력하세요.";
+    if (isRelocationItems(workItems) && !String(reloc.destAddress || "").trim()) {
+      errs.destAddress = "설치 주소를 입력해 주세요.";
+      setRelocError(errs.destAddress);
+    } else {
+      setRelocError("");
+    }
     // 2026-07-11 — 사장님 spec: workItems 비어있으면 '기종 미정' 체크 필수.
     if (workItems.length === 0 && !applianceUndecided) {
       errs.workItems = "작업항목을 1개 이상 추가하거나 '기종 미정'을 체크하세요.";
@@ -410,6 +421,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
         customer:      finalCustomer,
         phone:         form.phone,
         address:       form.address,
+        ...(isRelocationItems(workItems) ? { destAddress: reloc.destAddress, destDetail: reloc.destDetail } : {}),
         region,
         // 2026-07-11 — 사장님 spec: workItems 비어있어도 종목(workType) 보존 (홈페이지 전환).
         workType:      head.workType || form.workType || "",
@@ -425,7 +437,8 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
         //   기사가 기종을 고르면 이 자리표시 줄은 깨끗이 덮인다.
         workItems:     (splitItems.length === 0 && applianceUndecided && !!form.workType)
           ? [{ workType: form.workType, appliance: "(미정)", qty: 1, quote: 0 }]
-          : withHoodQuotes(splitItems, hoodPrices.ok ? hoodPrices.list : null, priceTBD ? 0 : (form.estimateTotal || 0)),
+          : withHoodQuotes(isRelocationItems(splitItems) && !priceTBD ? splitRelocationItems(splitItems, reloc.removeFee, reloc.installFee) : splitItems,
+                           hoodPrices.ok ? hoodPrices.list : null, priceTBD ? 0 : (form.estimateTotal || 0)),
         // 2026-07-11 — 사장님 spec: 기종 미정 플래그 (category_data 저장).
         applianceUndecided: workItems.length === 0 && applianceUndecided,
         __log_note:    "see console [NewReceptionPc SAVE]",
@@ -575,6 +588,19 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
                 onChange={(e) => setForm(p => ({ ...p, address: e.target.value }))}
                 placeholder="도로명 주소" style={inputStyle(t)}/>
             </Field>
+            {/* 2026-10-07 Mig 259 — 이전설치를 고르면 설치 주소 · 철거비 · 설치비 칸이 나온다 (위 주소 = 철거 주소) */}
+            {isRelocationItems(workItems) && (
+              <RelocationFields
+                value={reloc}
+                error={relocError}
+                onChange={(v) => {
+                  setReloc(v);
+                  if (relocError && String(v.destAddress || "").trim()) setRelocError("");
+                  const sum = (Number(v.removeFee) || 0) + (Number(v.installFee) || 0);
+                  if (sum > 0) { setForm(p => ({ ...p, estimateTotal: sum })); setEstimateTouched(true); }
+                }}
+              />
+            )}
             {region && !regionBad && !regionOverride && (
               <div style={{ fontSize: 11, color: t.textMuted, marginTop: 4 }}>
                 지역 자동{dictBad && regionApi ? " (주소 API)" : ""}: <span style={{ color: t.text, fontWeight: 700 }}>{region}</span>

@@ -61,6 +61,8 @@ import CancelBanner from "./CancelBanner.jsx";
 import { SubChangeRequestBand, SubExceptionCard } from "./SubExceptionParts.jsx";
 import { SubPrincipalSplitCard } from "./SubPrincipalParts.jsx";
 import { getCategoryMetaOfRow } from "../lib/serviceCatalog.js";
+import { isRelocationTask } from "../utils/relocation.js";
+import { RelocationBlocks } from "./RelocationParts.jsx";
 
 // 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (0 이면 테두리 선이 화면 끝에서 잘려 12 로 — 2026-10-06 실화면 확인).
 //   여백을 다시 주고 싶으면 이 숫자 하나만 바꾸면 된다 (운영자·협력사 모드 공통).
@@ -901,7 +903,9 @@ function WorkInfoCard({ task, apiEngineers = [], onAssign, onScheduleChange, onS
 
         <div style={{ display: "flex", flexDirection: "column", gap: 10, marginBottom: 12 }}>
           <D2LabelRow label="연락처" value={task.phone || "—"} mono/>
-          <D2LabelRow label="주소"   value={task.address || "—"} wrap/>
+          <D2LabelRow label={isRelocationTask(task) ? "철거 주소" : "주소"} value={task.address || "—"} wrap/>
+          {/* 2026-10-07 Mig 259 — 이전설치: 철거(출발) / 설치(도착) 두 블록 + 지도 열기 */}
+          {isRelocationTask(task) && <RelocationBlocks task={task} showFees={!subMode}/>}
           <D2LabelRow label="일정"   value={scheduledDisplay} highlight/>
           {/* 2026-05-29 — 결제 방식 라벨 (선택값 있을 때만 / NULL 숨김) */}
           {task.paymentMethod && (

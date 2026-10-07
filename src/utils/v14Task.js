@@ -187,6 +187,9 @@ export function v14NormalizeTask(t) {
     supplyAmount: t.supplyAmount ?? t.supply_amount ?? null,
     supplyShortfallReason: t.supplyShortfallReason ?? t.supply_shortfall_reason ?? null,
     vatIncluded: (t.vatIncluded ?? t.vat_included) === true,
+    // Mig 259 — 이전설치: 설치(도착) 주소 · 메모. 3곳 매핑.
+    destAddress: t.destAddress ?? t.dest_address ?? "",
+    destDetail:  t.destDetail ?? t.dest_detail ?? "",
     // 2026-05-21 Phase 5 Step 0.G-6-C — task 레벨 boolean (유솔N 본작업 + 냉매)
     hasUsolNMainRefrigerant: !!t.hasUsolNMainRefrigerant,
     paymentMethod,
