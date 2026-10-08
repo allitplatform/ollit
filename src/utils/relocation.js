@@ -1,7 +1,7 @@
 // 2026-10-07 Mig 259 — 이전설치: 철거(출발) 주소 / 설치(도착) 주소 + 철거비 / 설치비.
 //   · 기존 주소(tasks.address) = 철거 주소, 새 칸 tasks.dest_address = 설치 주소, dest_detail = 설치 주소 메모.
 //   · 견적은 새 금액 칸을 만들지 않고 작업 항목 두 줄(철거 / 이전설치)의 단가로 나눈다. 견적 = 두 줄 합.
-//   · 설치 기사 몫(80%)은 작업 전체 금액으로 계산하므로 항목을 둘로 나눠도 결과가 같다.
+//   · 설치 기사 몫(비율은 DB 의 날짜별 비율 표 — mig 261)은 작업 전체 금액으로 계산하므로 항목을 둘로 나눠도 결과가 같다.
 import { extractRegion } from "./partnerPasteParser.js";
 import { splitAddress } from "./addressParts.js";
 
