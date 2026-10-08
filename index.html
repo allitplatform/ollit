@@ -58,6 +58,36 @@
         } catch (e) {}
       })();
     </script>
+    <!-- Danggeun Market Code — 2026-10-08 당근 전환 추적. 랜딩(올데이케어.kr / /landing)에서만 로드, 운영 PWA 화면은 제외 (main.jsx _isLandingRoute 와 같은 조건) -->
+    <script>
+      (function (w, d) {
+        var h = (location.hostname || "").toLowerCase(), p = location.pathname || "";
+        var isLanding = h.indexOf("alldaycare") >= 0 || h.indexOf("xn--2n1bk06aikal6b92t") >= 0 || h.indexOf("올데이케어") >= 0
+                     || p.indexOf("/landing") === 0 || p.indexOf("/privacy") === 0 || location.search.indexOf("page=landing") >= 0;
+        if (!isLanding || w.karrotPixel) return;
+        var k = { stub: true, queue: [] };
+        k.init = function () { k.queue.push(['init', arguments, Date.now()]); };
+        k.track = function () { k.queue.push(['track', arguments, Date.now()]); };
+        w.karrotPixel = k;
+        var s = d.createElement('script');
+        s.async = true;
+        s.src = 'https://karrot-pixel.business.daangn.com/karrot-pixel.js';
+        var f = d.getElementsByTagName('script')[0];
+        f && f.parentNode ? f.parentNode.insertBefore(s, f) : d.head.appendChild(s);
+        w.karrotPixel.init('1791458572657527001');
+        w.karrotPixel.track('ViewPage');
+        // 전환 이벤트 — 전화걸기 · 카톡 문의 버튼 클릭 시 Lead (접수 완료 SubmitApplication 은 LandingApp.jsx handleSubmit)
+        d.addEventListener('click', function (e) {
+          var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+          if (!a) return;
+          var href = a.getAttribute('href') || '';
+          if (/^tel:/i.test(href) || /kakao/i.test(href)) {
+            try { w.karrotPixel.track('Lead'); } catch (err) {}
+          }
+        }, true);
+      })(window, document);
+    </script>
+    <!-- End Danggeun Market Code -->
   </head>
   <body>
     <div id="root"></div>

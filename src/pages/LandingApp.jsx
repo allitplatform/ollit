@@ -863,6 +863,17 @@ function useBookingForm() {
         // 네이버 전환 실패는 접수 성공에 영향 X.
         console.warn("[NAVER] cnv throw", nvErr);
       }
+      // 2026-10-08 — 당근 전환 이벤트 (서비스 신청 완료). 공통 스크립트는 index.html 에서 랜딩 조건일 때만 로드됨.
+      //   window.karrotPixel 없으면 no-op (운영 PWA·차단기 대비). PII 없이 이벤트 이름만 전송.
+      try {
+        if (typeof window !== "undefined" && window.karrotPixel && typeof window.karrotPixel.track === "function") {
+          window.karrotPixel.track("SubmitApplication");
+          console.log("[KARROT] SubmitApplication 전송", serviceType);
+        }
+      } catch (krErr) {
+        // 당근 전환 실패는 접수 성공에 영향 X.
+        console.warn("[KARROT] track throw", krErr);
+      }
       setSubmitted(true);
     } catch (e2) {
       setError(messageFor(e2));

@@ -96,6 +96,35 @@ footer b{color:#4A5263}
 
 @media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}
 </style>
+<!-- Danggeun Market Code -->
+<script>
+  (function (w, d) {
+    if (w.karrotPixel) return;
+    var k = { stub: true, queue: [] };
+    k.init = function () { k.queue.push(['init', arguments, Date.now()]); };
+    k.track = function () { k.queue.push(['track', arguments, Date.now()]); };
+    w.karrotPixel = k;
+    var s = d.createElement('script');
+    s.async = true;
+    s.src = 'https://karrot-pixel.business.daangn.com/karrot-pixel.js';
+    var f = d.getElementsByTagName('script')[0];
+    f && f.parentNode ? f.parentNode.insertBefore(s, f) : d.head.appendChild(s);
+  })(window, document);
+  window.karrotPixel.init('1791458572657527001');
+  window.karrotPixel.track('ViewPage');
+</script>
+<!-- End Danggeun Market Code -->
+<!-- 당근 전환 이벤트 — 전화걸기 · 카톡 문의 버튼 클릭 시 Lead -->
+<script>
+  document.addEventListener('click', function (e) {
+    var a = e.target && e.target.closest ? e.target.closest('a[href]') : null;
+    if (!a) return;
+    var h = a.getAttribute('href') || '';
+    if (/^tel:/i.test(h) || /kakao/i.test(h)) {
+      try { window.karrotPixel && window.karrotPixel.track('Lead'); } catch (err) {}
+    }
+  }, true);
+</script>
 </head>
 <body>
 <div class="wrap">
@@ -308,6 +337,7 @@ document.querySelectorAll('.lead-form').forEach((form,idx)=>{
       btn.textContent='접수 완료';
       show('접수되었습니다. 10분 안에 확인 전화를 드립니다.',true);
       if(window.gtag) gtag('event','generate_lead',{source:'ipju_landing'});
+      try{ if(window.karrotPixel) window.karrotPixel.track('SubmitApplication'); }catch(e){} // 당근 전환 — 접수 완료
     }catch(err){
       btn.disabled=false; btn.innerHTML=label;
       show('접수가 되지 않았습니다. <a href="tel:18662003" style="text-decoration:underline">1866-2003</a> 으로 전화 주세요.');
