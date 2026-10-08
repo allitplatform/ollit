@@ -200,6 +200,41 @@ footer b{color:#4A5263}
 const SB_URL = 'https://jtxmzgqykmjyzzsnjqio.supabase.co';
 const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eG16Z3F5a21qeXp6c25qcWlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjQ2MDYsImV4cCI6MjA5MzEwMDYwNn0.v07Gsm2vUx0Gs6r5EqMZvzOVHt2btIipt5a6tnsGFS4';
 
+/* 광고 유입정보 (mig 262) — 네이버 자동추적·UTM 값을 접수에 함께 저장.
+   키워드별 접수당 광고비를 계산하려면 이 값이 있어야 한다.
+   첫 유입의 값을 sessionStorage 에 남겨 페이지 안에서 이동해도 유지된다. */
+function adParams(){
+  try{
+    var K='ollit_adp', q=new URLSearchParams(location.search), cur={};
+    var map={n_keyword:'kw',n_keyword_id:'kwid',n_ad_group:'grp',n_rank:'rank',
+             n_query:'q',n_media:'media',n_campaign_type:'ctype',n_ad:'ad',
+             utm_source:'utm_s',utm_medium:'utm_m',utm_campaign:'utm_c',utm_term:'utm_t',
+             gclid:'gclid'};
+    for(var a in map){ var v=q.get(a); if(v) cur[map[a]]=String(v).slice(0,120); }
+    if(Object.keys(cur).length){
+      var ref=(document.referrer||''); if(ref) cur.ref=ref.slice(0,120);
+      try{ sessionStorage.setItem(K, JSON.stringify(cur)); }catch(e){}
+      return cur;
+    }
+    try{ var s=sessionStorage.getItem(K); if(s) return JSON.parse(s); }catch(e){}
+  }catch(e){}
+  return null;
+}
+/* create_inquiry_v2 전송 — 광고정보를 넣어 먼저 보내고, DB 가 아직 7번째 인자를
+   받지 못하면(mig 262 적용 전) 광고정보만 빼고 기존 방식으로 다시 보낸다.
+   어느 경우에도 접수 자체는 끊기지 않는다. */
+async function postV2(hdrs, body){
+  var url=SB_URL+'/rest/v1/rpc/create_inquiry_v2';
+  var post=function(b){ return fetch(url,{method:'POST',headers:hdrs,body:JSON.stringify(b)}); };
+  var ap=adParams();
+  if(ap){
+    var withAd=Object.assign({p_ad_params:ap}, body);
+    var r=await post(withAd);
+    if(r.ok) return r;
+  }
+  return post(body);
+}
+
 /* 통이미지: 첫 장은 즉시, 나머지는 지연 로딩 + 스크롤 등장. 파일 없으면 안내 라벨 */
 const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('on');io.unobserve(e.target);}}),{threshold:.08});
 document.querySelectorAll('.sec[data-img]').forEach((el,i)=>{
@@ -258,7 +293,7 @@ document.querySelectorAll('.lead-form').forEach((form,idx)=>{
     // 종목 코드(mig 211)로 저장. 아직 DB 에 반영 전이라 거부되면 'unknown' 으로 한 번 더 보낸다 (접수가 끊기지 않게).
     const send=async st=>{
       const b={...base,p_service_type:st};
-      let r=await rpc('create_inquiry_v2',{...b,p_source:source});
+      let r=await postV2({'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY},{...b,p_source:source});
       if(r.status===404) r=await rpc('create_inquiry',b);
       return r;
     };
