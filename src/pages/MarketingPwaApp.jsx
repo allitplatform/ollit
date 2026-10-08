@@ -1094,7 +1094,7 @@ function AutobidCard({ t, isPc, adv, actor, actorName, onChanged }) {
   const applyBulk = async (targets, patch) => {
     const list = targets.filter(g => g.autobidOk !== false || patch.enabled === false);
     if (!list.length) { window.alert("적용할 그룹이 없습니다"); return; }
-    const what = patch.enabled === false ? "자동입찰을 끕니다" : `${patch.enabled ? "자동입찰을 켜고 " : ""}목표 ${patch.target_pos}위 · 상한 ${won(patch.cap)}원 · 바닥 ${won(patch.floor_bid)}원${patch.lower_ok ? "" : " · 올리기만"} 으로 맞춥니다`;
+    const what = patch.enabled === false ? "자동입찰을 끕니다" : `${patch.enabled ? "자동입찰을 켜고 " : ""}목표 ${patch.target_pos}위 · 가산 ${Math.round(((patch.margin ?? 1.1) - 1) * 100)}% · 상한 ${won(patch.cap)}원 · 바닥 ${won(patch.floor_bid)}원${patch.lower_ok ? "" : " · 올리기만"} 으로 맞춥니다`;
     if (!window.confirm(`${list.length}개 그룹에 ${what}. 진행할까요?`)) return;
     setBusy("bulk");
     const j = await api("policy_bulk", { actor, post: { id: adv.id, items: list.map(g => ({ adgroup_id: g.id, adgroup_name: g.name })), patch, actor_name: actorName } });
@@ -1167,13 +1167,15 @@ function BulkPolicyBar({ t, groups, busy, onApply }) {
   const [target, setTarget] = useState(2);
   const [cap, setCap] = useState("5000");
   const [floor, setFloor] = useState("1000");
+  const [addPct, setAddPct] = useState("10");   // 예상가에 얹는 비율(%) → margin
   const [lower, setLower] = useState(false);
   const targets = scope === "all" ? groups : scope === "on" ? groups.filter(g => g.policy?.enabled) : groups.filter(g => String(g.name || "").split("_")[0] === scope);
   const sel = { ...inputStyle(t), fontFamily: "inherit", fontSize: 11.5, padding: "5px 6px", borderRadius: 6 };
   const chip = (id, label) => { const on = scope === id; return (
     <button key={id} onClick={() => setScope(id)} className="tab-btn" style={{ padding: "4px 10px", borderRadius: 999, border: `1px solid ${on ? t.accent : t.border}`, background: on ? t.accentBg : "transparent", color: on ? t.accent : t.textSecondary, fontSize: 11, fontWeight: 700, cursor: "pointer", fontFamily: "inherit" }}>{label}</button>
   ); };
-  const patch = { target_pos: target, cap: Number(cap) || 5000, floor_bid: Number(floor) || 300, lower_ok: lower };
+  const patch = { target_pos: target, cap: Number(cap) || 5000, floor_bid: Number(floor) || 300,
+                  margin: 1 + Math.min(100, Math.max(0, Number(addPct) || 0)) / 100, lower_ok: lower };
   return (
     <div style={{ padding: 10, marginBottom: 6, background: t.bgInset, borderRadius: 10, display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ display: "flex", gap: 6, alignItems: "center", flexWrap: "wrap" }}>
@@ -1185,6 +1187,9 @@ function BulkPolicyBar({ t, groups, busy, onApply }) {
       <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", fontSize: 10.5, color: t.textMuted }}>
         <label style={{ display: "flex", alignItems: "center", gap: 4 }}>목표
           <select value={target} onChange={e => setTarget(Number(e.target.value))} style={sel}>{[1, 2, 3].map(n => <option key={n} value={n}>{n}위</option>)}</select>
+        </label>
+        <label style={{ display: "flex", alignItems: "center", gap: 4 }} title="네이버 목표순위 예상가에 이만큼 더 얹습니다. 예상가가 실제 경쟁보다 낮게 나올 때 메웁니다.">가산
+          <input className="mono" value={addPct} onChange={e => setAddPct(e.target.value.replace(/[^\d]/g, ""))} style={{ ...sel, width: 40, textAlign: "right" }}/>%
         </label>
         <label style={{ display: "flex", alignItems: "center", gap: 4 }}>상한
           <input className="mono" value={cap} onChange={e => setCap(e.target.value.replace(/[^\d]/g, ""))} style={{ ...sel, width: 62, textAlign: "right" }}/>원
@@ -1221,12 +1226,16 @@ function PolicyRow({ t, isPc, g, busy, onSave }) {
   const p = g.policy || { ...POLICY_DEFAULT, enabled: false };
   const [cap, setCap] = useState(String(p.cap ?? 5000));
   const [floor, setFloor] = useState(String(p.floor_bid ?? 300));
-  useEffect(() => { setCap(String(p.cap ?? 5000)); setFloor(String(p.floor_bid ?? 300)); }, [p.cap, p.floor_bid]);
+  const [addPct, setAddPct] = useState(String(Math.round(((Number(p.margin) || 1.1) - 1) * 100)));
+  useEffect(() => { setCap(String(p.cap ?? 5000)); setFloor(String(p.floor_bid ?? 300));
+                    setAddPct(String(Math.round(((Number(p.margin) || 1.1) - 1) * 100))); }, [p.cap, p.floor_bid, p.margin]);
   const on = !!p.enabled;
   const locked = g.autobidOk === false;
   const commitNums = () => {
     const c = Number(cap) || 5000, f = Number(floor) || 300;
-    if (c !== Number(p.cap) || f !== Number(p.floor_bid)) onSave({ cap: c, floor_bid: f });
+    const mg = 1 + Math.min(100, Math.max(0, Number(addPct) || 0)) / 100;
+    if (c !== Number(p.cap) || f !== Number(p.floor_bid) || Math.abs(mg - (Number(p.margin) || 1.1)) > 0.001)
+      onSave({ cap: c, floor_bid: f, margin: mg });
   };
   const sel = { ...inputStyle(t), fontFamily: "inherit", fontSize: 11.5, padding: "5px 6px", borderRadius: 6 };
   return (
@@ -1240,6 +1249,9 @@ function PolicyRow({ t, isPc, g, busy, onSave }) {
       </span>
       <label style={{ fontSize: 10.5, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }}>목표
         <select value={p.target_pos} onChange={e => onSave({ target_pos: Number(e.target.value) })} disabled={!on} style={sel}>{[1, 2, 3].map(n => <option key={n} value={n}>{n}위</option>)}</select>
+      </label>
+      <label style={{ fontSize: 10.5, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }} title="목표순위 예상가에 이만큼 더 얹습니다">가산
+        <input className="mono" value={addPct} onChange={e => setAddPct(e.target.value.replace(/[^\d]/g, ""))} onBlur={commitNums} disabled={!on} style={{ ...sel, width: 40, textAlign: "right" }}/>%
       </label>
       <label style={{ fontSize: 10.5, color: t.textMuted, display: "flex", alignItems: "center", gap: 4 }}>상한
         <input className="mono" value={cap} onChange={e => setCap(e.target.value.replace(/[^\d]/g, ""))} onBlur={commitNums} disabled={!on} style={{ ...sel, width: 62, textAlign: "right" }}/>원

@@ -210,7 +210,13 @@ async function keywordsCached(adv, since, until, fresh) {
 // 정책(ad_autobid_policies)이 켜진 광고그룹의 살아있는 키워드마다 모바일 목표순위 예상가를 받아
 //   목표 입찰 = round(예상가 × 여유율 / 10) × 10 → 상한 초과면 2위 예상가로 대체(그것도 초과면 상한) → 바닥 이하면 바닥
 // 현재가와 10% 이상 차이날 때만 변경. lower_ok=false 면 내리지 않음. dry=true 면 계산만.
-const AUTOBID_MIN_DIFF = 0.10;
+// 목표가와 현재가 차이가 이 비율 미만이면 건너뛴다. 방향별로 다르게 본다.
+//   올릴 때는 민감하게(3%) — 상한에 여유가 있는데 몇백 원 차이로 순위를 놓치는 일을 막는다.
+//     예: 1위 예상가 4,630 × 여유율 1.1 = 5,090 인데 현재 4,790 이면 차이 6.3%.
+//         단일 10% 기준에서는 건너뛰어 4,790 에 머물렀다 (2026-10-08 확인).
+//   내릴 때는 둔하게(10%) — 예상가가 흔들릴 때 입찰가가 출렁이는 것을 막는다.
+const AUTOBID_MIN_DIFF_UP = 0.03;
+const AUTOBID_MIN_DIFF_DOWN = 0.10;
 const AUTOBID_MAX_CHANGES_LOGGED = 100;
 const roundBid = (v) => Math.round(Number(v || 0) / 10) * 10;
 
@@ -275,7 +281,10 @@ async function runAutobid(adv, { dry }) {
         if (bid < floor) { bid = floor; note = "바닥"; }
         if (bid < 70) bid = 70;
         if (cur > 0 && bid < cur && p.lower_ok === false) continue;
-        if (cur > 0 && Math.abs(bid - cur) / cur < AUTOBID_MIN_DIFF) continue;
+        if (cur > 0) {
+          const diffRatio = Math.abs(bid - cur) / cur;
+          if (diffRatio < (bid > cur ? AUTOBID_MIN_DIFF_UP : AUTOBID_MIN_DIFF_DOWN)) continue;
+        }
         if (bid === cur) continue;
         updates.push({ nccKeywordId: k.nccKeywordId, nccAdgroupId: p.adgroup_id, bidAmt: bid, useGroupBidAmt: false });
         if (bid > cur) run.raised++; else run.lowered++;
@@ -584,7 +593,7 @@ export default async function handler(req, res) {
       const { data, error } = await supabase.from("ad_autobid_policies").upsert(rowP, { onConflict: "advertiser_id,adgroup_id" }).select("*").single();
       if (error) return res.status(500).json({ ok: false, error: error.message });
       await supabase.from("ad_change_log").insert({ advertiser_id: adv.id, actor: body.actor_name || "운영자", action: rowP.enabled ? "자동입찰 설정" : "자동입찰 해제",
-        detail: `${rowP.adgroup_name || rowP.adgroup_id}: ${rowP.enabled ? `목표 ${rowP.target_pos}위 · 상한 ${won(rowP.cap)}원 · 바닥 ${won(rowP.floor_bid)}원${rowP.lower_ok ? "" : " · 올리기만"}` : "자동입찰 끔"}`, visible_to_client: true });
+        detail: `${rowP.adgroup_name || rowP.adgroup_id}: ${rowP.enabled ? `목표 ${rowP.target_pos}위 · 가산 ${Math.round((rowP.margin - 1) * 100)}% · 상한 ${won(rowP.cap)}원 · 바닥 ${won(rowP.floor_bid)}원${rowP.lower_ok ? "" : " · 올리기만"}` : "자동입찰 끔"}`, visible_to_client: true });
       return res.status(200).json({ ok: true, policy: data });
     }
     if (mode === "policy_bulk") {
@@ -617,7 +626,7 @@ export default async function handler(req, res) {
       if (error) return res.status(500).json({ ok: false, error: error.message });
       const on = rows.filter(r => r.enabled).length;
       const desc = p.enabled === false ? `${rows.length}개 그룹 자동입찰 끔`
-        : `${rows.length}개 그룹${p.enabled ? " 켬" : ""}${p.target_pos ? ` · 목표 ${num(p.target_pos)}위` : ""}${p.cap ? ` · 상한 ${won(num(p.cap))}원` : ""}${p.floor_bid ? ` · 바닥 ${won(num(p.floor_bid))}원` : ""}${p.lower_ok === false ? " · 올리기만" : ""}`;
+        : `${rows.length}개 그룹${p.enabled ? " 켬" : ""}${p.target_pos ? ` · 목표 ${num(p.target_pos)}위` : ""}${p.margin ? ` · 가산 ${Math.round((Number(p.margin) - 1) * 100)}%` : ""}${p.cap ? ` · 상한 ${won(num(p.cap))}원` : ""}${p.floor_bid ? ` · 바닥 ${won(num(p.floor_bid))}원` : ""}${p.lower_ok === false ? " · 올리기만" : ""}`;
       await supabase.from("ad_change_log").insert({ advertiser_id: adv.id, actor: body.actor_name || "운영자", action: p.enabled === false ? "자동입찰 해제" : "자동입찰 설정", detail: desc, visible_to_client: true });
       return res.status(200).json({ ok: true, policies: data, on });
     }
