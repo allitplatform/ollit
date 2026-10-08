@@ -1652,14 +1652,27 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
     setTimeout(() => setToast(""), 2400);
   }
 
+  // 2026-10-08 (76) — 합계만 저장된 작업 (협력사 기사 완료 등: 받은 금액 합계는 있는데 항목 줄 받은 돈이 전부 비어 있음).
+  //   본 항목이 1개면 그 줄 입력칸에 합계를 보여 준다 (보여 주기만 하고 저장하지 않는다).
+  //   여러 개면 칸은 비워 두고 줄 아래에 "항목별 금액 없음 · 합계만 저장됨".
+  const liveMainItems = items.filter(it => it && it.id && !it.isCanceled && (it.orderType || it.order_type) !== '추가선택');
+  const totalOnly = usesReceivedTotalFlow && !isVisitOnly && !isBeforeWork(task)
+    && Number(task?.receivedTotal) > 0
+    && liveMainItems.length > 0 && liveMainItems.every(it => it.receivedAmount == null);
+  const totalOnlyItemId = totalOnly && liveMainItems.length === 1 ? liveMainItems[0].id : null;
+  const totalOnlyValue  = totalOnlyItemId ? String(Number(task.receivedTotal)) : "";
+  const totalOnlyMulti  = totalOnly && liveMainItems.length >= 2;
+  // 항목 줄 입력칸의 기준값 (서버 값. 합계만 저장된 1개짜리 줄은 합계)
+  const dbReceivedText = (it) => it.isCanceled ? "0"
+    : it.receivedAmount != null ? String(it.receivedAmount)
+    : (it.id === totalOnlyItemId ? totalOnlyValue : "");
+
   // local input state
   const [localReceived, setLocalReceived] = useState(() => {
     const init = {};
     for (const it of items) {
       if (!it || !it.id) continue;
-      if (it.isCanceled) init[it.id] = "0";
-      else if (it.receivedAmount != null) init[it.id] = String(it.receivedAmount);
-      else init[it.id] = "";
+      init[it.id] = dbReceivedText(it);
     }
     return init;
   });
@@ -1673,8 +1686,7 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
       for (const it of items) {
         if (!it || !it.id) continue;
         if (saving[it.id]) continue; // 저장 중이면 skip
-        const dbValue = it.isCanceled ? "0"
-          : (it.receivedAmount != null ? String(it.receivedAmount) : "");
+        const dbValue = dbReceivedText(it);
         // 기존 입력값과 DB 값이 다르면서 사용자 입력 흔적 없음 측 fresh init
         // 2026-10-07 — 화면 값이 "직전에 읽은 서버 값" 그대로면(사람이 고치지 않았으면) 새 서버 값을 따라간다.
         //   (항목 금액을 고친 뒤 받은 돈 칸이 옛 금액으로 남던 문제)
@@ -1684,9 +1696,12 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
       return next;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [items.length, items.map(i => `${i?.id}:${i?.receivedAmount}:${i?.isCanceled}`).join('|')]);
+  }, [items.length, items.map(i => `${i?.id}:${i?.receivedAmount}:${i?.isCanceled}`).join('|'), totalOnlyItemId, totalOnlyValue]);
 
   async function handleBlur(itemId, originalValue) {
+    // 2026-10-08 (76) — 합계를 보여 주기만 한 칸: 사람이 값을 바꾸지 않았으면 저장하지 않는다
+    //   (칸을 눌렀다 나오기만 해도 항목 저장 · 정산 다시 계산이 도는 것 방지).
+    if (itemId === totalOnlyItemId && String(localReceived[itemId] ?? "") === totalOnlyValue) return;
     const newValue = parseInt(localReceived[itemId] || "0", 10) || 0;
     const dbValue  = Number(originalValue ?? 0);
     if (newValue === dbValue) return;
@@ -1780,6 +1795,7 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
                 {canShowInput && beforeWork ? (
                   <span style={{ textAlign: "right", fontSize: 12, color: "var(--text-tertiary)" }}>완료 때 입력</span>
                 ) : canShowInput ? (
+                  <div style={{ minWidth: 0 }}>
                   <input
                     type="number"
                     inputMode="numeric"
@@ -1796,6 +1812,10 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
                       opacity: saving[it.id] ? 0.5 : 1,
                     }}
                   />
+                    {totalOnlyMulti && isMain && (
+                      <div style={{ marginTop: 3, fontSize: 10, fontWeight: 600, color: "var(--text-tertiary)", textAlign: "right", lineHeight: 1.3, wordBreak: "keep-all" }}>항목별 금액 없음 · 합계만 저장됨</div>
+                    )}
+                  </div>
                 ) : (
                   <span style={{ textAlign: "right", fontSize: 12, color: "var(--text-tertiary)" }}>—</span>
                 )}
@@ -2019,6 +2039,9 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
                     }}
                   />
                 </div>
+              )}
+              {canShowInput && totalOnlyMulti && (
+                <div style={{ marginTop: 3, fontSize: 10, fontWeight: 600, color: "var(--text-tertiary)", textAlign: "right" }}>항목별 금액 없음 · 합계만 저장됨</div>
               )}
 
               {/* 가드 케이스 안내 (usol_n / prepaid) */}
