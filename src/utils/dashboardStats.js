@@ -82,7 +82,9 @@ export const TASK_FILTERS = {
   getEffectiveStatus:     _getEffectiveStatus,
 
   // 2026-10-07 — 협력사로 넘긴 작업은 "미배정" 에 넣지 않는다 (기사 정하기는 협력사 관리자 몫).
-  newReception: (t) => _isUsolNMainRefrigerant(t) && _v14HasStatusEffective(t, "미배정") && !(t.subcontractorId || t.subcontractor_id),
+  // 2026-10-08 — 협력사로 넘긴 미배정 작업도 다시 포함한다 ("접수했는데 안 보이는 건 안 됨").
+  //   10/7 에 뺐더니 상태가 '미배정' 이라 배정 완료에도 안 들어가 어느 카드에도 없었다. 따로 세는 수는 subNew.
+  newReception: (t) => _isUsolNMainRefrigerant(t) && _v14HasStatusEffective(t, "미배정"),
   assigned:     (t) => _isUsolNMainRefrigerant(t) && _v14HasStatusEffective(t, "배정"),
   confirmed:    (t) => _isUsolNMainRefrigerant(t) && _v14HasStatusEffective(t, "확정"),
   inProgress:   (t) => _isScheduledTodayModule(t) && _v14HasStatusEffective(t, "작업중", "진행중"),
@@ -216,11 +218,12 @@ export function computeDashboardStats({
   const _isSubT = (t) => !!(t.subcontractorId || t.subcontractor_id);
   const subAssigned  = assignedTasksList.filter(_isSubT).length;
   const subConfirmed = confirmedTasks.filter(_isSubT).length;
-  // 협력사로 넘겼지만 아직 협력사가 기사를 정하지 않은 작업 (미배정 칸에서 뺀 것)
-  const subWaiting   = uniqueTasks.filter(t => _isSubT(t) && _isUsolNMainRefrigerant(t) && _v14HasStatusEffective(t, "미배정")).length;
+  // 협력사로 넘겼지만 아직 협력사가 기사를 정하지 않은 작업 (새 접수 숫자에 포함, 화면에 작게 따로 표시)
+  const subNew       = newReceptionTasks.filter(_isSubT).length;
+  const subWaiting   = subNew;   // 옛 이름 (같은 값)
 
   return {
-    subAssigned, subConfirmed, subWaiting,
+    subAssigned, subConfirmed, subWaiting, subNew,
     new: newCount,
     assigned: assignedCount,
     confirmed: confirmedCount,

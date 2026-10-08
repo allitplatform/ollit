@@ -82,7 +82,8 @@ import { isRelocationItems, splitRelocationItems } from "../utils/relocation.js"
 import { RelocationFields } from "../components/RelocationParts.jsx";
 // 2026-07-14 — Stage 3: 기간 집계 RPC 날짜 계산용 (매출 카드와 동일 규칙).
 import { getMonthStart, getPrevMonthSameDay, getPrevMonthStart, getMonthRange, computeRevenueByYmRange } from "../utils/revenueStats.js";
-import { engineerDisplayName } from "../lib/subcontractorsDb.js";
+import { engineerDisplayName, subcontractorName, adminRecallSubTask } from "../lib/subcontractorsDb.js";
+import { recallBlockReason } from "../components/SubExceptionParts.jsx";
 import { useServiceCatalog, shortServiceLabel, useHoodPrices } from "../lib/serviceCatalog.js";
 import { SubcontractorAdminScreen } from "../components/admin/SubcontractorAdminScreen.jsx";
 import { SubFeeAdminScreen } from "../components/SubSettlement.jsx";
@@ -4603,7 +4604,8 @@ function DashboardScreen({ happycallMode = false, t, mode, setMode, onLogout, us
 
         {/* 2. 작업 통계 — 핫핑크 = 새 접수 + 진행중 (사장님 KPI) */}
         <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 5, marginBottom: 14 }}>
-          <StatBox t={t} label="새 접수" value={dynamicStats?.new        ?? TODAY_STATS.newReceived} color={t.accent}  onClick={() => onClickNewReception(null)}/>
+          <StatBox t={t} label="새 접수" value={dynamicStats?.new        ?? TODAY_STATS.newReceived} color={t.accent}  onClick={() => onClickNewReception(null)}
+                   note={dynamicStats?.subNew > 0 ? `협력사 ${dynamicStats.subNew}` : ""}/>
           <StatBox t={t} label="배정 완료" value={dynamicStats?.assigned  ?? TODAY_STATS.assigned}    color={t.text}    onClick={() => onClickAssignedList("assigned")}
                    note={dynamicStats?.subAssigned > 0 ? `협력사 ${dynamicStats.subAssigned}` : ""}/>
           <StatBox t={t} label="일정 확정" value={dynamicStats?.confirmed ?? TODAY_STATS.confirmed}   color={t.text}    onClick={() => onClickAssignedList("confirmed")}
@@ -6405,6 +6407,12 @@ function NewReceptionScreen({
   }, [apiTasks, extraReceptions, receptionUpdates]);
   const [memoTask, setMemoTask] = useState(null);
   const [editingTask, setEditingTask] = useState(null);
+  // 2026-10-08 — 카드의 [협력사에서 회수] 가 끝나면 목록을 다시 읽는다
+  useEffect(() => {
+    const h = () => { if (onRefresh) onRefresh(); };
+    window.addEventListener("ollit:tasks-refresh", h);
+    return () => window.removeEventListener("ollit:tasks-refresh", h);
+  }, [onRefresh]);
 
   // 2026-05-21 Phase 5 Step 0.H — 검색란 추가 (InProgressListScreen 측 동일 spec)
   // 2026-07-21 — 사장님 spec: 고객 전화번호 검색 추가 (숫자만 입력해도 하이픈 무시 매칭).
@@ -6881,6 +6889,15 @@ function ReceptionCardShell({ t, task, onCardMenuAction, onClick, clickable = tr
         )}
       </div>
       <div style={{ padding: "9px 12px 11px" }}>
+        {/* 2026-10-08 — 협력사로 넘긴 미배정 작업: 협력사 이름 배지 + "기사 정하는 중" */}
+        {(task.subcontractorId || task.subcontractor_id) && (
+          <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 7, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 10.5, fontWeight: 800, padding: "2px 8px", borderRadius: 999, background: "rgba(167,139,250,0.16)", color: "#7C3AED", whiteSpace: "nowrap" }}>
+              🤝 {subcontractorName(task.subcontractorId || task.subcontractor_id) || "협력사"}
+            </span>
+            <span style={{ fontSize: 11, fontWeight: 700, color: t.textSecondary }}>기사 정하는 중</span>
+          </div>
+        )}
         {children}
       </div>
     </div>
@@ -6927,6 +6944,45 @@ function ReceptionCardInfo({ t, task, extraRows = null }) {
 // 하단 버튼 줄 — [프로 배정 | 📞] 공용.
 function ReceptionCardButtons({ t, task, onAssign, assignLabel = "프로 배정", assignMuted = false }) {
   const phone = String(task.phone || "").trim();
+  // 2026-10-08 — 협력사로 넘긴 작업: 직영 [프로 배정] 대신 작은 [협력사에서 회수] (작업 상세의 회수와 같은 서버 함수).
+  //   사유 입력 → 한 번 더 확인 → 협력사 지정 해제, 일반 미배정으로. 끝나면 목록을 다시 읽는다.
+  const subId = task.subcontractorId || task.subcontractor_id;
+  const [recalling, setRecalling] = useState(false);
+  if (subId) {
+    const subName = subcontractorName(subId) || "협력사";
+    const recall = async (e) => {
+      e.stopPropagation();
+      if (recalling) return;
+      const block = recallBlockReason(task);
+      if (block) { window.alert(block); return; }
+      const reason = window.prompt(`${subName}에서 회수하는 사유를 적어 주세요.`, "");
+      if (reason == null) return;
+      if (!reason.trim()) { window.alert("회수 사유를 입력해 주세요."); return; }
+      if (!window.confirm(`이 작업을 ${subName}에서 올데이케어로 회수합니다.\n협력사 지정이 해제되고 일반 "미배정" 이 됩니다.\n${subName} 관리자에게 알림이 갑니다.\n\n계속할까요?`)) return;
+      setRecalling(true);
+      const res = await adminRecallSubTask(task.id, reason.trim());
+      setRecalling(false);
+      if (!res || !res.ok) { window.alert((res && res.error) || "회수하지 못했습니다."); return; }
+      window.dispatchEvent(new Event("ollit:tasks-refresh"));
+    };
+    return (
+      <div style={{ display: "flex", gap: 6, marginTop: 9, alignItems: "center" }}>
+        <span style={{ flex: 1, fontSize: 11, color: t.textMuted, fontWeight: 600 }}>배정은 {subName} 관리자가 합니다</span>
+        <button onClick={recall} disabled={recalling} style={{
+          background: "transparent", color: t.textSecondary, border: `1px solid ${t.border}`,
+          padding: "7px 10px", borderRadius: 8, fontSize: 11.5, fontWeight: 800, cursor: "pointer", fontFamily: "inherit",
+          whiteSpace: "nowrap", opacity: recalling ? 0.5 : 1,
+        }}>{recalling ? "회수 중…" : "협력사에서 회수"}</button>
+        {phone && (
+          <a href={`tel:${phone}`} onClick={(e) => e.stopPropagation()} style={{
+            width: 40, height: 32, background: t.bgInset, border: `1px solid ${t.border}`,
+            borderRadius: 8, display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: 13, textDecoration: "none",
+          }}>📞</a>
+        )}
+      </div>
+    );
+  }
   return (
     <div style={{ display: "flex", gap: 6, marginTop: 9 }}>
       {onAssign && (

@@ -430,7 +430,7 @@ function WorkStatusCard({
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8 }}>
             {/* 2026-10-07 — 협력사 작업: 숫자에는 넣고 작게 따로 적는다. 미배정에는 넣지 않는다 (협력사 관리자 몫). */}
-            {waitCell(unassigned, "미배정", subWaiting > 0 ? `${_subWord()} 배정 대기 ${subWaiting} 별도` : "기사 배정 필요", unassigned > 0, onUnassigned)}
+            {waitCell(unassigned, "미배정", subWaiting > 0 ? `${_subWord()} ${subWaiting} 포함` : "기사 배정 필요", unassigned > 0, onUnassigned)}
             {waitCell(assigned, "배정됨", subAssigned > 0 ? `${_subWord()} ${subAssigned} 포함` : "약속 조율 중", false, onAssigned)}
             {waitCell(confirmed, "확정", subConfirmed > 0 ? `${_subWord()} ${subConfirmed} 포함` : "내일 이후 포함", false, onConfirmed)}
           </div>
