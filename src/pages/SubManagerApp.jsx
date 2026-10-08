@@ -375,7 +375,8 @@ export default function SubManagerApp({ user, onLogout, onSwitchRole }) {
           </div>
           <label style={fieldLabel}>시간 선택{schedTime ? "" : " (아래에서 고르거나 직접 입력)"}</label>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 6, marginBottom: 8 }}>
-            {["09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00"].map(tm => (
+            {/* 2026-10-08 — 새벽 · 밤 시간 추가 (식당 후드: 오픈 전 새벽 / 마감 뒤 밤) */}
+            {["05:00", "06:00", "07:00", "08:00", "09:00", "10:00", "11:00", "13:00", "14:00", "15:00", "16:00", "17:00", "18:00", "19:00", "20:00", "21:00"].map(tm => (
               <button key={tm} type="button" onClick={() => setSchedTime(tm)} style={{
                 padding: "8px 10px", borderRadius: 8, fontSize: 13, fontWeight: 700, fontFamily: "inherit", cursor: "pointer",
                 border: schedTime === tm ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)",

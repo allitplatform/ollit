@@ -524,8 +524,9 @@ function CustomTimePicker({ t, value, onChange }) {
   const selectedHour = value ? parseInt(value.split(":")[0]) : null;
   const selectedMinute = value ? parseInt(value.split(":")[1]) : null;
   
-  const morningHours = [9, 10, 11, 12];
-  const afternoonHours = [13, 14, 15, 16, 17, 18, 19];
+  // 2026-10-08 — 새벽 5시 ~ 밤 11시 (식당 후드는 오픈 전 새벽 · 마감 뒤 밤 작업이 흔함). 전에는 9~19시.
+  const morningHours = [5, 6, 7, 8, 9, 10, 11, 12];
+  const afternoonHours = [13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23];
   const minutes = [0, 30];
   
   const hours = period === "오전" ? morningHours : afternoonHours;
@@ -557,7 +558,7 @@ function CustomTimePicker({ t, value, onChange }) {
       {/* 시간 선택 */}
       <div style={{ marginBottom: 12 }}>
         <div style={{ fontSize: 9, fontWeight: 700, color: t.textMuted, letterSpacing: 1, textTransform: "uppercase", marginBottom: 8 }}>시</div>
-        <div style={{ display: "grid", gridTemplateColumns: `repeat(${hours.length}, 1fr)`, gap: 5 }}>
+        <div style={{ display: "grid", gridTemplateColumns: `repeat(${hours.length > 8 ? 6 : 4}, 1fr)`, gap: 5 }}>
           {hours.map(h => {
             const active = selectedHour === h;
             return (

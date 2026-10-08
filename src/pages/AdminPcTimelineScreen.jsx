@@ -33,15 +33,15 @@ import { supabase } from "../lib/supabase.js";
 import { useOffDaysInRange } from "../hooks/useOffDaysInRange.js";
 import { formatOffDayType, formatOffAlertText } from "../lib/offDaysDb.js";
 
-const START_HOUR    = 7;
+const START_HOUR    = 5;             // 2026-10-08 — 7 → 5 (새벽 작업이 잘리지 않게)
 const END_HOUR      = 24;
-const TOTAL_HOURS   = END_HOUR - START_HOUR;  // 17
+const TOTAL_HOURS   = END_HOUR - START_HOUR;  // 19
 const LANE_HEIGHT   = 62;            // 2026-10-07 시안 v2 — 줄 높이 키움
 const ENGINEER_COL  = 190;           // 2026-10-07 시안 v2 — 이름 16px + 아래 줄
 // 2026-06-19 — 시간당 고정폭 (사장님 spec). 컨테이너 fit X → 가로 스크롤.
-//   1시간 = 80px → 7~24시 = 17 × 80 = 1360px.
+//   1시간 = 80px → 5~24시 = 19 × 80 = 1520px.
 const HOUR_WIDTH       = 80;
-const TIME_AREA_WIDTH  = HOUR_WIDTH * TOTAL_HOURS; // 1360
+const TIME_AREA_WIDTH  = HOUR_WIDTH * TOTAL_HOURS; // 1520
 const SNAP_MINUTES  = 30;
 const DRAG_THRESHOLD_PX = 5;
 const UNASSIGNED_COL = 300;            // 왼쪽 미배정 목록 폭

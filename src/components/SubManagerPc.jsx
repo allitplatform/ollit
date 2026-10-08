@@ -30,7 +30,7 @@ const dayTitle = (ymd) => {
 };
 
 // ───────────────────────── 타임라인 ─────────────────────────
-const H0 = 8, H1 = 22;                      // 08시 ~ 22시
+const H0 = 5, H1 = 24;                      // 05시 ~ 24시 (2026-10-08 — 전에는 08~22시. 새벽 · 밤 작업이 잘리지 않게)
 const SPAN = H1 - H0;
 function hourPos(t) {
   if (!t.scheduled_at) return null;
@@ -320,7 +320,7 @@ ${rows.hiddenOff.join(", ")}`)} title={rows.hiddenOff.join(", ")} style={{
       {error && <div style={{ color: "var(--danger, #E5484D)", fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{error}</div>}
 
       <div style={{ border: "1px solid var(--border)", borderRadius: 12, background: "var(--bg-elevated)", overflowX: "auto" }}>
-        <div style={{ minWidth: 980 }}>
+        <div style={{ minWidth: 1240 }}>
           {/* 시간 눈금 */}
           <div style={{ display: "flex", borderBottom: "1px solid var(--border)", background: "var(--bg-secondary)" }}>
             <div style={{ width: NAMEW, flexShrink: 0, padding: "8px 12px", fontSize: 12, fontWeight: 700, color: "var(--text-secondary)" }}>기사</div>
