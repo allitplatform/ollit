@@ -489,16 +489,24 @@ const COLS = [
 ];
 
 // preset: { stage?, eng?, n } — 홈·기사 탭에서 조건을 정해 넘어올 때 (기간은 이번 달).
+// 2026-10-08 — 기본 기간을 '이번 달 1일 ~ 60일 뒤'로 넓히고, 기본 정렬을 '앞으로 할 일 먼저'로.
+//   예정 작업이 우선이라는 대표 요청: 오늘 이후 일정은 가까운 순, 그 아래 지난 작업은 최근 순.
+const RANGES = [
+  { key: "ahead", label: "앞으로",   get: (d) => [d, addDays(d, 90)] },
+  { key: "month", label: "이번 달",  get: (d) => [d.slice(0, 8) + "01", endOfMonth(d)] },
+  { key: "last",  label: "지난 달",  get: (d) => { const p = addDays(d.slice(0, 8) + "01", -1); return [p.slice(0, 8) + "01", p]; } },
+  { key: "wide",  label: "전체(앞뒤 3개월)", get: (d) => [addDays(d, -92), addDays(d, 92)] },
+];
 export function SubPcSearch({ onOpen, refreshKey = 0, preset = null }) {
   const today = kstYmd(new Date());
   const [from, setFrom] = useState(today.slice(0, 8) + "01");
-  const [to, setTo] = useState(today);
+  const [to, setTo] = useState(addDays(today, 60));
   const [stage, setStage] = useState((preset && preset.stage) || "전체");
   const [eng, setEng] = useState((preset && preset.eng) || "");
   useEffect(() => {
     if (!preset) return;
     setStage(preset.stage || "전체"); setEng(preset.eng || "");
-    setFrom(today.slice(0, 8) + "01"); setTo(endOfMonth(today));     // 이번 달 전체(앞으로의 일정 포함)
+    setFrom(today.slice(0, 8) + "01"); setTo(addDays(today, 60));    // 이번 달 + 앞으로 60일
   }, [preset && preset.n]);   // eslint-disable-line react-hooks/exhaustive-deps
   const [cat, setCat] = useState("");
   const [q, setQ] = useState("");
@@ -507,7 +515,7 @@ export function SubPcSearch({ onOpen, refreshKey = 0, preset = null }) {
   const [staff, setStaff] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [sort, setSort] = useState({ key: "when", dir: -1 });
+  const [sort, setSort] = useState({ key: "ahead", dir: 1 });   // ahead = 앞으로 할 일 먼저
 
   useEffect(() => { subListStaff().then(r => { if (r.ok) setStaff(Array.isArray(r.staff) ? r.staff : []); }); }, []);
 
@@ -524,13 +532,24 @@ export function SubPcSearch({ onOpen, refreshKey = 0, preset = null }) {
   const cats = useMemo(() => categoriesInTasks(rows.map(catTask)), [rows]);
   const shown = useMemo(() => {
     const list = rows.filter(t => (stage === "전체" || stageOf(t) === stage) && (!cat || getCategoryMeta(catTask(t)).key === cat));
+    if (sort.key === "ahead") {
+      // 오늘 이후(일정 미정 포함) → 가까운 날짜 순, 지난 작업 → 최근 순, 취소는 맨 아래
+      const rank = (t) => t.status === "취소" ? 2 : (visitYmd(t) || "9999") >= today ? 0 : 1;
+      const when = (t) => `${visitYmd(t) || "9999-99-99"} ${visitHm(t) || "99:99"}`;
+      return [...list].sort((a, b) => {
+        const ra = rank(a), rb = rank(b);
+        if (ra !== rb) return ra - rb;
+        const c = when(a).localeCompare(when(b));
+        return ra === 0 ? c : -c;
+      });
+    }
     const col = COLS.find(c => c.key === sort.key) || COLS[0];
     return [...list].sort((a, b) => {
       const x = col.get(a), y = col.get(b);
       const r = col.num ? (x - y) : String(x).localeCompare(String(y), "ko");
       return r * sort.dir;
     });
-  }, [rows, stage, cat, sort]);
+  }, [rows, stage, cat, sort, today]);
   const sum = useMemo(() => {
     const live = shown.filter(t => t.status !== "취소");
     return { n: shown.length, supply: live.reduce((s, t) => s + (Number(t.supply_amount) || 0), 0), fee: live.reduce((s, t) => s + (Number(t.fee) || 0), 0) };
@@ -573,6 +592,22 @@ export function SubPcSearch({ onOpen, refreshKey = 0, preset = null }) {
         </select>
         <input value={q} onChange={e => setQ(e.target.value)} placeholder="고객명 · 전화 뒷자리 · 주소 · 작업번호" style={{ ...field, flex: 1, minWidth: 220 }} aria-label="검색어"/>
         <button type="button" onClick={load} disabled={loading} style={btn}>{loading ? "…" : "조회"}</button>
+      </div>
+      {/* 기간 바로 고르기 + 정렬 되돌리기 */}
+      <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+        {RANGES.map(r => { const [f, t2] = r.get(today); const on = from === f && to === t2; return (
+          <button key={r.key} type="button" onClick={() => { setFrom(f); setTo(t2); }}
+            style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+              border: on ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)", background: on ? "rgba(255,27,141,0.10)" : "var(--bg-secondary)",
+              color: on ? "var(--accent, #FF1B8D)" : "var(--text-secondary)" }}>{r.label}</button>
+        ); })}
+        <span style={{ flex: 1 }}/>
+        <button type="button" onClick={() => setSort({ key: "ahead", dir: 1 })}
+          style={{ padding: "6px 12px", borderRadius: 999, fontSize: 12.5, fontWeight: 700, cursor: "pointer", fontFamily: "inherit",
+            border: sort.key === "ahead" ? "1.5px solid var(--accent, #FF1B8D)" : "1px solid var(--border)", background: sort.key === "ahead" ? "rgba(255,27,141,0.10)" : "var(--bg-secondary)",
+            color: sort.key === "ahead" ? "var(--accent, #FF1B8D)" : "var(--text-secondary)" }}>
+          {sort.key === "ahead" ? "✓ 앞으로 할 일 먼저" : "앞으로 할 일 먼저 보기"}
+        </button>
       </div>
       {error && <div style={{ color: "var(--danger, #E5484D)", fontSize: 13, fontWeight: 700, marginBottom: 10 }}>{error}</div>}
       {total > rows.length && <div style={{ fontSize: 12, color: "var(--danger, #E5484D)", fontWeight: 700, marginBottom: 8 }}>조건에 맞는 작업이 {total}건이라 최근 {rows.length}건만 보여 줍니다. 기간을 줄여 주세요.</div>}
