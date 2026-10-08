@@ -217,6 +217,10 @@ async function keywordsCached(adv, since, until, fresh) {
 //   내릴 때는 둔하게(10%) — 예상가가 흔들릴 때 입찰가가 출렁이는 것을 막는다.
 const AUTOBID_MIN_DIFF_UP = 0.03;
 const AUTOBID_MIN_DIFF_DOWN = 0.10;
+// 비율과 별개로 금액 차이가 이보다 작으면 건너뛴다.
+//   경쟁이 없는 읍면동 키워드는 80 → 70원(12.5%) 같은 변경이 비율 기준을 통과해
+//   한 번에 3,000건이 바뀌면서 이력만 채우고 실익이 없었다 (2026-10-08 확인).
+const AUTOBID_MIN_DIFF_WON = 50;
 const AUTOBID_MAX_CHANGES_LOGGED = 100;
 const roundBid = (v) => Math.round(Number(v || 0) / 10) * 10;
 
@@ -282,7 +286,9 @@ async function runAutobid(adv, { dry }) {
         if (bid < 70) bid = 70;
         if (cur > 0 && bid < cur && p.lower_ok === false) continue;
         if (cur > 0) {
-          const diffRatio = Math.abs(bid - cur) / cur;
+          const diffWon = Math.abs(bid - cur);
+          if (diffWon < AUTOBID_MIN_DIFF_WON) continue;
+          const diffRatio = diffWon / cur;
           if (diffRatio < (bid > cur ? AUTOBID_MIN_DIFF_UP : AUTOBID_MIN_DIFF_DOWN)) continue;
         }
         if (bid === cur) continue;
