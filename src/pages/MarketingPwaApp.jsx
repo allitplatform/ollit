@@ -1022,44 +1022,52 @@ function ShieldCard({ t, adv, actor, actorName, view, onChanged }) {
   );
 }
 
-// ---------- 지금 순위 확인 (네이버 모바일 검색 화면 직접 확인) ----------
+// ---------- 지금 순위 확인 ----------
+// 서버에서 네이버 검색 화면을 직접 여는 방식은 쓰지 않는다 — 해외 서버에서는 지역 광고가 안 보이고, 국내 서버는 네이버가 403으로 막는다.
+// 대신 네이버가 실제 고객 노출로 집계한 오늘 평균 순위를 보여준다 (1~2시간 지연).
 function SerpCheck({ t, adv, actor }) {
   const [kw, setKw] = useState("");
   const [busy, setBusy] = useState(false);
   const [hist, setHist] = useState([]);
-  const [marks, setMarks] = useState(null);
   const check = async () => {
-    const q = kw.split(/[,\n]/).map(x => x.trim()).filter(Boolean).slice(0, 5);
+    const q = kw.split(/[,\n]/).map(x => x.replace(/\s+/g, "")).filter(Boolean).slice(0, 5);
     if (!q.length) return;
     setBusy(true);
-    const j = await api("serp", { actor, get: { id: adv.id, kw: q.join(",") } }).catch(() => ({ ok: false, error: "연결 실패" }));
+    const today = new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+    const j = await api("keywords", { actor, get: { id: adv.id, since: today, until: today } }).catch(() => ({ ok: false, error: "연결 실패" }));
     setBusy(false);
     if (!j.ok) { window.alert(j.error || "확인 실패"); return; }
-    setMarks(j.marks || []);
-    setHist(h => [...j.results.map(r => ({ ...r, at: j.at })), ...h].slice(0, 20));
+    const at = new Date().toISOString();
+    const out = [];
+    for (const w of q) {
+      const hit = (j.keywords || []).filter(k => String(k.keyword || "").replace(/\s+/g, "").toUpperCase() === w.toUpperCase());
+      if (!hit.length) out.push({ kw: w, none: true, at });
+      for (const k of hit) out.push({ kw: w, group: k.group, rank: k.rank, imp: k.impressions, clicks: k.clicks, bid: k.bid, lock: k.lock, at });
+    }
+    setHist(h => [...out, ...h].slice(0, 20));
   };
   return (
-    <Card t={t} title="지금 순위 확인" sub="네이버 모바일 검색 화면을 직접 열어 우리 광고가 몇 번째인지 봅니다 · 쉼표로 최대 5개 · 클릭은 하지 않음">
+    <Card t={t} title="지금 순위 확인" sub="오늘 실제 고객에게 보인 평균 순위 (네이버 집계 · 1~2시간 늦음) · 쉼표로 최대 5개">
       <div style={{ display: "flex", gap: 6 }}>
-        <input className="mkt-input" value={kw} onChange={e => setKw(e.target.value)} onKeyDown={e => { if (e.key === "Enter") check(); }} placeholder="예: 부천입주청소, 입주청소업체" style={{ ...inputStyle(t), padding: "8px 10px" }}/>
+        <input className="mkt-input" value={kw} onChange={e => setKw(e.target.value)} onKeyDown={e => { if (e.key === "Enter") check(); }} placeholder="예: 에어컨이전설치, 주방후드청소" style={{ ...inputStyle(t), padding: "8px 10px" }}/>
         <button onClick={check} disabled={busy || !kw.trim()} className="tab-btn" style={{ ...btnPrimary(t), flex: "0 0 auto" }}>{busy ? "확인 중…" : "확인"}</button>
       </div>
       {hist.length > 0 && (
         <div style={{ marginTop: 8 }}>
           {hist.map((r, i) => {
-            const color = r.blocked ? t.textMuted : r.rank == null ? t.danger : r.rank <= 3 ? t.success : t.warning;
+            const label = r.none ? "등록 안 됨" : r.lock ? "꺼짐" : r.rank == null || !r.imp ? "오늘 노출 없음" : `${r.rank.toFixed(1)}위`;
+            const color = r.none || r.lock || r.rank == null || !r.imp ? t.textMuted : r.rank <= 1.5 ? t.success : r.rank <= 3 ? t.warning : t.danger;
             return (
               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, padding: "6px 0", borderTop: `1px solid ${t.border}`, fontSize: 12.5 }}>
-                <span style={{ flex: 1, fontWeight: 700 }}>{r.kw}</span>
-                <span className="mono" style={{ fontWeight: 900, color }}>{r.blocked ? "확인 불가" : r.rank == null ? (r.total ? "광고 안 보임" : "광고 영역 없음") : `${r.rank}위`}</span>
-                <span style={{ fontSize: 10.5, color: t.textMuted, minWidth: 70, textAlign: "right" }}>{r.total ? `광고 ${r.total}개 중` : ""}</span>
+                <span style={{ flex: 1, fontWeight: 700, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{r.kw}{r.group ? <span style={{ fontWeight: 400, fontSize: 10.5, color: t.textMuted, marginLeft: 6 }}>{String(r.group).replace(/^파워링크_/, "")}</span> : null}</span>
+                <span className="mono" style={{ fontWeight: 900, color }}>{label}</span>
+                <span style={{ fontSize: 10.5, color: t.textMuted, minWidth: 96, textAlign: "right" }}>{r.none ? "" : `노출 ${won(r.imp || 0)} · 클릭 ${r.clicks || 0}`}</span>
                 <span className="mono" style={{ fontSize: 10, color: t.textMuted }}>{fmtKst(r.at).slice(6)}</span>
               </div>
             );
           })}
           <div style={{ fontSize: 10, color: t.textMuted, marginTop: 6, lineHeight: 1.5 }}>
-            {marks && <div style={{ marginBottom: 3 }}>우리 광고 찾는 표식: {marks.length ? marks.join(" · ") : "없음 (비즈채널 조회 실패)"}</div>}
-            서버(지역 미지정) 기준이라 손님 위치에 따라 순서가 조금 다를 수 있습니다. "광고 안 보임"은 지역 설정·예산 소진·검수 대기·입찰 부족 중 하나입니다.
+            1.0~1.5위 = 거의 항상 1위 · 1.5~3위 = 1·2위를 오감 · 3위 밑 = 입찰가를 올려야 함. 사장님 와이파이는 노출 제한에 걸려 있어 직접 검색하면 안 보일 수 있습니다 — 직접 볼 때는 LTE로.
           </div>
         </div>
       )}
