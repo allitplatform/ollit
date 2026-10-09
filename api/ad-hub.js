@@ -247,10 +247,34 @@ async function listGroups(nv, adv) {
   return groups;
 }
 
-async function runAutobid(adv, { dry }) {
+// 실제 평균 순위 반영 — 네이버 1위 추정가는 과거 평균이라 실시간 경쟁을 못 따라간다.
+// 최근 3일 실제 평균 순위가 목표보다 밀린 키워드는 추정가와 별개로 입찰가를 올리고, 밀린 키워드는 내리지 않는다.
+const AUTOBID_RANK_MIN_IMP = 5;        // 3일 노출이 이보다 적으면 순위를 믿지 않는다
+const AUTOBID_RANK_SLACK = 0.5;        // 목표 + 0.5 위보다 밀리면 "밀림"
+const AUTOBID_RANK_HOLD = 0.2;         // 목표 + 0.2 위 안쪽이면 "도달" — 이때만 내림 허용
+const AUTOBID_RANK_EVERY_H = 4;        // 순위 기반 올림은 4시간에 한 번 (집계 지연 때문에 연속으로 올리지 않음)
+const kstDay = (offset = 0) => new Date(Date.now() + 9 * 3600e3 + offset * 86400e3).toISOString().slice(0, 10);
+async function realRanks(nv, ids) {
+  const out = {};
+  const tr = encodeURIComponent(JSON.stringify({ since: kstDay(-2), until: kstDay(0) }));
+  const fields = encodeURIComponent(JSON.stringify(["impCnt", "avgRnk"]));
+  const parts = chunk(ids, 100);
+  for (let i = 0; i < parts.length; i += 5) {
+    await Promise.all(parts.slice(i, i + 5).map(async (part) => {
+      try {
+        const r = await nv.get("/stats", `${idsQs(part)}&fields=${fields}&timeRange=${tr}`);
+        for (const d of (r?.data || [])) out[d.id] = { imp: Number(d.impCnt || 0), rnk: Number(d.avgRnk || 0) };
+      } catch (e) { console.error("[ad-hub] autobid rank", e?.message); }
+    }));
+  }
+  return out;
+}
+const rankStep = (gap) => gap <= 1 ? 0.15 : gap <= 2 ? 0.25 : 0.35;
+
+async function runAutobid(adv, { dry, rankBoost = true }) {
   const { data: pols } = await supabase.from("ad_autobid_policies").select("*").eq("advertiser_id", adv.id).eq("enabled", true);
   const policies = pols || [];
-  const run = { advertiser_id: adv.id, dry: !!dry, alive: 0, changed: 0, raised: 0, lowered: 0, capped: 0, no_est: 0, changes: [], error: null };
+  const run = { advertiser_id: adv.id, dry: !!dry, alive: 0, changed: 0, raised: 0, lowered: 0, capped: 0, no_est: 0, rank_up: 0, rank_hold: 0, changes: [], error: null };
   if (policies.length === 0) return { ...run, skipped: true, reason: "켜진 정책 없음" };
   const nv = naverClient(decrypt(adv.api_key_enc), decrypt(adv.api_secret_enc), adv.customer_id);
   const updates = [];
@@ -269,19 +293,40 @@ async function runAutobid(adv, { dry }) {
       const margin = Number(p.margin || 1.1), cap = Number(p.cap || 5000), floor = Number(p.floor_bid || 300);
       const words = [...new Set(alive.map(k => k.keyword))];
       const est1 = await estimateBids(nv, words, target);
+      const ranks = await realRanks(nv, alive.map(k => k.nccKeywordId));
       const needPos2 = words.filter(w => est1[w] != null && roundBid(est1[w] * margin) > cap);
       const est2 = needPos2.length ? await estimateBids(nv, needPos2, target + 1) : {};
       for (const k of alive) {
         const cur = k.useGroupBidAmt ? (gBid || 0) : Number(k.bidAmt || 0);
         const e1 = est1[k.keyword];
-        if (e1 == null || e1 <= 0) { run.no_est++; continue; }
-        let bid = roundBid(e1 * margin), note = `${target}위`;
-        if (bid > cap) {
-          const e2 = est2[k.keyword];
-          const b2 = e2 ? roundBid(e2 * margin) : 0;
-          if (b2 > 0 && b2 <= cap) { bid = b2; note = `${target + 1}위(상한)`; }
-          else { bid = cap; note = "상한"; run.capped++; }
+        const rk = ranks[k.nccKeywordId];
+        const hasRank = !!rk && rk.imp >= AUTOBID_RANK_MIN_IMP && rk.rnk > 0;
+        const behind = hasRank && rk.rnk > target + AUTOBID_RANK_SLACK;
+        const reached = hasRank && rk.rnk <= target + AUTOBID_RANK_HOLD;
+        const noEst = e1 == null || e1 <= 0;
+        if (noEst && !(behind && rankBoost)) { run.no_est++; continue; }
+        let bid, note;
+        if (noEst) { bid = cur; note = "추정가 없음"; }
+        else {
+          bid = roundBid(e1 * margin); note = `${target}위`;
+          if (bid > cap) {
+            const e2 = est2[k.keyword];
+            const b2 = e2 ? roundBid(e2 * margin) : 0;
+            if (b2 > 0 && b2 <= cap) { bid = b2; note = `${target + 1}위(상한)`; }
+            else { bid = cap; note = "상한"; run.capped++; }
+          }
         }
+        // 실제 순위가 밀리면 추정가와 상관없이 지금 입찰가보다 올린다 (상한까지)
+        if (behind && rankBoost && cur > 0) {
+          const pushed = roundBid(cur * (1 + rankStep(rk.rnk - target)));
+          if (pushed > bid) {
+            bid = Math.min(pushed, cap);
+            note = `실순위 ${rk.rnk.toFixed(1)}위 → 올림${bid >= cap ? "(상한)" : ""}`;
+            run.rank_up++;
+          }
+        }
+        // 실제 순위가 목표에 못 미치면 추정가가 낮게 나와도 내리지 않는다
+        if (cur > 0 && bid < cur && hasRank && !reached) { run.rank_hold++; continue; }
         if (bid < floor) { bid = floor; note = "바닥"; }
         if (bid < 70) bid = 70;
         if (cur > 0 && bid < cur && p.lower_ok === false) continue;
@@ -294,20 +339,21 @@ async function runAutobid(adv, { dry }) {
         if (bid === cur) continue;
         updates.push({ nccKeywordId: k.nccKeywordId, nccAdgroupId: p.adgroup_id, bidAmt: bid, useGroupBidAmt: false });
         if (bid > cur) run.raised++; else run.lowered++;
-        if (run.changes.length < AUTOBID_MAX_CHANGES_LOGGED) run.changes.push({ kw: k.keyword, grp: p.adgroup_name || p.adgroup_id, from: cur, to: bid, est: e1, note });
+        if (run.changes.length < AUTOBID_MAX_CHANGES_LOGGED) run.changes.push({ kw: k.keyword, grp: p.adgroup_name || p.adgroup_id, from: cur, to: bid, est: e1 ?? null, rnk: hasRank ? Number(rk.rnk.toFixed(1)) : null, note });
       }
     }
     run.changed = updates.length;
     if (!dry && updates.length) {
       for (const part of chunk(updates, 200)) await nv.put("/ncc/keywords", part, "fields=bidAmt");
       await supabase.from("ad_change_log").insert({ advertiser_id: adv.id, actor: "자동입찰", action: "자동입찰",
-        detail: `${updates.length}개 조정 (↑${run.raised} ↓${run.lowered}${run.capped ? ` · 상한 ${run.capped}` : ""}) — 대상 ${run.alive}개`, visible_to_client: true });
+        detail: `${updates.length}개 조정 (↑${run.raised} ↓${run.lowered}${run.capped ? ` · 상한 ${run.capped}` : ""}${run.rank_up ? ` · 실순위 올림 ${run.rank_up}` : ""}${run.rank_hold ? ` · 밀려서 유지 ${run.rank_hold}` : ""}) — 대상 ${run.alive}개`, visible_to_client: true });
       await supabase.from("ad_keyword_cache").delete().eq("advertiser_id", adv.id);
     }
   } catch (e) {
     run.error = e?.message || String(e);
   }
-  const { data: saved } = await supabase.from("ad_autobid_runs").insert({ ...run, changes: run.changes }).select("id,at").single();
+  const { rank_up: _ru, rank_hold: _rh, ...runRow } = run;   // 테이블에 없는 칸은 빼고 저장
+  const { data: saved } = await supabase.from("ad_autobid_runs").insert({ ...runRow, changes: run.changes }).select("id,at").single();
   return { ...run, id: saved?.id, at: saved?.at };
 }
 
@@ -559,7 +605,9 @@ export default async function handler(req, res) {
       else { const { data } = await supabase.from("ad_advertisers").select("*").eq("active", true); advs = data || []; }
       const results = [];
       for (const adv of advs) {
-        try { const r = await runAutobid(adv, { dry }); results.push({ advertiser: adv.name, ...r }); }
+        const nowKst = new Date(Date.now() + 9 * 3600e3);
+        const rankBoost = !cronOk || (nowKst.getUTCHours() % AUTOBID_RANK_EVERY_H === 0 && nowKst.getUTCMinutes() < 30);
+        try { const r = await runAutobid(adv, { dry, rankBoost }); results.push({ advertiser: adv.name, ...r }); }
         catch (e) { results.push({ advertiser: adv.name, error: e?.message || String(e) }); }
       }
       return res.status(200).json({ ok: true, dry, results });
