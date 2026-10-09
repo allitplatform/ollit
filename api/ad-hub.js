@@ -392,8 +392,10 @@ const SERP_UA = "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWeb
 function serpParse(html, marks) {
   const out = { blocked: false, total: 0, rank: null };
   if (html.length < 20000 || html.includes("자동입력 방지문자") || html.includes("비정상적인 접근")) { out.blocked = true; return out; }
-  const idx = []; let i = -1;
-  while ((i = html.indexOf("data-slog-content=", i + 1)) >= 0) idx.push(i);
+  // 2026-10 네이버 모바일 화면 변경 — 광고 1개 = data-sv-log="pwl" 1개. 예전 표식(data-slog-content)은 보조로만 쓴다.
+  const collect = (mark) => { const r = []; let i = -1; while ((i = html.indexOf(mark, i + 1)) >= 0) r.push(i); return r; };
+  let idx = collect('data-sv-log="pwl"');
+  if (!idx.length) idx = collect("data-slog-content=");
   if (!idx.length) return out;
   const first = [idx[0]];
   for (let k = 1; k < idx.length; k++) { if (idx[k] - idx[k - 1] > 30000) break; first.push(idx[k]); }

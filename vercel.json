@@ -4,5 +4,17 @@
       "source": "/((?!api/|.*\\.html$).*)",
       "destination": "/index.html"
     }
-  ]
+  ],
+  "functions": {
+    "api/ad-hub.js": {
+      "regions": [
+        "icn1"
+      ]
+    },
+    "api/rank-check.js": {
+      "regions": [
+        "icn1"
+      ]
+    }
+  }
 }

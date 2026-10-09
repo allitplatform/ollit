@@ -35,13 +35,14 @@ async function fetchSerp(kw) {
 // 첫 연속 블록(간격 30k 이내)만 상단 파워링크로 인정하고,
 // 각 아이템 구간 안에 우리 브랜드 문자열이 있으면 그 순번이 순위.
 function parseRank(html) {
-  const out = { blocked: false, adsTotal: null, rank: null, markerUsed: "slog-item" };
+  const out = { blocked: false, adsTotal: null, rank: null, markerUsed: "pwl-item" };
   if (html.length < 20000 || html.includes("자동입력 방지문자") || html.includes("비정상적인 접근")) {
     out.blocked = true; return out;
   }
   const idx = [];
   let i = -1;
-  while ((i = html.indexOf("data-slog-content=", i + 1)) >= 0) idx.push(i);
+  while ((i = html.indexOf('data-sv-log="pwl"', i + 1)) >= 0) idx.push(i);   // 2026-10 화면 변경 후 광고 1개 = pwl 1개
+  if (!idx.length) { i = -1; while ((i = html.indexOf("data-slog-content=", i + 1)) >= 0) idx.push(i); }
   if (!idx.length) { out.adsTotal = 0; return out; }
   const GAP = 30000; // 상단 블록과 하단 추가 블록 사이는 10만+ 벌어짐
   const first = [idx[0]];
