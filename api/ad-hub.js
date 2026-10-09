@@ -257,13 +257,13 @@ const kstDay = (offset = 0) => new Date(Date.now() + 9 * 3600e3 + offset * 86400
 async function realRanks(nv, ids) {
   const out = {};
   const tr = encodeURIComponent(JSON.stringify({ since: kstDay(-2), until: kstDay(0) }));
-  const fields = encodeURIComponent(JSON.stringify(["impCnt", "avgRnk"]));
+  const fields = encodeURIComponent(JSON.stringify(["impCnt", "clkCnt", "avgRnk"]));
   const parts = chunk(ids, 100);
   for (let i = 0; i < parts.length; i += 5) {
     await Promise.all(parts.slice(i, i + 5).map(async (part) => {
       try {
         const r = await nv.get("/stats", `${idsQs(part)}&fields=${fields}&timeRange=${tr}`);
-        for (const d of (r?.data || [])) out[d.id] = { imp: Number(d.impCnt || 0), rnk: Number(d.avgRnk || 0) };
+        for (const d of (r?.data || [])) out[d.id] = { imp: Number(d.impCnt || 0), clk: Number(d.clkCnt || 0), rnk: Number(d.avgRnk || 0) };
       } catch (e) { console.error("[ad-hub] autobid rank", e?.message); }
     }));
   }
@@ -300,7 +300,9 @@ async function runAutobid(adv, { dry, rankBoost = true }) {
         const cur = k.useGroupBidAmt ? (gBid || 0) : Number(k.bidAmt || 0);
         const e1 = est1[k.keyword];
         const rk = ranks[k.nccKeywordId];
-        const hasRank = !!rk && rk.imp >= AUTOBID_RANK_MIN_IMP && rk.rnk > 0;
+        // 노출은 많은데 클릭률이 0.3% 미만이면 검색 결과가 아닌 곳(확장 검색 등)에 뿌려진 노출이 섞인 것 — 그 평균 순위는 믿지 않는다
+        const junk = !!rk && rk.imp >= 1000 && rk.clk / rk.imp < 0.003;
+        const hasRank = !!rk && !junk && rk.imp >= AUTOBID_RANK_MIN_IMP && rk.rnk > 0;
         const behind = hasRank && rk.rnk > target + AUTOBID_RANK_SLACK;
         const reached = hasRank && rk.rnk <= target + AUTOBID_RANK_HOLD;
         const noEst = e1 == null || e1 <= 0;
