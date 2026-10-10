@@ -85,14 +85,34 @@ export function hoodDetail(source) {
   else if (tm) out.push("희망 " + tm);
   return out.join(" · ");
 }
-// 랜딩 접수 풀이 공통 — 입주청소·주방후드 중 해당하는 쪽. 둘 다 아니면 "".
+// 2026-10-10 — 로봇청소기 랜딩(public/robot.html) 접수 판별. 입주청소·주방후드와 같은 방식 (service_type 은 'unknown').
+//   source 형식: robot_landing_t/dock/10-10/pm  (_t=위 폼 · _b=아래 폼 / 범위 body·dock·ask / 날짜 MM-DD·nodate / 시간대 am·pm·eve·any)
+export function isRobotSource(source) {
+  return String(source || "").startsWith("robot_landing");
+}
+const ROBOT_KIND = { body: "본체 69,000", dock: "본체+스테이션 99,000", ask: "범위 미정" };
+const ROBOT_TIME = { am: "오전", pm: "오후", eve: "저녁" };
+// → "본체+스테이션 99,000 · 희망일 10/10 오후" (입력 안 된 항목은 생략). 로봇청소기 접수가 아니면 "".
+export function robotDetail(source) {
+  if (!isRobotSource(source)) return "";
+  const [, kind = "", date = "", time = ""] = String(source).split("/");
+  const out = [];
+  if (ROBOT_KIND[kind]) out.push(ROBOT_KIND[kind]);
+  const m = /^(\d{2})-(\d{2})$/.exec(date);
+  const tm = ROBOT_TIME[time] || "";
+  if (m) out.push("희망일 " + Number(m[1]) + "/" + Number(m[2]) + (tm ? " " + tm : ""));
+  else if (tm) out.push("희망 " + tm);
+  return out.join(" · ");
+}
+// 랜딩 접수 풀이 공통 — 입주청소·주방후드·로봇청소기 중 해당하는 쪽. 어느 것도 아니면 "".
 export function landingDetail(source) {
-  return ipjuDetail(source) || hoodDetail(source);
+  return ipjuDetail(source) || hoodDetail(source) || robotDetail(source);
 }
 // 접수함·전환 메모에 쓰는 희망 서비스 라벨 — 입주청소·주방후드 랜딩은 service_type 과 관계없이 고정 라벨.
 export function inquiryServiceLabel(row) {
   if (row && isIpjuSource(row.source)) return "입주청소";
   if (row && isHoodSource(row.source)) return "주방후드";
+  if (row && isRobotSource(row.source)) return "로봇청소기";
   if (row && isGraveSource(row.source)) return "벌초·산소";
   return serviceLabel(row && row.service_type);
 }
@@ -120,11 +140,11 @@ export const SERVICE_WORKTYPE = {
 export function isGraveSource(source) {
   return String(source || "").startsWith("grave_landing");
 }
-// 접수함 → 작업 전환 시 종목 프리필. 랜딩 접수(주방후드·입주청소·벌초)는 에어컨 종목이 아니므로 비워 둔다.
+// 접수함 → 작업 전환 시 종목 프리필. 랜딩 접수(주방후드·입주청소·벌초·로봇청소기)는 에어컨 종목이 아니므로 비워 둔다.
 //   (주방후드 "후드 설치" 는 service_type 이 install 이라 그대로 두면 에어컨 "설치" 로 들어감)
 export function inquiryWorkType(row) {
   const src = row && row.source;
-  if (isHoodSource(src) || isIpjuSource(src) || isGraveSource(src)) return "";
+  if (isHoodSource(src) || isIpjuSource(src) || isGraveSource(src) || isRobotSource(src)) return "";
   return SERVICE_WORKTYPE[row && row.service_type] || "";
 }
 

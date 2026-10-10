@@ -21,6 +21,8 @@ import {
   ipjuDetail,
   isHoodSource,           // 2026-10-02 — 주방후드 랜딩 (source hood_landing*)
   hoodDetail,
+  isRobotSource,          // 2026-10-10 — 로봇청소기 랜딩 (source robot_landing*)
+  robotDetail,
   landingDetail,
   isGraveSource,          // 2026-10-02 — 벌초·산소 랜딩 (source grave_landing*)
   inquiryWorkType,
@@ -136,12 +138,14 @@ function sourceBadge(src) {
   if (isIpjuSource(v)) return { label: "입주청소", color: "#1B4FBF", bg: "#E8EFFD" };
   // 2026-10-02 — hood_landing*=주방후드. 입주청소와 같은 방식.
   if (isHoodSource(v)) return { label: "주방후드", color: "#D7261E", bg: "#FDECEB" };
+  // 2026-10-10 — robot_landing*=로봇청소기. 같은 방식.
+  if (isRobotSource(v)) return { label: "로봇청소기", color: "#087A74", bg: "#E9F5F4" };
   return null;
 }
 function showServicePill(row) {
   // 2026-10-02 — 벌초도 유입 배지("벌초·산소")와 종목 배지가 겹치므로 숨김
   const src = row && row.source;
-  return !isIpjuSource(src) && !isHoodSource(src) && !isGraveSource(src);
+  return !isIpjuSource(src) && !isHoodSource(src) && !isGraveSource(src) && !isRobotSource(src);
 }
 
 function _kstYmd(iso) {
@@ -716,6 +720,12 @@ function MiniCardRow({ row, busy, apiTasks = [], onCall, onSpam, onDelete, onCon
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>{hoodDetail(row.source)}</div>
           )}
+          {robotDetail(row.source) && (
+            <div style={{
+              fontSize: 11.5, color: "#087A74", fontWeight: 700, marginTop: 2,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>{robotDetail(row.source)}</div>
+          )}
           {row.memo && (
             <div style={{
               fontSize: 11.5, color: "#4A5A70", marginTop: 2,
@@ -973,6 +983,12 @@ function PcListRow({ row, selected, apiTasks = [], onClick }) {
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>{hoodDetail(row.source)}</div>
       )}
+      {robotDetail(row.source) && (
+        <div style={{
+          marginTop: 2, fontSize: 11, color: "#087A74", fontWeight: 700,
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>{robotDetail(row.source)}</div>
+      )}
       {row.memo && (
         <div style={{
           marginTop: 2, fontSize: 11, color: "#4A5A70",
@@ -1090,6 +1106,10 @@ function PcDetailPanel({ t, user, row, busy, apiTasks = [], onCall, onSpam, onDe
           {hoodDetail(row.source) && (<>
             <span style={{ color: "#93A2B4", fontWeight: 600 }}>주방후드</span>
             <span style={{ fontWeight: 700, color: "#D7261E" }}>{hoodDetail(row.source)}</span>
+          </>)}
+          {robotDetail(row.source) && (<>
+            <span style={{ color: "#93A2B4", fontWeight: 600 }}>로봇청소기</span>
+            <span style={{ fontWeight: 700, color: "#087A74" }}>{robotDetail(row.source)}</span>
           </>)}
           {row.memo && (<>
             <span style={{ color: "#93A2B4", fontWeight: 600 }}>메모</span>

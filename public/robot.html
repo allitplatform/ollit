@@ -1,0 +1,273 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>올데이케어 로봇청소기 분해세척 | 집으로 방문 · 69,000원 출장비 포함</title>
+<meta name="description" content="로봇청소기 분해세척, 택배 없이 기사가 집으로 방문합니다. 본체 69,000원, 본체 + 도크스테이션 99,000원. 출장비 포함 추가금 없음. 서울 · 경기 · 인천 1866-2003">
+<meta name="robots" content="noindex">
+<meta property="og:title" content="로봇청소기 분해세척 — 기사가 집으로 갑니다 · 69,000원">
+<meta property="og:description" content="택배 없이 방문 분해세척. 본체 69,000원 / 본체 + 도크스테이션 99,000원. 출장비 포함.">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root{--point:#0E9C94;--deep:#087A74;--dark:#05605B;--soft:#E9F5F4;--ink:#2A2A2A;--line:#E4E4E1;--sub:#8A8A86}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Pretendard,-apple-system,'Noto Sans KR',sans-serif;color:var(--ink);background:#EEEEEC;overflow-x:clip;word-break:keep-all}
+.wrap{max-width:1000px;margin:0 auto;background:#fff;padding-bottom:84px}
+a{color:inherit;text-decoration:none}
+
+/* ===== 애니메이션 (단색 깜빡임 · 크기 · 흔들림 · 파동만. 그라데이션 · 빛 스침 · 글로우 없음) ===== */
+@keyframes telFlash{0%,100%{background:#087A74}50%{background:#05605B}}
+@keyframes telBeat{0%,60%,100%{transform:scale(1)}66%{transform:scale(1.14)}72%{transform:scale(.97)}78%{transform:scale(1.08)}}
+@keyframes telShake{0%,70%,100%{transform:rotate(0)}73%{transform:rotate(-22deg)}76%{transform:rotate(20deg)}79%{transform:rotate(-16deg)}82%{transform:rotate(12deg)}85%{transform:rotate(-6deg)}}
+@keyframes telRing{0%{transform:scale(1);opacity:.85}100%{transform:scale(2.4);opacity:0}}
+@keyframes telBounce{0%,80%,100%{transform:translateY(0)}86%{transform:translateY(-8px)}92%{transform:translateY(0)}96%{transform:translateY(-3px)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes slideUp{from{transform:translate(-50%,110%)}to{transform:translate(-50%,0)}}
+@keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(5px)}}
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .7s ease,transform .7s ease}
+.reveal.on{opacity:1;transform:none}
+
+/* 상단 바 */
+.top{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.97);display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--line)}
+.logo{font-weight:900;font-size:19px;color:var(--deep)}
+.logo span{color:var(--ink);font-weight:700;font-size:13px;margin-left:6px}
+.top-tel{display:inline-flex;align-items:center;gap:7px;font-weight:800;color:var(--deep);font-size:16px;animation:telBeat 1.6s ease-in-out infinite}
+.live{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--sub)}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--point);animation:blink 1.2s infinite}
+
+/* 통이미지 섹션 */
+.sec{display:block;width:100%;line-height:0;position:relative}
+.sec img{width:100%;height:auto;display:block}
+.sec .ph-label{display:none}
+.sec.missing{aspect-ratio:2/3;background:#EEEEEC;line-height:1.6}
+.sec.missing img{display:none}
+.sec.missing .ph-label{display:flex;position:absolute;inset:0;align-items:center;justify-content:center;text-align:center;padding:24px;font-size:14px;color:#7C8699}
+
+/* 전화 띠 */
+.tel-band{display:flex;align-items:center;justify-content:center;gap:20px;color:#fff;padding:24px 16px;text-align:center;position:relative;overflow:hidden;animation:telFlash 1.2s ease-in-out infinite}
+.tel-band small{display:block;font-size:14px;opacity:.92}
+.tel-band b{display:inline-block;font-size:36px;font-weight:900;letter-spacing:-1px;animation:telBeat 1.6s ease-in-out infinite}
+.ico{position:relative;width:56px;height:56px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 56px}
+.ico::before,.ico::after,.ico i{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid #fff;animation:telRing 1.6s ease-out infinite}
+.ico::after{animation-delay:.53s}
+.ico i{animation-delay:1.06s}
+.ico svg{animation:telShake 1.6s ease-in-out infinite}
+.ico.go svg{animation:nudge 1.1s ease-in-out infinite}
+
+/* 접수 폼 */
+.apply{background:var(--soft);padding:34px 18px 40px}
+.card{max-width:540px;margin:0 auto;background:#fff;border-radius:18px;padding:24px 20px;border:1px solid #D5E6E4}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.card h3{font-size:22px;font-weight:900;letter-spacing:-.5px}
+.card h3 em{font-style:normal;color:var(--deep)}
+.card .hint{font-size:14px;color:var(--sub);margin-top:6px}
+.f{margin-top:12px}
+.f label{display:block;font-size:13.5px;font-weight:700;margin-bottom:6px}
+.f label small{font-weight:500;color:var(--sub)}
+.f input,.f select{width:100%;height:50px;border:1.5px solid var(--line);border-radius:12px;padding:0 14px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink);transition:border-color .2s}
+.f input:focus,.f select:focus{outline:none;border-color:var(--point)}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.agree{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13.5px;color:var(--sub)}
+.agree input{width:20px;height:20px;accent-color:var(--deep)}
+.agree a{text-decoration:underline}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:58px;border:0;border-radius:14px;background:var(--deep);color:#fff;font-size:18px;font-weight:900;font-family:inherit;margin-top:16px;cursor:pointer}
+.btn .arr{display:inline-block;animation:nudge 1.1s ease-in-out infinite}
+.btn:disabled{opacity:.6}
+.msg{display:none;margin-top:12px;padding:14px;border-radius:12px;font-size:14px;line-height:1.55}
+.msg.ok{display:block;background:var(--soft);color:var(--deep);font-weight:700}
+.msg.err{display:block;background:#FDECEC;color:#B42318}
+
+footer{padding:28px 22px 36px;font-size:12px;color:#8A93A5;line-height:1.75;border-top:1px solid var(--line)}
+footer b{color:#4A5263}
+
+/* 하단 고정 바 */
+.fixed{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:1000px;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:rgba(255,255,255,.97);border-top:1px solid var(--line);z-index:40;animation:slideUp .6s .8s both cubic-bezier(.2,.9,.3,1.2)}
+.fixed a{height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:7px;font-weight:900;font-size:16px}
+.fixed .call{color:#fff;animation:telBounce 2.2s ease-in-out infinite,telFlash 1.2s ease-in-out infinite}
+.fixed .call svg{animation:telShake 1.6s ease-in-out infinite}
+.fixed .go{background:#fff;color:var(--deep);border:2px solid var(--deep)}
+.fixed .go .arr{display:inline-block;animation:nudge 1.1s ease-in-out infinite}
+
+@media (max-width:420px){.tel-band b{font-size:30px}.tel-band{gap:14px}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="logo">올데이케어<span>로봇청소기 분해세척</span></div>
+  <a class="top-tel" href="tel:18662003"><span class="live"><i></i>상담 가능</span>1866-2003</a>
+</header>
+
+<!-- 이미지 파일: public/img/robot/s1.jpg ~ s13.jpg -->
+<div class="sec" data-img="img/robot/s1.jpg" data-alt="로봇청소기 분해세척, 택배 상자 대신 기사가 갑니다. 집으로 방문, 본체 69,000원, 출장비 포함" data-label="S1 히어로"></div>
+
+<a class="tel-band" href="tel:18662003">
+  <span class="ico"><i></i><svg width="26" height="26" viewBox="0 0 24 24" fill="#087A74"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
+  <span><small>지금 누르면 바로 연결</small><b>1866-2003</b></span>
+</a>
+
+<!-- 접수 폼 1 : 히어로 바로 아래 -->
+<section class="apply" id="apply">
+  <div class="card">
+    <div class="card-head"><h3><em>10초</em> 방문 예약 접수</h3><span class="live"><i></i>접수 가능</span></div>
+    <p class="hint">남겨주시면 10분 안에 확인 전화를 드립니다 · 브랜드 상관없이 방문</p>
+    <form class="lead-form" novalidate>
+      <div class="f2">
+        <div class="f"><label>성함</label><input name="name" autocomplete="name" placeholder="홍길동"></div>
+        <div class="f"><label>세척 범위</label>
+          <select name="svc"><option value="">선택해 주세요</option><option value="body">본체만 69,000원</option><option value="dock">본체 + 도크스테이션 99,000원</option><option value="ask">잘 모르겠어요</option></select></div>
+      </div>
+      <div class="f"><label>연락처</label><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000"></div>
+      <div class="f2">
+        <div class="f"><label>희망 날짜 <small>(선택)</small></label><input name="date" type="date"></div>
+        <div class="f"><label>시간대 <small>(선택)</small></label>
+          <select name="time"><option value="">시간대 선택</option><option value="am">오전</option><option value="pm">오후</option><option value="eve">저녁</option><option value="any">상관없음</option></select></div>
+      </div>
+      <div class="f"><label>지역 (동 · 아파트명까지)</label><input name="addr" placeholder="예) 고양시 삼송동 ○○아파트"></div>
+      <label class="agree"><input type="checkbox" name="agree"> 개인정보 수집·이용 동의 <a href="/privacy" target="_blank">보기</a></label>
+      <button class="btn" type="submit">방문 예약 접수하기 <span class="arr">→</span></button>
+      <div class="msg"></div>
+    </form>
+  </div>
+</section>
+
+<div class="sec" data-img="img/robot/s2.jpg" data-alt="가격. 로봇청소기 본체 69,000원, 본체와 도크스테이션 99,000원. 출장비 포함, 추가금 없음. 서울 경기 인천. 브랜드 상관없이 방문" data-label="S2 가격"></div>
+<div class="sec" data-img="img/robot/s3.jpg" data-alt="요즘 이런 순간 있으신가요. 돌고 나면 쿰쿰한 냄새, 소리는 큰데 먼지가 그대로, 스테이션을 열면 쉰내" data-label="S3 프롤로그 질문"></div>
+<div class="sec" data-img="img/robot/s4.jpg" data-alt="매일 바닥을 닦는 로봇청소기, 그 속은 누가 닦나요. 먼지와 머리카락과 물때가 안쪽에 쌓입니다" data-label="S4 왜 필요한가 1 단면"></div>
+<div class="sec" data-img="img/robot/s5.jpg" data-alt="속을 열어보면. 브러시에 감긴 머리카락, 막힌 필터, 냄새나는 물걸레, 오수통 찌꺼기" data-label="S5 왜 필요한가 2 속"></div>
+<div class="sec" data-img="img/robot/s6.jpg" data-alt="그대로 두면. 냄새가 바닥으로 번지고, 흡입력이 떨어지고, 소음이 커지고, 부품이 닳습니다" data-label="S6 왜 필요한가 3 결과"></div>
+<a class="tel-band" href="#apply2">
+  <span class="ico go"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#087A74" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+  <span><small>범위 · 지역만 남기면 10분 안에 전화</small><b>방문 예약 접수</b></span>
+</a>
+<div class="sec" data-img="img/robot/s7.jpg" data-alt="택배로 보내지 마세요. 포장, 발송, 기다림 없이 기사가 집에서 분해합니다" data-label="S7 택배 vs 방문"></div>
+<div class="sec" data-img="img/robot/s8.jpg" data-alt="왜 방문인가요. 에어컨을 집에서 분해세척하던 올데이케어가 로봇청소기도 집에서 끝냅니다" data-label="S8 브랜드 이야기"></div>
+<div class="sec" data-img="img/robot/s9.jpg" data-alt="띵동, 기사가 도착했습니다. 매트를 깔고 분해, 세척과 건조, 조립 후 첫 주행까지 확인" data-label="S9 방문 이야기 5컷"></div>
+<a class="tel-band" href="tel:18662003">
+  <span class="ico"><i></i><svg width="26" height="26" viewBox="0 0 24 24" fill="#087A74"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
+  <span><small>출장비 포함 · 서울 경기 인천</small><b>1866-2003</b></span>
+</a>
+<div class="sec" data-img="img/robot/s10.jpg" data-alt="본체 분해도. 메인브러시, 사이드브러시, 먼지통, 필터, 물걸레 패드, 바퀴, 센서 창과 충전 단자" data-label="S10 본체 분해도"></div>
+<div class="sec" data-img="img/robot/s11.jpg" data-alt="도크스테이션 분해도. 오수통, 청수통, 먼지 비움 통로, 세척 트레이. 본체와 함께 99,000원" data-label="S11 스테이션 분해도"></div>
+<div class="sec" data-img="img/robot/s12.jpg" data-alt="세척 전후 비교. 이해를 돕기 위한 연출 이미지입니다" data-label="S12 전후"></div>
+<div class="sec" data-img="img/robot/s13.jpg" data-alt="그날 저녁, 로봇청소기가 다시 거실을 돕니다. 이번엔 냄새 없이. 올데이케어의 약속, 이번 주에 집으로 부르세요" data-label="S13 에필로그 · 약속"></div>
+
+<!-- 접수 폼 2 : 맨 아래 -->
+<section class="apply" id="apply2">
+  <div class="card">
+    <div class="card-head"><h3>방문 예약 접수</h3><span class="live"><i></i>접수 가능</span></div>
+    <p class="hint">출장비 포함 · 추가금 없음 · 접수 후 10분 안에 전화</p>
+    <form class="lead-form" novalidate>
+      <div class="f2">
+        <div class="f"><label>성함</label><input name="name" autocomplete="name" placeholder="홍길동"></div>
+        <div class="f"><label>세척 범위</label>
+          <select name="svc"><option value="">선택해 주세요</option><option value="body">본체만 69,000원</option><option value="dock">본체 + 도크스테이션 99,000원</option><option value="ask">잘 모르겠어요</option></select></div>
+      </div>
+      <div class="f"><label>연락처</label><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000"></div>
+      <div class="f2">
+        <div class="f"><label>희망 날짜 <small>(선택)</small></label><input name="date" type="date"></div>
+        <div class="f"><label>시간대 <small>(선택)</small></label>
+          <select name="time"><option value="">시간대 선택</option><option value="am">오전</option><option value="pm">오후</option><option value="eve">저녁</option><option value="any">상관없음</option></select></div>
+      </div>
+      <div class="f"><label>지역 (동 · 아파트명까지)</label><input name="addr" placeholder="예) 인천 송도동 ○○아파트"></div>
+      <label class="agree"><input type="checkbox" name="agree"> 개인정보 수집·이용 동의 <a href="/privacy" target="_blank">보기</a></label>
+      <button class="btn" type="submit">방문 예약 접수하기 <span class="arr">→</span></button>
+      <p class="hint" style="font-size:12.5px;margin-top:10px">방문 후 고객 사정으로 작업을 취소하시면 출장비가 청구될 수 있습니다</p>
+      <div class="msg"></div>
+    </form>
+  </div>
+</section>
+
+<footer>
+  <b>올데이케어</b> · 사업자등록번호 430-07-03167 · 대표번호 1866-2003<br>
+  서비스 지역: 서울 · 경기 · 인천 · 브랜드 상관없이 방문<br>
+  방문 후 고객 사정으로 작업을 취소하시면 출장비가 청구될 수 있습니다.<br>
+  <a href="/privacy">개인정보처리방침</a> · 블로그 <a href="https://blog.naver.com/alldaycare365">blog.naver.com/alldaycare365</a><br>
+  일부 이미지는 이해를 돕기 위한 연출 이미지입니다. 제품 상표는 각 제조사의 소유입니다.
+</footer>
+
+<nav class="fixed">
+  <a class="call" href="tel:18662003"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg>1866-2003</a>
+  <a class="go" href="#apply" id="goForm">방문 예약 <span class="arr">→</span></a>
+</nav>
+</div>
+
+<script>
+/* ===== 설정: leak.html 의 값과 동일하게 채울 것 ===== */
+const SB_URL = 'https://jtxmzgqykmjyzzsnjqio.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eG16Z3F5a21qeXp6c25qcWlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjQ2MDYsImV4cCI6MjA5MzEwMDYwNn0.v07Gsm2vUx0Gs6r5EqMZvzOVHt2btIipt5a6tnsGFS4';
+
+/* 통이미지: 첫 장은 즉시, 나머지는 지연 로딩 + 스크롤 등장. 파일 없으면 안내 라벨 */
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('on');io.unobserve(e.target);}}),{threshold:.08});
+document.querySelectorAll('.sec[data-img]').forEach((el,i)=>{
+  const img=new Image(); img.alt=el.dataset.alt||''; img.decoding='async';
+  if(i>0){img.loading='lazy'; el.classList.add('reveal'); io.observe(el);}
+  const lb=document.createElement('div'); lb.className='ph-label'; lb.textContent=el.dataset.label+' — '+el.dataset.img;
+  img.onerror=()=>el.classList.add('missing');
+  img.src=el.dataset.img; el.appendChild(img); el.appendChild(lb);
+});
+document.querySelectorAll('.apply .card').forEach(c=>{c.classList.add('reveal');io.observe(c);});
+
+/* 하단 '방문 예약' : 지금 위치 아래쪽 폼으로, 없으면 첫 폼으로 */
+document.getElementById('goForm').addEventListener('click',e=>{
+  e.preventDefault();
+  const forms=[...document.querySelectorAll('.apply')];
+  const next=forms.find(f=>f.getBoundingClientRect().top>80)||forms[0];
+  next.scrollIntoView({behavior:'smooth',block:'start'});
+  setTimeout(()=>next.querySelector('input[name=name]').focus({preventScroll:true}),600);
+});
+
+/* 오늘 이전 날짜 막기 */
+const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+document.querySelectorAll('input[name=date]').forEach(i=>i.min=d.toISOString().slice(0,10));
+
+/* 전화번호 자동 하이픈 */
+document.querySelectorAll('input[name=phone]').forEach(ph=>ph.addEventListener('input',()=>{
+  let v=ph.value.replace(/\D/g,'').slice(0,11);
+  ph.value=v.length<4?v:v.length<8?v.slice(0,3)+'-'+v.slice(3):v.slice(0,3)+'-'+v.slice(3,v.length-4)+'-'+v.slice(-4);
+}));
+
+/* 접수: create_inquiry_v2 → 404면 create_inquiry 폴백
+   service_type 은 'unknown', 로봇청소기 구분은 source (40자 제한 — 아래 형식은 최대 30자)
+   형식: robot_landing_t/dock/10-10/pm  (t=위 폼, b=아래 폼) */
+async function rpc(fn,body){
+  return fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY},body:JSON.stringify(body)});
+}
+document.querySelectorAll('.lead-form').forEach((form,idx)=>{
+  const q=n=>form.querySelector('[name='+n+']');
+  const msg=form.querySelector('.msg'), btn=form.querySelector('.btn');
+  const label=btn.innerHTML;
+  const show=(t,ok)=>{msg.className='msg '+(ok?'ok':'err'); msg.innerHTML=t;};
+  form.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const name=q('name').value.trim(), phone=q('phone').value.replace(/\D/g,''), addr=q('addr').value.trim();
+    const svc=q('svc').value, date=q('date').value, time=q('time').value||'any';
+    if(!name) return show('성함을 적어주세요');
+    if(phone.length<10) return show('연락처를 확인해주세요');
+    if(!svc) return show('세척 범위를 선택해주세요');
+    if(!addr) return show('지역을 적어주세요');
+    if(!q('agree').checked) return show('개인정보 수집·이용에 동의해주세요');
+    btn.disabled=true; btn.textContent='접수 중…';
+    const source=['robot_landing_'+(idx===0?'t':'b'),svc,date?date.slice(5):'nodate',time].join('/');
+    const base={p_service_type:'unknown',p_name:name,p_phone:phone,p_address:addr,p_agreed_privacy:true};
+    try{
+      let r=await rpc('create_inquiry_v2',{...base,p_source:source});
+      if(r.status===404) r=await rpc('create_inquiry',base);
+      if(!r.ok) throw new Error(await r.text());
+      form.querySelectorAll('input,select').forEach(i=>i.disabled=true);
+      btn.textContent='접수 완료';
+      show('접수되었습니다. 10분 안에 확인 전화를 드립니다.',true);
+      if(window.gtag) gtag('event','generate_lead',{source:'robot_landing'});
+    }catch(err){
+      btn.disabled=false; btn.innerHTML=label;
+      show('접수가 되지 않았습니다. <a href="tel:18662003" style="text-decoration:underline">1866-2003</a> 으로 전화 주세요.');
+    }
+  });
+});
+</script>
+</body>
+</html>

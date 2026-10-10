@@ -49,7 +49,7 @@ import { adminMessagesUnreadCount } from "../lib/taskMessagesDb.js";
 import { RawOrdersArchiveScreen } from "../components/admin/RawOrdersArchiveScreen.jsx";
 // 2026-06-24 — 홈페이지 접수함 (inquiries) 운영 화면 + 신규 count polling + 마킹 RPC
 import AdminInquiriesScreen from "../components/admin/AdminInquiriesScreen.jsx";
-import { listInquiries, markInquiryConverted, SERVICE_WORKTYPE, isIpjuSource, ipjuDetail, isHoodSource, landingDetail, inquiryServiceLabel, inquiryWorkType } from "../lib/inquiriesDb.js";
+import { listInquiries, markInquiryConverted, SERVICE_WORKTYPE, isIpjuSource, ipjuDetail, isHoodSource, isRobotSource, landingDetail, inquiryServiceLabel, inquiryWorkType } from "../lib/inquiriesDb.js";
 // 2026-07-11 — 사장님 spec: 배너/뱃지/완료차단 3곳 판정 통일.
 import { needsApplianceSelection } from "../components/ApplianceSelectModal.jsx";
 // 2026-07-29 — 완료 파업 가드 (기종/설치종류/총액 0원). 상태 변경 시점에만 사용.
@@ -4095,7 +4095,7 @@ export default function AdminApp({ user, onLogout, onSwitchRole, happycallMode =
               address:   inquiryRow.address || "",
               workItems: [],               // 전화 확인 후 운영자가 채움
               // 2026-09-28 — 입주청소 랜딩(source ipju_landing*)은 "입주청소" + 평수·주택상태·희망일로 표기.
-              memo:      `[${isIpjuSource(inquiryRow.source) ? "입주청소 랜딩" : isHoodSource(inquiryRow.source) ? "주방후드 랜딩" : String(inquiryRow.source || "").startsWith("grave_landing") ? "벌초·산소 랜딩" : "홈페이지"} 접수${at ? " " + at : ""}] 희망 서비스: ${inquiryServiceLabel(inquiryRow)}${landingDetail(inquiryRow.source) ? " (" + landingDetail(inquiryRow.source) + ")" : ""}`,
+              memo:      `[${isIpjuSource(inquiryRow.source) ? "입주청소 랜딩" : isHoodSource(inquiryRow.source) ? "주방후드 랜딩" : isRobotSource(inquiryRow.source) ? "로봇청소기 랜딩" : String(inquiryRow.source || "").startsWith("grave_landing") ? "벌초·산소 랜딩" : "홈페이지"} 접수${at ? " " + at : ""}] 희망 서비스: ${inquiryServiceLabel(inquiryRow)}${landingDetail(inquiryRow.source) ? " (" + landingDetail(inquiryRow.source) + ")" : ""}`,
               // 2026-07-11 — 사장님 spec: 홈페이지 전환 시 종목(workType) 반드시 보존.
               //   service_type unknown ("잘 모르겠어요") 은 해피콜에서 확정하므로 여기서 빈 값 → 사장님이 폼에서 수동 선택 필요.
               //   그 외 (refrigerant/cleaning/repair/install) 는 SERVICE_WORKTYPE 매핑으로 자동 세팅.
