@@ -41,6 +41,7 @@ const PAYMENT_SELECT = `
     principal_amount,
     owner_amount,
     sub_principal_share,
+    sub_principal_note,
     is_balanced,
     status,
     computed_at,
@@ -304,6 +305,7 @@ export function rowToTask(row) {
     owner_amount:     payment?.owner_amount     || 0,
     // Mig 244 — 협력사 작업 수수료(owner_amount) 가운데 원청 몫. 회사 몫 = owner_amount − 이 값.
     sub_principal_share: payment?.sub_principal_share || 0,
+    sub_principal_note: payment?.sub_principal_note || null,   // Mig 264 — 정액 · 보장 근거 (kb_fixed=… ; sub_guard=…|줄 이름)
     calc_method:      payment?.calc_method      || null,
     payment_status:   payment?.status           || null,
     is_balanced:      payment?.is_balanced      ?? null,

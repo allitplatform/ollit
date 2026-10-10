@@ -59,7 +59,7 @@ import { fmtWon } from "../utils/money.js";
 import SubAssignSheet from "./SubAssignSheet.jsx";
 import CancelBanner from "./CancelBanner.jsx";
 import { SubChangeRequestBand, SubExceptionCard } from "./SubExceptionParts.jsx";
-import { SubPrincipalSplitCard } from "./SubPrincipalParts.jsx";
+import { SubPrincipalSplitCard, parseSplitNote } from "./SubPrincipalParts.jsx";
 import { getCategoryMetaOfRow } from "../lib/serviceCatalog.js";
 import { isRelocationTask } from "../utils/relocation.js";
 import { useIsPc } from "../utils/useIsPc.js";
@@ -1359,6 +1359,13 @@ function SubFeeSplitCard({ task }) {
           <div style={{ borderTop: "1px solid var(--border)", margin: "6px 0" }}/>
           {row("올데이케어 수수료", fee == null ? "완료 후 계산" : won(fee), true, "#FF1B8D")}
           {row(`${name} 몫 (공급가 − 수수료)`, fee == null ? "—" : won(Math.max(0, supply - fee)), true)}
+          {/* 2026-10-10 Mig 264 — 근거 한 줄: 보장이 적용된 작업 (65% 가 더 크면 보장이 필요 없어 나오지 않는다) */}
+          {fee != null && parseSplitNote(task.sub_principal_note).guard > 0 && (
+            <div style={{ fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.5, padding: "0 0 2px" }}>
+              {name} 보장 {won(parseSplitNote(task.sub_principal_note).guard)}
+              {parseSplitNote(task.sub_principal_note).guardLabel ? ` (${parseSplitNote(task.sub_principal_note).guardLabel})` : ""}
+            </div>
+          )}
         </>
       )}
       {task.computeError && (

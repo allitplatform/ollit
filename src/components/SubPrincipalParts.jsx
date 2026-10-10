@@ -45,6 +45,22 @@ export function useSubSplits(taskIds) {
 }
 
 // 정산 화면 작업 줄 아래 한 줄 — "원청 35,000 / 올데이케어 17,500"
+// 2026-10-10 Mig 264 — 정산 근거 글자(payments.sub_principal_note) 읽기.
+//   "kb_fixed=85000;sub_guard=200000|업소용 1,000~2,000mm" → { noQuote, kbFixed, guard, guardLabel }
+export function parseSplitNote(note) {
+  const out = { noQuote: false, kbFixed: 0, guard: 0, guardLabel: "" };
+  for (const tok of String(note || "").split(";")) {
+    if (tok === "no_quote") out.noQuote = true;
+    else if (tok.startsWith("kb_fixed=")) out.kbFixed = Number(tok.slice(9)) || 0;
+    else if (tok.startsWith("sub_guard=")) {
+      const [amt, label] = tok.slice(10).split("|");
+      out.guard = Number(amt) || 0;
+      out.guardLabel = label || "";
+    }
+  }
+  return out;
+}
+
 export function SplitNote({ split }) {
   if (!split || !split.has_rule || split.fee == null) return null;
   const share = Number(split.share) || 0;
@@ -53,7 +69,7 @@ export function SplitNote({ split }) {
     <div style={{ fontSize: 11.5, fontWeight: 700, color: VIOLET, marginTop: 2 }}>
       {shortPrincipal(split.principal_name)} {fmtWon(share)} / 올데이케어 {fmtWon(Math.max(0, fee - share))}
       {split.quote_edited_at && <span style={tag("rgba(249,115,22,0.16)", "#F97316")}>견적 수정</span>}
-      {split.note === "no_quote" && <span style={tag("rgba(229,72,77,0.14)", "#E5484D")}>⚠ 견적 없음 — 수수료 전액</span>}
+      {parseSplitNote(split.note).noQuote && <span style={tag("rgba(229,72,77,0.14)", "#E5484D")}>⚠ 견적 없음 — 수수료 전액</span>}
     </div>
   );
 }
@@ -125,6 +141,13 @@ export function SubPrincipalSplitCard({ task, style = {} }) {
           {/* 2026-10-07 Mig 256 — 직영 주방후드도 같은 카드: 수수료 = 받은 공급가의 35% */}
           {row(task && (task.subcontractorId || task.subcontractor_id) ? "화이트코어에게서 받는 수수료" : "수수료 (기사 몫을 뺀 금액)", fmtWon(fee))}
           {row(`${pname}에 줄 몫`, fmtWon(share), true, VIOLET)}
+          {/* 2026-10-10 Mig 264 — 근거 한 줄: 줄별 정액이 걸린 작업 */}
+          {parseSplitNote(data.note).kbFixed > 0 && (
+            <div style={{ ...small, fontSize: 11.5 }}>
+              {pname} 정액 {fmtWon(parseSplitNote(data.note).kbFixed)}
+              {share < parseSplitNote(data.note).kbFixed ? " + 그 밖의 줄 견적의 35% → 수수료를 넘지 않게 줄임" : (share > parseSplitNote(data.note).kbFixed ? " + 그 밖의 줄 견적의 35%" : "")}
+            </div>
+          )}
           {row("올데이케어 실제 몫", fmtWon(Math.max(0, fee - share)), true, "#FF1B8D")}
         </>
       )}
