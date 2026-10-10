@@ -283,7 +283,10 @@ export function PcMoneySplit({ task, onEditMaterial = null }) {
   const fee = Number(task.owner_amount || 0);
   let parts;
   if (isSub) {
-    const supply = Number(task.supplyAmount || 0) || Number(task.receivedTotal || 0) || 0;
+    // 2026-10-10 (79) — 받은 금액이 아직 없으면(완료 전) 견적을 공급가로 본다 (서버의 예상 계산과 같은 기준, mig 265).
+    //   전에는 0 으로 봐서 완료 전 막대에 협력사 몫이 나오지 않고 "회사(수수료) 100%" 로만 보였다.
+    const supply = Number(task.supplyAmount || 0) || Number(task.receivedTotal || 0)
+      || Number(task.productPrice ?? task.estimateTotal ?? 0) || 0;
     parts = [
       { label: "협력사", amount: Math.max(0, supply - fee), color: "#A78BFA" },
       { label: "회사 (수수료)", amount: Math.max(0, fee - share), color: "#FF1B8D" },
