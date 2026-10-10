@@ -1,6 +1,6 @@
 -- ============================================================================
 -- 검증 (읽기만 합니다. 아무것도 바꾸지 않습니다) - 블록 (77)(78) 업소용 후드 정액 · 보장
--- 선행: mig 264, 265 실행
+-- 선행: mig 264, 265, 267 실행
 -- 결과는 표 하나입니다: 경우 · 기대 · 실제 · 맞음 · 올데이케어 몫 음수 아님
 --   기대 / 실제 = "화이트코어(또는 직영 기사) 몫 / 쿨가이 몫 / 올데이케어 몫"
 --   계산은 compute_payment 가 실제로 부르는 함수(_hood_fixed_calc)를 그대로 부릅니다.
@@ -70,8 +70,35 @@ rws AS (
                  AND min(effective_from) = DATE '2026-10-01' AND max(effective_from) = DATE '2026-10-01' FROM hood_fixed_rules WHERE active),
          true
   UNION ALL
-  SELECT 92, '협력사 작업 완료 전 예상 공급가 = 견적 그대로 (mig 265 조각이 들어 있음)', 'true',
-         (position('Mig 265 - 받은 금액이 아직 없으면' IN prosrc) > 0)::text, (position('Mig 265 - 받은 금액이 아직 없으면' IN prosrc) > 0), true FROM src
+  SELECT 92, 'compute_payment 가 예상 공급가 함수를 씀 (mig 267)', 'true',
+         (position('_sub_supply_estimate(' IN prosrc) > 0)::text, (position('_sub_supply_estimate(' IN prosrc) > 0), true FROM src
+  UNION ALL
+  -- 블록 (80): 예상 공급가 함수 -> 계산 함수까지 이어서 확인 (받은 금액 합계 칸이 견적으로 채워져 있어도 공급가 = 견적)
+  SELECT 20 + e.n, e.label, e.exp_txt,
+         (e.r ->> 'sub_share') || ' / ' || (e.r ->> 'kb_any') || ' / ' || ((e.r ->> 'fee')::int - (e.r ->> 'kb_any')::int),
+         ((e.r ->> 'sub_share') || ' / ' || (e.r ->> 'kb_any') || ' / ' || ((e.r ->> 'fee')::int - (e.r ->> 'kb_any')::int)) = e.exp_txt,
+         ((e.r ->> 'fee')::int - (e.r ->> 'kb_any')::int >= 0)
+  FROM (
+    SELECT v.n, v.label, v.exp_txt,
+           _hood_fixed_calc(v.lines, est.s, ROUND(est.s * 0.35)::int, 0.35, (SELECT id FROM wc), 'A', NULL, v.total, DATE '2026-10-10') AS r
+    FROM (VALUES
+      (1, '미완료 협력사 289,000 (받은 금액 입력 전 · 합계 칸은 견적으로 채워짐)',
+          '[{"code":"hood_commercial_m","qty":1,"unit_price":289000}]'::jsonb, 289000, '확정', NULL::timestamptz, '200000 / 0 / 89000'),
+      (2, '미완료 협력사 198,000 x 2줄 = 396,000 (받은 금액 입력 전)',
+          '[{"code":"hood_commercial_s","qty":1,"unit_price":198000},{"code":"hood_commercial_s","qty":1,"unit_price":198000}]'::jsonb, 396000, '배정', NULL::timestamptz, '257400 / 0 / 138600'),
+      (3, '받은 금액 입력 없이 10/12 에 완료 처리된 협력사 289,000 - / 1.1 로 가지 않음',
+          '[{"code":"hood_commercial_m","qty":1,"unit_price":289000}]'::jsonb, 289000, '완료', '2026-10-12 12:00:00+09'::timestamptz, '200000 / 0 / 89000')
+    ) v(n, label, lines, total, status, done_at, exp_txt)
+    CROSS JOIN LATERAL (SELECT _sub_supply_estimate(NULL, v.total, v.status, v.done_at) AS s) est
+  ) e
+  UNION ALL
+  SELECT 24, '예상 공급가: 받은 금액을 입력한 작업은 입력한 공급가 그대로', '454545',
+         _sub_supply_estimate(454545, 500000, '완료', '2026-10-08 12:00:00+09')::text,
+         _sub_supply_estimate(454545, 500000, '완료', '2026-10-08 12:00:00+09') = 454545, true
+  UNION ALL
+  SELECT 25, '예상 공급가: 옛 완료 작업(10/10 전 완료 · 공급가 칸 비어 있음)은 전처럼 합계 / 1.1', '454545',
+         _sub_supply_estimate(NULL, 500000, '완료', '2026-10-08 12:00:00+09')::text,
+         _sub_supply_estimate(NULL, 500000, '완료', '2026-10-08 12:00:00+09') = 454545, true
 )
 SELECT label AS "경우", exp_txt AS "기대 (수행 몫 / 쿨가이 / 올데이케어)", act_txt AS "실제", ok AS "맞음", not_negative AS "올데이케어 몫 음수 아님"
 FROM (
