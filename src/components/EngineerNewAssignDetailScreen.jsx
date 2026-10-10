@@ -657,12 +657,16 @@ export function EngineerNewAssignDetailScreen({
                       style={{ position: "absolute", inset: 0, opacity: 0, cursor: "pointer" }}/>
                   </label>
                 </div>
-                {/* 시 가로 칩 — 24시간 전체 (사장님 spec: 밤 작업도 있음). 열리면 현재 시간대로 자동 스크롤. */}
+                {/* 시 가로 칩 — 24시간 전체 (사장님 spec: 밤 작업도 있음).
+                      2026-10-10 (78) — 처음 열 때 5시부터 보이게 (전에는 지금 시각 쪽으로 밀려 새벽 시간이 화면 밖에 있었다).
+                      이미 고른 시간이 있으면 그 시간이 보이게. */}
                 <div
                   ref={(el) => {
                     if (el && !el._autoScrolled) {
                       el._autoScrolled = true;
-                      el.scrollLeft = Math.max(0, (_now.getHours() - 1) * 54);
+                      // 기본값(14시)은 "고른 시간" 으로 보지 않는다 → 5시부터. 다른 시간을 이미 골랐으면 그 시간 앞 칸부터.
+                      const _h = customHour && customHour !== "14" && !isNaN(parseInt(customHour, 10)) ? parseInt(customHour, 10) - 1 : 5;
+                      el.scrollLeft = Math.max(0, _h * 54);
                     }
                   }}
                   style={{ display: "flex", gap: 6, overflowX: "auto", paddingBottom: 2 }}>

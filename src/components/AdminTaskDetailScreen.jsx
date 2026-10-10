@@ -65,6 +65,7 @@ import { isRelocationTask } from "../utils/relocation.js";
 import { useIsPc } from "../utils/useIsPc.js";
 import { usePanelWidth, PcStatusStrip, PcCustomerCard, PcPlaceCard, PcExceptionCard, PcSection, PcPerformerCard, PcMoneySplit, isBeforeWork } from "./AdminTaskDetailPcParts.jsx";
 import { workItemName } from "../utils/workItemName.js";
+import { SubReceivedEditModal } from "./admin/SubReceivedEditModal.jsx";
 import { RelocationBlocks } from "./RelocationParts.jsx";
 
 // 2026-10-06 — 작업 상세의 모든 카드는 같은 좌우 여백을 쓴다 (0 이면 테두리 선이 화면 끝에서 잘려 12 로 — 2026-10-06 실화면 확인).
@@ -1639,6 +1640,7 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
 
   const [editItem,   setEditItem]   = useState(null);
   const [showAdd,    setShowAdd]    = useState(false);
+  const [showSubReceived, setShowSubReceived] = useState(false);     // 협력사 작업의 받은 금액 수정 창
   const [toast,      setToast]      = useState("");
 
   // 견적 수정/추가 모달 테마 (다크/라이트 무관 통합 토큰).
@@ -1743,6 +1745,9 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
     // 2026-10-07 — 완료 전(접수 · 미배정 · 배정 · 일정 확정)에는 받은 돈을 입력하지 않는다 (미리 받는 돈 없음). 진행부터 입력칸.
     //   일정 확정인데 일정 시각이 지난 작업은 연다 (운영자가 대신 마무리).
     const beforeWork = isBeforeWork(task);
+    // 2026-10-10 (78) — 협력사 작업: 항목 줄 받은 돈 칸은 읽기 전용. 금액 수정은 아래 [받은 금액 수정] 창 하나로
+    //   (받은 금액 + 부가세 포함 → 공급가 · 항목 줄 · 정산이 같이 다시 계산된다). 직영 작업은 그대로.
+    const subReadOnly = !!task?.subcontractorId;
     const sumQuote = items.reduce((s, it) => s + (it.isCanceled || isVisitOnly ? 0 : (Number(it.subtotal) || (Number(it.unitPrice) || 0) * (Number(it.qty) || 1))), 0);
     return (
       <div style={{ padding: D1_OUTER_PAD }}>
@@ -1808,13 +1813,16 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
                     inputMode="numeric"
                     value={localReceived[it.id] != null ? localReceived[it.id] : ""}
                     placeholder={String(subtotal)}
-                    onChange={(e) => setLocalReceived(prev => ({ ...prev, [it.id]: e.target.value }))}
-                    onBlur={() => handleBlur(it.id, it.receivedAmount)}
+                    onChange={(e) => { if (!subReadOnly) setLocalReceived(prev => ({ ...prev, [it.id]: e.target.value })); }}
+                    onBlur={() => { if (!subReadOnly) handleBlur(it.id, it.receivedAmount); }}
+                    readOnly={subReadOnly}
+                    tabIndex={subReadOnly ? -1 : undefined}
+                    title={subReadOnly ? "협력사 작업 — 아래 [받은 금액 수정] 에서 고칩니다" : undefined}
                     disabled={!!saving[it.id]}
                     aria-label="실제 받은 돈"
                     style={{
-                      width: "100%", boxSizing: "border-box", padding: "6px 8px", background: "var(--card-bg)",
-                      border: `1px solid ${colors.main}`, borderRadius: 6, color: "var(--text-primary)",
+                      width: "100%", boxSizing: "border-box", padding: "6px 8px", background: subReadOnly ? "var(--bg-secondary)" : "var(--card-bg)",
+                      border: `1px solid ${subReadOnly ? "var(--border)" : colors.main}`, borderRadius: 6, color: "var(--text-primary)",
                       fontSize: 13.5, fontWeight: 700, textAlign: "right", outline: "none", fontFamily: "inherit",
                       opacity: saving[it.id] ? 0.5 : 1,
                     }}
@@ -1855,6 +1863,17 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
             <span className="mono" style={{ textAlign: "right", color: "#D4537E" }}>{beforeWork ? "" : (usesReceivedTotalFlow ? Number(task?.receivedTotal || 0).toLocaleString("ko-KR") : "—")}</span>
             {!narrow && <span/>}
           </div>
+          {subReadOnly && usesReceivedTotalFlow && !isVisitOnly && !beforeWork && (
+            <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", marginTop: 8 }}>
+              <span style={{ flex: 1, minWidth: 0, fontSize: 11.5, color: "var(--text-tertiary)", lineHeight: 1.4 }}>
+                협력사 작업은 항목 칸을 직접 고치지 않습니다 (공급가 · 부가세가 같이 정해져야 함)
+              </span>
+              <button type="button" onClick={() => setShowSubReceived(true)} style={{
+                padding: "7px 12px", borderRadius: 8, fontSize: 12.5, fontWeight: 800, fontFamily: "inherit", cursor: "pointer", whiteSpace: "nowrap",
+                background: "rgba(255,27,141,0.1)", border: "1px solid #FF1B8D", color: "#FF1B8D",
+              }}>받은 금액 수정</button>
+            </div>
+          )}
           {footer}
           {!isVisitOnly && !canEdit && disabledReason && (
             <div style={{ marginTop: 6, fontSize: 11, fontWeight: 600, color: "var(--text-tertiary, var(--text-secondary))", textAlign: "right" }}>⚠️ {disabledReason}</div>
@@ -1867,6 +1886,10 @@ function TaskItemsCard({ task, user, onReload, pc = false, footer = null, onPart
         {showAdd && (
           <AddTaskItemModal t={editT} task={task} actorId={editActorId}
             onClose={() => setShowAdd(false)} onApplied={() => { setShowAdd(false); handleApplied("✓ 항목 추가됨"); }}/>
+        )}
+        {showSubReceived && (
+          <SubReceivedEditModal task={task} onClose={() => setShowSubReceived(false)}
+            onSaved={() => { setShowSubReceived(false); handleApplied("✓ 받은 금액 수정됨"); }}/>
         )}
         {toast && (
           <div style={{
