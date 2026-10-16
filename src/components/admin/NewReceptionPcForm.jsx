@@ -234,6 +234,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
           principal: result.principal_amount,
           company:   result.company_margin,
           calcMethod: result.calc_method,
+          summary:   result.summary || "",       // 2026-10-16 (82) — 직영 주방후드 · 로봇청소기: 서버가 만든 한 줄
         });
       } catch (e) {
         setFeeError(e.message || "분배 계산 실패");
@@ -875,6 +876,9 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
                 <SplitBox t={t} label="원청 수수료" amount={feePreview.principal} color="#FFB800"/>
                 <SplitBox t={t} label="회사 마진"   amount={feePreview.company}   color="#1D9E75" accent/>
               </div>
+              {feePreview.summary && (
+                <div style={{ fontSize: 12, fontWeight: 700, color: t.text, marginTop: 8, lineHeight: 1.5 }}>{feePreview.summary}</div>
+              )}
             </Card>
           ) : feeLoading ? (
             <Card t={t} title="분배 미리보기">

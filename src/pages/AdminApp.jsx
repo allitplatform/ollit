@@ -10925,7 +10925,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
   const performerState = usePerformer((workItems[0] && workItems[0].workType) || form.workType, PRINCIPAL_NAME_TO_CODE[form.principal]);
 
   // V14 1F — 분배 미리보기 (관리자만 catch / 기사 X)
-  // 메인 항목 (workItems[0]) + 견적 박힐 때마다 debounce 500ms → calculateFee API 호출
+  // 메인 항목 (workItems[0]) + 견적이 바뀔 때마다 debounce 500ms → calculateFee API 호출
   // Step 2-B-2 — KA + 냉매충전 + "1way" 케이스는 시트 매칭용 appliance="1way 첫 대"로 호출
   //              (KA estimate_remainder_split 정책은 두 행 모두 동일 — 견적 합산만 정확하면 분배 동일)
   useEffect(() => {
@@ -10934,7 +10934,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
       setFeeError("");
       return;
     }
-    // 2026-05-16 Phase 4 — 모든 항목 workType/appliance 박힘 박을 spec
+    // 2026-05-16 Phase 4 — 모든 항목에 작업 종류 · 기종이 들어 있을 때만 계산
     const allValid = workItems.every(i => i.workType && i.appliance);
     if (!allValid) {
       setFeePreview(null);
@@ -10950,8 +10950,9 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
         const workItemsForFee = workItems.map(i =>
           i.workType === "설치" ? { ...i, appliance: "" } : i
         );
-        // 2026-05-16 Phase 4 — calculateCommissionMultiRpc 측 멀티 항목 + qty 박은 spec
-        // 단가형/비율형/정액형 분기 자동 박힘. 유솔N skip.
+        // 2026-05-16 Phase 4 — calculateCommissionMultiRpc 로 여러 항목 + 수량을 함께 계산
+        // 단가형 / 비율형 / 정액형은 자동으로 나뉜다. 유솔N 은 건너뜀.
+        // 2026-10-16 (82) — 직영 주방후드 · 로봇청소기는 서버 미리보기 함수(mig 269)로 계산되어 summary 한 줄이 같이 온다.
         const result = await calculateCommissionMultiRpc({
           principalName: form.principal,
           workItems: workItemsForFee,
@@ -10965,7 +10966,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
           setFeeError(result.error);
           setFeePreview(null);
         } else {
-          // 옛 feePreview spec 호환 변환 (render 측 fee.principalFee 등 박혀있음)
+          // 옛 feePreview 모양으로 바꿔 담는다 (아래 화면이 fee.principalFee 등을 읽음)
           setFeePreview({
             ok: true,
             fee: {
@@ -10981,6 +10982,7 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
             total: form.estimateTotal,
             multi: true,
             items: result.items,
+            summary: result.summary || "",
           });
         }
       } catch (e) {
@@ -11763,6 +11765,9 @@ function NewReceptionFormScreen({ t, user, onBack, onSubmit, initial }) {
                     <FeePreviewCell t={t} label="프로" value={feePreview.fee.engineerAmount} color={t.success || "#10B981"}/>
                     <FeePreviewCell t={t} label="회사" value={feePreview.fee.companyProfit} color={t.accent}/>
                   </div>
+                  {feePreview.summary && (
+                    <div style={{ marginTop: 8, fontSize: 12, fontWeight: 700, color: t.text, lineHeight: 1.5 }}>{feePreview.summary}</div>
+                  )}
                   <div style={{
                     marginTop: 8, fontSize: 9, color: t.textMuted, fontWeight: 500,
                     lineHeight: 1.4,

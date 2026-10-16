@@ -277,6 +277,9 @@ export const CALC_METHOD_LABEL = {
   "usol_n_추가선택": "유솔N 추가선택",
   "usol_n_냉매점검": "유솔N 냉매점검",
   "출장비_30K":     "출장비 (3만원)",
+  // 2026-10-16 (82) — 새 규칙표(fee_rules)로 계산하는 직영 종목
+  "직영_주방후드":   "직영 주방후드 (기사 65% / 회사 35%)",
+  "직영_로봇청소기": "직영 로봇청소기 (기사 65% / 회사 35%)",
 };
 
 // calc_method → 긴 설명 (툴팁 / 부가 설명 박은 영역)
@@ -451,6 +454,32 @@ export async function calculateCommissionMultiRpc({
   if (!Array.isArray(workItems) || workItems.length === 0) {
     return { error: "empty_workItems" };
   }
+
+  // 2026-10-16 (82) Mig 269 — 직영 주방후드 · 직영 로봇청소기는 새 규칙표(fee_rules)로 정산한다.
+  //   옛 단가표에는 규칙이 없어서 "직영 단가 규칙이 없습니다" 가 나오던 문제 → 서버의 미리보기 함수로 계산한다.
+  //   식은 서버에만 있다 (실제 정산 compute_payment 와 같은 함수를 부름). 화면은 결과만 보여 준다.
+  //   다른 종목이면 applies = false → 아래 옛 단가표 계산 그대로. 함수가 아직 없으면(269 실행 전) 역시 아래로.
+  try {
+    const { data: pv, error: pvErr } = await supabase.rpc("preview_direct_split", {
+      p_principal_code: principalCode,
+      p_items: workItems.map(i => ({
+        workType: i.workType, appliance: i.appliance, qty: Number(i.qty) || 1,
+        unitPrice: Number(i.unitPrice || i.quote) || 0,
+      })),
+      p_total: Math.max(0, Math.round(Number(totalEstimate) || 0)),
+    });
+    if (!pvErr && pv && pv.applies) {
+      return {
+        engineer_amount:  Number(pv.engineer) || 0,
+        principal_amount: Number(pv.principal) || 0,
+        company_margin:   Number(pv.company) || 0,
+        calc_method:      pv.calc_method,
+        summary:          pv.summary || "",
+        items: [],
+        error: null,
+      };
+    }
+  } catch (_e) { /* 미리보기 함수 실패 → 옛 단가표 계산으로 */ }
 
   // 항목별 unitPrice 박혀있으면 그대로, 박지 X면 균등 분배 (totalEstimate / totalQty)
   // 2026-05-16 fix — Math.floor (DB p_quoted_amount int 박혀있어 소수점 박힘 박지 X)
