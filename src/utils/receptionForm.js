@@ -65,6 +65,8 @@ export const WORK_TYPES_CONFIG = {
   "후드설치":         { enabled: true, workflow: "manual_with_recommendation", needsAppliance: true, priority: 6 },
   // 2026-10-07 Mig 244 — 주방후드 옵션 (화구 스팀 세척 · 자바라 · 소방후드)
   "후드옵션":         { enabled: true, workflow: "manual_with_recommendation", needsAppliance: true, priority: 7 },
+  // 2026-10-16 Mig 268 — 로봇청소기 (직영). 이름은 service_types.name 과 정확히 같아야 한다.
+  "로봇청소기":       { enabled: true, workflow: "manual_with_recommendation", needsAppliance: true, priority: 8 },
   "수리":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 5  },
   "점검":     { enabled: false, workflow: "manual_with_recommendation", needsAppliance: true,  priority: 5  },
 };
@@ -99,6 +101,8 @@ export const APPLIANCE_POOL = {
   "주방후드(가정용)": ["기본형", "2구 더블", "고급형"],
   "후드옵션":         ["화구 스팀 세척", "자바라", "소방후드"],
   "후드설치":         ["(공통)"],
+  // 2026-10-16 Mig 268 — 로봇청소기 단가표 줄 (work_types 이름 "로봇청소기_줄 이름" 과 대조)
+  "로봇청소기":       ["본체 + 도크스테이션", "본체만", "출장비"],
   "추가선택(YS-N)": ["송풍팬분해", "실외기", "피톤치드"],
   "냉매점검(YS-N)": ["기본", "추가발생", "출장비"],
 };
@@ -118,19 +122,25 @@ export const REFRIGERANT_APPLIANCE_POOL = ["벽걸이", "스탠드", "4way", "�
 //     service_types.name 매칭 대상). UI 노출 텍스트는 formatWorkTypeLabel() 로 감쌀 것.
 export const WORK_TYPES = ["세척", "냉매충전", "누설", "누수", "설치", "출장비", "추가선택(YS-N)", "냉매점검(YS-N)",
   // 2026-10-06 Mig 215 — 주방후드 (협력사 수행)
-  "주방후드(업소용)", "주방후드(가정용)", "후드설치", "후드옵션"];
+  "주방후드(업소용)", "주방후드(가정용)", "후드설치", "후드옵션",
+  // 2026-10-16 Mig 268 — 로봇청소기 (직영)
+  "로봇청소기"];
 
 // 2026-10-07 Mig 244·246 — 주방후드 단가표. 금액은 화면 코드에 두지 않고 DB(work_types.default_unit_price)에서 읽는다
 //   (src/lib/serviceCatalog.js 의 useHoodPrices). 여기에는 "단가표로 고르는 서비스" 목록과 안내 문구만 둔다.
 export const HOOD_LIST_SERVICES = ["주방후드(업소용)", "주방후드(가정용)", "후드옵션"];
+// 2026-10-16 Mig 268 — 단가표로 고르는 서비스 전체 (주방후드 + 로봇청소기). 자동 견적 · 항목별 단가는 이 목록으로 본다.
+//   HOOD_LIST_SERVICES 는 쿨가이 접수 화면(주방후드만)이 그대로 쓴다.
+export const PRICE_LIST_SERVICES = [...HOOD_LIST_SERVICES, "로봇청소기"];
 export const HOOD_PRICE_HINT = {
+  "로봇청소기|출장비": "방문 후 고객 사정으로 취소된 경우 — 금액을 직접 입력해 주세요",
   "주방후드(업소용)|2,000mm 초과(현장 확인)": "현장 확인 후 견적을 직접 입력해 주세요",
   "후드옵션|화구 스팀 세척": "40,000~70,000원 사이 — 견적을 직접 입력해 주세요",
 };
 // 작업 항목이 전부 단가표로 고르는 주방후드 줄인지
 export function isHoodListItems(workItems) {
   const items = Array.isArray(workItems) ? workItems : [];
-  return items.length > 0 && items.every(it => HOOD_LIST_SERVICES.includes(it.workType));
+  return items.length > 0 && items.every(it => PRICE_LIST_SERVICES.includes(it.workType));
 }
 // 2026-10-07 — 항목별 단가를 실어 보낸다 (저장 트리거는 항목에 quote 가 없으면 견적 합계를 항목 수로 똑같이 나눈다
 //   → 기본형 100,000 + 자바라 30,000 이 65,000 / 65,000 으로 저장되던 문제).

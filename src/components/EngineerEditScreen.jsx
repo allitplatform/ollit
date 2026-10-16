@@ -38,10 +38,14 @@ function _computeInitialWorkTypes(engineer) {
   // 2026-10-07 — 설치 기술 (등급만. 지역은 기사당 한 벌이라 세척·냉매 지역을 같이 쓴다)
   const installSkill = skills.find(s => isAllPrincipal(s.principal) && s.workType === "설치");
   const installRole = installSkill ? ((mapSheetSkillToWorkType(installSkill) || {}).role || "none") : "none";
+  // 2026-10-16 Mig 268 — 로봇청소기 기술 (설치와 같은 방식: 등급만, 지역은 세척·냉매 지역을 같이 씀)
+  const robotSkill = skills.find(s => isAllPrincipal(s.principal) && s.workType === "로봇청소기");
+  const robotRole = robotSkill ? ((mapSheetSkillToWorkType(robotSkill) || {}).role || "none") : "none";
   return {
     cleaning:    cleaningSkill    ? mapSheetSkillToWorkType(cleaningSkill)    : { ...baseCleaning },
     refrigerant: refrigerantSkill ? mapSheetSkillToWorkType(refrigerantSkill) : { ...baseRefrigerant },
     install:     { role: installRole, zones: [], appliances: [] },
+    robot:       { role: robotRole, zones: [], appliances: [] },
   };
 }
 
@@ -296,6 +300,10 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
                    : (_cln.role && _cln.role !== "none") ? (_cln.zones || []) : [];
       if (await syncSkill("설치", { role: _ins.role || "none", zones: _zones, appliances: [] })) skillOk += 1;
       else skillFail += 1;
+      // 2026-10-16 Mig 268 — 로봇청소기 기술 (같은 지역)
+      const _rob = form.workTypes.robot || { role: "none" };
+      if (await syncSkill("로봇청소기", { role: _rob.role || "none", zones: _zones, appliances: [] })) skillOk += 1;
+      else skillFail += 1;
     }
 
     setBusy(false);
@@ -440,6 +448,21 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
       <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginTop: 8, lineHeight: 1.5 }}>
         설치 작업은 이 칸이 메인·백업인 기사만 추천됩니다. 지역은 따로 두지 않고 위 세척·냉매의 가능 지역을 같이 씁니다
         (둘 다 "안 함" 이면 전지역).
+      </div>
+    </Section>
+  );
+
+  // 2026-10-16 Mig 268 — 로봇청소기 기술 (메인 / 백업 / 안 함). 로봇청소기 작업의 추천은 이 기술을 가진 기사만 본다.
+  const _robRole = (form.workTypes.robot && form.workTypes.robot.role) || "none";
+  const robotSection = (
+    <Section label="🤖 로봇청소기">
+      <RadioRow
+        options={Object.entries(ROLE_OPTIONS).map(([k, v]) => ({ key: k, label: v }))}
+        value={_robRole}
+        onChange={(v) => updateWork("robot", "role", v)}
+      />
+      <div style={{ fontSize: 11.5, color: "var(--text-secondary)", marginTop: 8, lineHeight: 1.5 }}>
+        로봇청소기 작업은 이 칸이 메인·백업인 기사만 추천됩니다. 지역은 위 세척·냉매의 가능 지역을 같이 씁니다.
       </div>
     </Section>
   );
@@ -674,6 +697,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
               <PcCard stripeColor="#0EA5E9">{cleaningSection}</PcCard>
               <PcCard stripeColor="#FFB800">{refrigerantSection}</PcCard>
               <PcCard stripeColor="#6366F1">{installSection}</PcCard>
+              <PcCard stripeColor="#0E9C94">{robotSection}</PcCard>
             </div>
           </div>
           {/* 하단 2단 — 단가 / 메모 */}
@@ -708,6 +732,7 @@ export function EngineerEditScreen({ engineer, isNew, onSaved, onBack, actor }) 
           {cleaningSection}
           {refrigerantSection}
           {installSection}
+          {robotSection}
           {ratesSection}
           {/* 2026-10-06 Mig 212 — 소속 협력사 (운영자 전용, 독립 저장) */}
           {!isNew && targetUserId && (

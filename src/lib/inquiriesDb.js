@@ -104,6 +104,16 @@ export function robotDetail(source) {
   else if (tm) out.push("희망 " + tm);
   return out.join(" · ");
 }
+// 2026-10-16 Mig 268 — 로봇청소기 랜딩 접수 → 작업 전환 때 넣을 항목.
+//   범위 dock → 본체 + 도크스테이션 / body → 본체만 / ask(미정) · 그 밖 → 빈 목록 (운영자가 통화 뒤 고름)
+//   항목 이름은 접수 화면의 로봇청소기 줄 이름과 같아야 한다 (receptionForm.js APPLIANCE_POOL).
+const ROBOT_ITEM = { dock: "본체 + 도크스테이션", body: "본체만" };
+export function robotInquiryItems(source) {
+  if (!isRobotSource(source)) return [];
+  const kind = String(source).split("/")[1] || "";
+  return ROBOT_ITEM[kind] ? [{ workType: "로봇청소기", appliance: ROBOT_ITEM[kind], qty: 1 }] : [];
+}
+
 // 랜딩 접수 풀이 공통 — 입주청소·주방후드·로봇청소기 중 해당하는 쪽. 어느 것도 아니면 "".
 export function landingDetail(source) {
   return ipjuDetail(source) || hoodDetail(source) || robotDetail(source);
@@ -142,6 +152,17 @@ export function isGraveSource(source) {
 }
 // 접수함 → 작업 전환 시 종목 프리필. 랜딩 접수(주방후드·입주청소·벌초·로봇청소기)는 에어컨 종목이 아니므로 비워 둔다.
 //   (주방후드 "후드 설치" 는 service_type 이 install 이라 그대로 두면 에어컨 "설치" 로 들어감)
+// 2026-10-16 Mig 268 — 접수함 → 작업 전환 프리필 공통: { workType, workItems, applianceUndecided }
+//   로봇청소기 랜딩: 범위를 골랐으면 종목 + 항목까지, 미정이면 비워 둠 (운영자가 통화 뒤 고름 — 빈 항목으로 저장되지 않게).
+export function inquiryPrefill(row) {
+  const src = row && row.source;
+  if (isRobotSource(src)) {
+    const items = robotInquiryItems(src);
+    return { workType: items.length ? "로봇청소기" : "", workItems: items, applianceUndecided: items.length === 0 };
+  }
+  return { workType: inquiryWorkType(row), workItems: [], applianceUndecided: true };
+}
+
 export function inquiryWorkType(row) {
   const src = row && row.source;
   if (isHoodSource(src) || isIpjuSource(src) || isGraveSource(src) || isRobotSource(src)) return "";

@@ -326,7 +326,10 @@ function _pickServiceCode(task) {
     if (c === "install") return "install";
     // 2026-07-20 — 누설 serviceCode → 냉매 기사 풀 (사장님 규칙)
     if (c === "leak") return "refrigerant";
+    // 2026-10-16 Mig 268 — 로봇청소기는 로봇청소기 기술 기사만
+    if (c.startsWith("robot")) return "robot";
   }
+  if (items.some(it => String(it?.workType || "").startsWith("로봇청소기"))) return "robot";
   if (getServiceKind(task) === "install") return "install";
   return serviceKindToRecKey(getServiceKind(task));
 }

@@ -26,6 +26,7 @@ import {
   landingDetail,
   isGraveSource,          // 2026-10-02 — 벌초·산소 랜딩 (source grave_landing*)
   inquiryWorkType,
+  inquiryPrefill,
   inquiryServiceLabel,
   statusMeta,
   SERVICE_WORKTYPE,
@@ -1027,13 +1028,14 @@ function PcDetailPanel({ t, user, row, busy, apiTasks = [], onCall, onSpam, onDe
     customer:  row.name    || "",
     phone:     row.phone   || "",
     address:   row.address || "",
-    workItems: [],
+    // 2026-10-16 Mig 268 — 로봇청소기 랜딩은 범위(본체 / 본체+스테이션)를 항목으로 넣는다 (inquiryPrefill)
+    workItems: inquiryPrefill(row).workItems,
     // 2026-07-28 — 홈페이지에서 고객이 고른 종목을 접수폼에 프리필.
     //   이게 비어 있어서 "에어컨 설치" 접수가 종목 미정 → '기타/기타 ×1 ₩0' 으로
     //   저장되던 사고 수리 (임영빈 A-260728, 조종석 배정 건).
     //   NewReceptionPcForm 은 init.workType / init.applianceUndecided 를 이미 받는다.
-    workType: inquiryWorkType(row),
-    applianceUndecided: true,
+    workType: inquiryPrefill(row).workType,
+    applianceUndecided: inquiryPrefill(row).applianceUndecided,
     memo: `[${sourceBadge(row.source) ? sourceBadge(row.source).label + " 랜딩" : "홈페이지"} 접수${at ? " " + at : ""}] 희망 서비스: ${inquiryServiceLabel(row)}${landingDetail(row.source) ? " (" + landingDetail(row.source) + ")" : ""}`,
   };
   const isNew  = row.status === "new";

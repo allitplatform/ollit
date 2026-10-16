@@ -753,7 +753,7 @@ export function NewReceptionPcForm({ t, user, onBack, onSubmit, initial }) {
             )}
             {hoodPriceNotice && (
               <div style={{ fontSize: 12, fontWeight: 700, color: "#E5484D", marginBottom: 8, lineHeight: 1.5 }}>
-                주방후드 단가표를 불러오지 못했습니다 — 견적을 직접 입력해 주세요.
+                단가표를 불러오지 못했습니다 — 견적을 직접 입력해 주세요.
               </div>
             )}
             <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>

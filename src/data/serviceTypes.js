@@ -54,6 +54,16 @@ export const SERVICE_TYPES = {
     bgColor:     "var(--bg-secondary)",
     borderColor: "#14B8A6",
   },
+  // 2026-10-16 Mig 268 — 로봇청소기 (색·아이콘은 종목 기준표가 덮어씀)
+  robot: {
+    id:          "robot",
+    label:       "로봇청소기",
+    icon:        "🤖",
+    color:       "#0E9C94",
+    textColor:   "#0E9C94",
+    bgColor:     "var(--bg-secondary)",
+    borderColor: "#0E9C94",
+  },
   visit: {
     id:          "visit",
     label:       "출장",
@@ -103,7 +113,7 @@ import { getCategoryMeta } from "../lib/serviceCatalog.js";
 
 // 2026-10-06 — 배지의 색·아이콘은 종목 기준표에서 (이름은 작업 종류 그대로).
 //   출장·추가·미정 배지는 종목이 아니라 "상황" 을 뜻하므로 그대로 둔다.
-const _KIND_IDS = new Set(["cleaning", "refrigerant", "install", "leak", "hood"]);
+const _KIND_IDS = new Set(["cleaning", "refrigerant", "install", "leak", "hood", "robot"]);
 export function detectServiceType(task) {
   const base = _detectServiceTypeRaw(task);
   if (!base || !_KIND_IDS.has(base.id)) return base;
@@ -138,6 +148,10 @@ function _detectServiceTypeRaw(task) {
   const _wtText = String(firstWt || rootWt || "");
   if (_code.startsWith("hood") || _wtText.startsWith("주방후드") || _wtText.startsWith("후드설치") || _wtText.startsWith("후드옵션")) {
     return SERVICE_TYPES.hood;
+  }
+  // 2026-10-16 Mig 268 — 로봇청소기 ("미정" 배지로 떨어지지 않게)
+  if (_code.startsWith("robot") || _wtText.startsWith("로봇청소기")) {
+    return SERVICE_TYPES.robot;
   }
 
   // serviceCode 우선 (DB) → workType startsWith → 5종 work_types.name 직접 매칭 (workTypeKind v2).

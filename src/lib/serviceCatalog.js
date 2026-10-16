@@ -44,7 +44,7 @@ async function _load() {
       if (!groups.has(key)) groups.set(key, { key, label, items: [] });
       groups.get(key).items.push({ name: s.name, scope: s.scope || "all", order: Number(s.sort_order) || 999 });
     }
-    const ORDER = { aircon: 0, hood: 1 };                           // 그 외 종목은 그 뒤, 공통은 맨 끝
+    const ORDER = { aircon: 0, hood: 1, robot: 2 };                           // 그 외 종목은 그 뒤, 공통은 맨 끝
     const list = [...groups.values()].sort((a, b) => {
       const ao = a.key === "common" ? 99 : (ORDER[a.key] ?? 50);
       const bo = b.key === "common" ? 99 : (ORDER[b.key] ?? 50);
@@ -125,7 +125,8 @@ export function shortServiceLabel(name, groupLabel) {
 export const CATEGORY_META = [
   { key: "aircon", codes: ["aircon"],                               label: "에어컨",     short: "에어컨", icon: "❄", color: "#0EA5E9" },
   { key: "hood",   codes: ["hood"],                                 label: "주방후드",   short: "후드",   icon: "🔥", color: "#F97316" },
-  { key: "robot",  codes: ["robot", "robot_vacuum", "robotvac"],    label: "로봇청소기", short: "로봇",   icon: "🤖", color: "#8B5CF6" },
+  // 2026-10-16 (81) — 로봇청소기 종목이 DB 에 생김 (mig 268, code robot). 색은 랜딩(robot.html)의 청록.
+  { key: "robot",  codes: ["robot", "robot_vacuum", "robotvac"],    label: "로봇청소기", short: "로봇",   icon: "🤖", color: "#0E9C94" },
   { key: "leak",   codes: ["leak", "water_leak", "leakage"],        label: "누수",       short: "누수",   icon: "💧", color: "#14B8A6" },
   { key: "movein", codes: ["movein", "move_in", "move_in_cleaning"], label: "입주청소",  short: "입주",   icon: "🧹", color: "#22C55E" },
 ];
@@ -256,7 +257,8 @@ export function loadHoodPrices(force = false) {
         const { data, error } = await supabase
           .from("work_types")
           .select("code, name, default_unit_price, service_types ( code, name )")
-          .like("code", "hood%");
+          // 2026-10-16 Mig 268 — 로봇청소기 단가표도 같이 읽는다 (robot_ 로 시작하는 줄)
+          .or("code.like.hood%,code.like.robot%");
         if (error || !Array.isArray(data)) throw new Error((error && error.message) || "no data");
         const list = {};
         for (const w of data) {

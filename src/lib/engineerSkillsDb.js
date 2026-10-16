@@ -43,6 +43,7 @@ function serviceCodeToWorkType(sc) {
   if (sc === "cleaning")    return "세척";
   if (sc === "refrigerant") return "냉매충전";
   if (sc === "install")     return "설치";        // 2026-10-07 — 설치 기술 분리
+  if (sc === "robot")       return "로봇청소기";  // 2026-10-16 Mig 268 — 로봇청소기 기술
   return sc || "";
 }
 
@@ -50,6 +51,7 @@ function workTypeToServiceCode(wt) {
   if (wt === "세척")     return "cleaning";
   if (wt === "냉매충전") return "refrigerant";
   if (wt === "설치")     return "install";        // 2026-10-07 — 설치 기술 분리
+  if (wt === "로봇청소기") return "robot";         // 2026-10-16 Mig 268 — 로봇청소기 기술
   return wt || "";
 }
 

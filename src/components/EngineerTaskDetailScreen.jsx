@@ -168,7 +168,8 @@ function getTaskItems(task, itemEngineerAmounts = {}) {
       return s + sub;
     }, 0);
     // 2026-10-07 Mig 256 — 직영 주방후드는 기사 몫 65% (정산 계산 전의 추정값. 계산 뒤에는 실제 기사 몫을 항목 금액 비율로 나눈다)
-    const _isHoodTask = getCategoryMetaOfRow(task).key === "hood";
+    // 2026-10-16 Mig 268 — 로봇청소기도 기사 65% (받은 총금액 기준)
+    const _isHoodTask = ["hood", "robot"].includes(getCategoryMetaOfRow(task).key);
     const distRatio = (sumSubtotal > 0 && engineerAmount > 0)
       ? (engineerAmount / sumSubtotal)
       : (_isHoodTask ? 0.65 : 0.6);
