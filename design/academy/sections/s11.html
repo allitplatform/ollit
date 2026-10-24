@@ -1,22 +1,38 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
-  .s11 { background: var(--soft); }
-  .s11 .body { margin: 84px 90px 0; text-align: left; }
-  .s11 .body p { font-size: 34px; line-height: 1.65; letter-spacing: -0.035em; color: var(--ink); }
-  .s11 .body p + p { margin-top: 48px; }
-  .s11 .body p.k { font-weight: 800; color: var(--ink-deep); }
-  .s11 .sign { margin: 64px 90px 0; text-align: right; font-size: 32px; font-weight: 700; color: var(--ink-deep); }
+  .s11 .two { display: grid; grid-template-columns: 1fr 1fr; margin: 84px 40px 0; text-align: left; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .s11 .col { padding: 48px 28px 52px; }
+  .s11 .col + .col { border-left: 1px solid var(--line); }
+  .s11 h3 { font-size: 36px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink-deep); }
+  .s11 .no h3 { color: var(--sub); }
+  .s11 ul { list-style: none; margin-top: 34px; }
+  .s11 li { display: flex; align-items: flex-start; gap: 14px; font-size: 29px; line-height: 1.4; letter-spacing: -0.045em; color: var(--ink); }
+  .s11 li + li { margin-top: 22px; }
+  .s11 .no li { color: var(--sub); }
+  .s11 .no li::before { content: ""; flex: 0 0 16px; height: 2px; margin-top: 20px; background: var(--sub); }
+  .s11 .ck { flex: 0 0 28px; width: 28px; height: 28px; margin-top: 5px; }
+  .s11 .foot { margin: 64px 80px 0; font-size: 30px; line-height: 1.55; letter-spacing: -0.035em; color: var(--ink-deep); }
 </style></head>
 <body>
 <section class="sec s11">
-  <p class="eyebrow">WHY WE TEACH</p>
-  <h2 class="title"><span class="l">우리가 직접</span><br>기사를 키우는 이유</h2>
-  <div class="body">
-    <p>성수기마다 기사가 모자랐습니다.</p>
-    <p class="k">일은 넘치는데 사람이 없다면, 사람을 키우면 됩니다.</p>
-    <p>그래서 저희 현장 방식 그대로 가르치고, 저희 일감으로 시작하게 합니다.</p>
+
+  <p class="eyebrow">WHO FITS</p>
+  <h2 class="title"><span class="l">이 일,</span><br>맞는 분이 따로 있습니다</h2>
+  <div class="two">
+    <div class="col"><h3>이런 분께 맞습니다</h3><ul>
+      <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>일한 만큼 벌고 싶은 분</span></li>
+      <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>몸 쓰는 일에 자신 있는 분</span></li>
+      <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>내 기술로 독립하고 싶은 분</span></li>
+      <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>주말 · 성수기에 더 뛸 수 있는 분</span></li>
+    </ul></div>
+    <div class="col no"><h3>이런 분께는 맞지 않습니다</h3><ul>
+      <li><span>앉아서 일하고 싶은 분</span></li>
+      <li><span>고정 월급만 원하는 분</span></li>
+      <li><span>고객 응대가 싫은 분</span></li>
+    </ul></div>
   </div>
-  <p class="sign">— 올데이케어</p>
+  <p class="foot">맞지 않는 분을 먼저 말씀드리는 이유는,<br>오래 함께할 분을 찾기 때문입니다</p>
+  <div class="next"><p>우리가 직접 기사를 키우는 이유</p><i>↓</i></div>
 </section>
 </body></html>

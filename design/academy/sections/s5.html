@@ -1,26 +1,28 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
-  .s5 .cmp { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin: 84px 40px 0; text-align: left; }
-  .s5 .left { display: grid; grid-template-rows: 1fr 1fr; gap: 16px; }
-  .s5 .box { padding: 44px 36px; border: 1px solid var(--line); }
-  .s5 .box h3 { font-size: 40px; font-weight: 800; letter-spacing: -0.04em; color: var(--sub); }
-  .s5 .box p { margin-top: 18px; font-size: 30px; line-height: 1.5; letter-spacing: -0.035em; color: var(--sub); }
-  .s5 .ours { background: var(--ink-deep); border-color: var(--ink-deep); display: flex; flex-direction: column; justify-content: center; }
-  .s5 .ours h3 { color: var(--yellow); font-size: 48px; }
-  .s5 .ours p { color: #FFFFFF; font-size: 32px; }
-  .s5 .ours p b { font-weight: 800; color: var(--yellow); }
+  .s5 .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 84px; }
+  .s5 .three img { display: block; width: 328px; height: 400px; object-fit: cover; }
+  .s5 .three figcaption { padding: 18px 0 0; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; color: var(--ink-deep); }
+  .s5 .three figcaption i { font-style: normal; color: var(--yellow-d); margin-right: 8px; }
+  .s5 .lead { margin-top: 72px; }
 </style></head>
 <body>
 <section class="sec s5">
-  <p class="eyebrow">THE REAL PROBLEM</p>
-  <h2 class="title"><span class="l">기술을 배워도,</span><br>일이 없으면 소용없습니다</h2>
-  <div class="cmp">
-    <div class="left">
-      <div class="box"><h3>학원</h3><p>수료증을 줍니다<br>그다음은 알아서</p></div>
-      <div class="box"><h3>혼자 창업</h3><p>광고비부터 나갑니다<br>첫 고객까지 몇 달</p></div>
-    </div>
-    <div class="box ours"><h3>올데이케어</h3><p><b>일감을 드립니다</b></p><p>수료 평가 통과 즉시<br>콜 배정 시작</p></div>
+
+  <p class="eyebrow">WHY THIS WORK</p>
+  <h2 class="title"><span class="l">에어컨은</span><br>매년 다시 더러워집니다</h2>
+  <div class="three">
+    <figure><img src="../photos/v3_f_before.jpg" alt=""><figcaption><i>01</i>세척 전</figcaption></figure>
+    <figure><img src="../photos/v3_f_wash.jpg" alt=""><figcaption><i>02</i>세척 중</figcaption></figure>
+    <figure><img src="../photos/v3_f_after.jpg" alt=""><figcaption><i>03</i>세척 후</figcaption></figure>
   </div>
+  <p class="lead">한 번 찾은 고객은, 내년에도 찾습니다.<br>집집마다 2~3대, 상가 · 사무실까지.</p>
+  <ul class="checks">
+    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>매년 <b>돌아오는 일</b></span></li>
+    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>재료비보다 <b>기술값이 큰 일</b></span></li>
+    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>기술 하나로 <b>혼자 시작할 수 있는 일</b></span></li>
+  </ul>
+  <div class="next"><p>그런데 왜 다들 시작을 못 할까요?</p><i>↓</i></div>
 </section>
 </body></html>

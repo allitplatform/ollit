@@ -34,3 +34,9 @@ html, body { width: 1000px; background: var(--white); font-family: "Pretendard",
 
 .hr { height: 1px; background: var(--line); }
 .band { background: var(--ink-deep); color: var(--yellow); padding: 64px 40px; font-size: 44px; font-weight: 800; letter-spacing: -0.04em; line-height: 1.35; }
+
+/* 섹션 맨 아래 이음 문장 — 이 줄들만 이어 읽어도 이야기가 되게 */
+.next { margin-top: 96px; padding-top: 56px; border-top: 1px solid var(--line); }
+.next p { font-size: 32px; font-weight: 800; letter-spacing: -0.035em; color: var(--ink-deep); }
+.next i { display: block; margin-top: 14px; font-style: normal; font-size: 30px; font-weight: 800; line-height: 1; color: var(--yellow); }
+.bg-soft { background: var(--soft); }
