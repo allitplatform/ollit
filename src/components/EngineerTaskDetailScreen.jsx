@@ -398,6 +398,9 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
   //   접수 견적은 부가세 제외 금액 → 공급가와 비교. 공급가가 적으면 사유 필수.
   //   저장에 실패하면 다음 화면으로 넘어가지 않는다 (금액 없이 완료되는 것 방지).
   const [vatIncluded, setVatIncluded] = useState(task.vatIncluded === true);
+  // 2026-10-24 Mig 270 — 협력사 로봇청소기: 받은 총금액 기준 (부가세 구분 없음) → 부가세 체크 칸을 숨기고 늘 "미포함" 으로 저장.
+  const isSubRobot = isSubTask && getCategoryMetaOfRow(task).key === "robot";
+  const subVat = isSubRobot ? false : vatIncluded;
   // 2026-10-07 Mig 257 — 직영 주방후드: 부가세 포함해서 받았는지 (기본 꺼짐). 누르는 즉시 저장 → 서버가 다시 계산.
   //   포함이면 공급가 = 받은 금액 ÷ 1.1, 기사 몫은 공급가의 65%. 다른 종목에는 나오지 않는다.
   const isHoodDirect = !isSubTask && getCategoryMetaOfRow(task).key === "hood";
@@ -414,20 +417,20 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
     setHoodVat(next);
   }
   const [shortReason, setShortReason] = useState(task.supplyShortfallReason || "");
-  const subSupply    = vatIncluded ? Math.round(parsedReceived / 1.1) : parsedReceived;
+  const subSupply    = subVat ? Math.round(parsedReceived / 1.1) : parsedReceived;
   const subQuote     = Number(task.estimateTotal || task.productPrice || 0) || 0;
   const subShortfall = parsedReceived > 0 ? Math.max(0, subQuote - subSupply) : 0;
   async function persistSubReceivedAndNavigate(target) {
     if (saving) return;
     if (!(parsedReceived > 0)) { alert("받은 금액을 입력해 주세요."); return; }
     if (subShortfall > 0 && !String(shortReason).trim()) {
-      alert("공급가가 견적(부가세 제외)보다 적습니다. 사유를 입력해 주세요.");
+      alert(isSubRobot ? "받은 금액이 견적보다 적습니다. 사유를 입력해 주세요." : "공급가가 견적(부가세 제외)보다 적습니다. 사유를 입력해 주세요.");
       return;
     }
     setSaving(true);
     let res = null;
     try {
-      res = await subStaffSetReceived(task.id, parsedReceived, vatIncluded, subShortfall > 0 ? String(shortReason).trim() : null);
+      res = await subStaffSetReceived(task.id, parsedReceived, subVat, subShortfall > 0 ? String(shortReason).trim() : null);
     } catch (e) {
       res = { ok: false, error: e?.message || "저장 실패" };
     } finally {
@@ -1157,6 +1160,11 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
                   margin: "0 16px 12px", padding: "12px 14px", borderRadius: 12,
                   background: "var(--bg-elevated)", border: "1px solid var(--border)",
                 }}>
+                  {isSubRobot ? (
+                    <div style={{ fontSize: 13, color: "var(--text-secondary)", lineHeight: 1.5 }}>
+                      로봇청소기는 부가세 구분 없이 받은 총금액 그대로 입력해 주세요.
+                    </div>
+                  ) : (
                   <label style={{ display: "flex", alignItems: "center", gap: 10, fontSize: 15, fontWeight: 700, color: "var(--text-primary)", cursor: "pointer" }}>
                     <input
                       type="checkbox" checked={vatIncluded}
@@ -1165,7 +1173,8 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
                     />
                     부가세 포함해서 받음
                   </label>
-                  {vatIncluded && parsedReceived > 0 && (
+                  )}
+                  {subVat && parsedReceived > 0 && (
                     <div style={{ marginTop: 8, fontSize: 12, color: "var(--text-secondary)" }}>
                       공급가 ₩{subSupply.toLocaleString("ko-KR")} / 부가세 ₩{(parsedReceived - subSupply).toLocaleString("ko-KR")}
                     </div>
@@ -1173,7 +1182,9 @@ export function EngineerTaskDetailScreen({ task, itemEngineerAmounts = {}, onBac
                   {subShortfall > 0 && (
                     <div style={{ marginTop: 12 }}>
                       <div style={{ fontSize: 13, fontWeight: 800, color: "#E5484D", marginBottom: 6 }}>
-                        견적(부가세 제외) ₩{subQuote.toLocaleString("ko-KR")} 대비 공급가 ₩{subShortfall.toLocaleString("ko-KR")} 적음 — 사유 입력
+                        {isSubRobot
+                          ? `견적 ₩${subQuote.toLocaleString("ko-KR")} 대비 받은 금액 ₩${subShortfall.toLocaleString("ko-KR")} 적음 — 사유 입력`
+                          : `견적(부가세 제외) ₩${subQuote.toLocaleString("ko-KR")} 대비 공급가 ₩${subShortfall.toLocaleString("ko-KR")} 적음 — 사유 입력`}
                       </div>
                       <textarea
                         value={shortReason} onChange={e => setShortReason(e.target.value)} rows={2}

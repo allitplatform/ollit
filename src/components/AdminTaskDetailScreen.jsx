@@ -429,7 +429,8 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
               : { order: mobileLayout ? 2 : 1, minWidth: 0 }}>
               <PcSection title="금액" anchorRef={moneyRef}>
                 <SubFeeSplitCard task={task}/>
-                {(task.subcontractorId || getCategoryMetaOfRow(task).key === "hood") && (
+                {/* 2026-10-24 Mig 270 — 로봇청소기는 원청 몫이 없다 (협력사 작업이어도 카드 숨김) */}
+                {(task.subcontractorId || getCategoryMetaOfRow(task).key === "hood") && getCategoryMetaOfRow(task).key !== "robot" && (
                   <SubPrincipalSplitCard task={task} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
                 )}
                 {/* 2차 — 표 하나: 항목 | 견적 | 받은 돈 → 합계 → 비율 막대 → 자재비 · 부가세 */}
@@ -526,7 +527,7 @@ export function AdminTaskDetailScreen({ t, task: initialTask, onBack, onCancelTa
       <SubFeeSplitCard task={task}/>
       {/* 2026-10-07 Mig 244 — 원청 몫. 운영자 화면에만 — 협력사 관리자·기사에게는 보여 주지 않는다 */}
       {/* 2026-10-07 Mig 256 — 직영 주방후드도 원청 몫이 생긴다 (카드는 원청 몫 규칙이 있을 때만 그려진다) */}
-      {!subMode && (task.subcontractorId || getCategoryMetaOfRow(task).key === "hood") && (
+      {!subMode && (task.subcontractorId || getCategoryMetaOfRow(task).key === "hood") && getCategoryMetaOfRow(task).key !== "robot" && (
         <SubPrincipalSplitCard task={task} style={{ margin: `0 ${DETAIL_GUTTER}px 12px` }}/>
       )}
       {/* 카드 4 — 정산 정보 (작업 금액 + 추가금 + 합계 + 회사 수익 + 기사 분배) */}
@@ -1323,8 +1324,10 @@ function SubFeeSplitCard({ task }) {
   const subId = task?.subcontractorId || null;
   if (!subId) return null;
   const name = (idx.names.get(subId) || {}).name || "협력사";
-  const supply = Number(task.supplyAmount) || 0;
+  // 2026-10-24 Mig 270 — 로봇청소기: 수수료 기준 = 받은 총금액 (부가세 · 공급가 줄 없음)
+  const isRobot = getCategoryMetaOfRow(task).key === "robot";
   const received = Number(task.receivedTotal) || 0;
+  const supply = isRobot ? (Number(task.supplyAmount) > 0 ? received : 0) : (Number(task.supplyAmount) || 0);
   const quote = Number(task.productPrice ?? task.estimateTotal ?? 0) || 0;
   const hasPay = !!task.payment && task.payment.track === "S";
   const fee = hasPay ? (Number(task.owner_amount) || 0) : null;
@@ -1341,7 +1344,7 @@ function SubFeeSplitCard({ task }) {
       padding: "12px 14px", margin: `0 ${DETAIL_GUTTER}px 12px`,
     }}>
       <div style={{ fontSize: 12, fontWeight: 800, color: "#8B5CF6", marginBottom: 6 }}>협력사 분배 · {name}</div>
-      {quote > 0 && row("접수 견적 (부가세 제외)", won(quote))}
+      {quote > 0 && row(isRobot ? "접수 견적" : "접수 견적 (부가세 제외)", won(quote))}
       {supply <= 0 ? (
         <div style={{ fontSize: 12, color: "var(--text-secondary)", lineHeight: 1.6, paddingTop: 4 }}>
           아직 받은 금액이 입력되지 않았습니다. 기사가 완료 처리할 때 입력합니다.
@@ -1349,9 +1352,9 @@ function SubFeeSplitCard({ task }) {
       ) : (
         <>
           {row("받은 금액", won(received))}
-          {row("부가세 포함 여부", task.vatIncluded ? `포함 (부가세 ${won(Math.max(0, received - supply))})` : "미포함")}
-          {row("공급가", won(supply))}
-          {quote > 0 && supply < quote && row("견적 대비 공급가 차액", won(supply - quote), true, "#E5484D")}
+          {!isRobot && row("부가세 포함 여부", task.vatIncluded ? `포함 (부가세 ${won(Math.max(0, received - supply))})` : "미포함")}
+          {!isRobot && row("공급가", won(supply))}
+          {quote > 0 && supply < quote && row(isRobot ? "견적 대비 받은 금액 차액" : "견적 대비 공급가 차액", won(supply - quote), true, "#E5484D")}
           {quote > 0 && supply < quote && (
             <div style={{ fontSize: 12, color: "#E5484D", lineHeight: 1.5, padding: "2px 0 4px" }}>
               사유: {task.supplyShortfallReason || "입력 없음"}
@@ -1359,7 +1362,10 @@ function SubFeeSplitCard({ task }) {
           )}
           <div style={{ borderTop: "1px solid var(--border)", margin: "6px 0" }}/>
           {row("올데이케어 수수료", fee == null ? "완료 후 계산" : won(fee), true, "#FF1B8D")}
-          {row(`${name} 몫 (공급가 − 수수료)`, fee == null ? "—" : won(Math.max(0, supply - fee)), true)}
+          {isRobot && fee != null && (
+            <div style={{ fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.5, padding: "0 0 2px" }}>받은 총금액 × 35% (부가세 구분 없음)</div>
+          )}
+          {row(isRobot ? `${name} 몫 (받은 총금액 − 수수료)` : `${name} 몫 (공급가 − 수수료)`, fee == null ? "—" : won(Math.max(0, supply - fee)), true)}
           {/* 2026-10-10 Mig 264 — 근거 한 줄: 보장이 적용된 작업 (65% 가 더 크면 보장이 필요 없어 나오지 않는다) */}
           {fee != null && parseSplitNote(task.sub_principal_note).guard > 0 && (
             <div style={{ fontSize: 11.5, color: "var(--text-secondary)", lineHeight: 1.5, padding: "0 0 2px" }}>

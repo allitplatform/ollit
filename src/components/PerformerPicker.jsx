@@ -37,6 +37,10 @@ function ruleFor(rules, subId, group, principalCode) {
   const code = String(principalCode || "");
   const mine = rules.filter(r => r.subcontractor_id === subId && (!r.principal_code || r.principal_code === code));
   const pick = (list) => list.find(r => ruleCovers(r, group)) || list.find(r => !r.service_code) || null;
+  // 2026-10-24 Mig 270 — 그 종목 전용 줄(예: 화이트코어 x 로봇청소기)이 있으면 원청 전용 줄보다 먼저 쓴다 (서버의 로봇청소기 분기와 같은 순서).
+  //   전용 줄이 없는 종목(주방후드 등)은 아래 예전 순서 그대로.
+  const own = mine.filter(r => r.service_code && group && String(r.service_code) === group);
+  if (own.length > 0) return own.find(r => r.principal_code === code && code) || own.find(r => !r.principal_code) || null;
   return pick(mine.filter(r => r.principal_code === code && code)) || pick(mine.filter(r => !r.principal_code));
 }
 
@@ -133,13 +137,15 @@ export function SubFeePreview({ state, estimate, colors = {} }) {
   const isRate = rule.fee_type === "rate";
   const fee = isRate ? Math.round(supply * Number(rule.fee_rate || 0)) : Math.round(Number(rule.fee_amount || 0));
   const pct = isRate ? `${Math.round(Number(rule.fee_rate || 0) * 1000) / 10}%` : "";
+  // 2026-10-24 Mig 270 — 받은 총금액 기준 규칙 (화이트코어 로봇청소기): 부가세 구분 없이 견적 = 받을 총금액으로 본다
+  const isGross = rule.fee_base === "gross";
   // 2026-10-07 Mig 244 — 원청 몫 규칙이 있는 원청이면 수수료를 원청 · 올데이케어로 나눠 보여 준다 (이름 대신 "원청").
   //   원청 몫 = LEAST(견적 × 율, 수수료). 규칙에 원청 몫 율이 없으면 예전 문구 그대로.
   const pRate = rule.principal_rate == null ? null : Number(rule.principal_rate);
   const share = pRate == null || !Number.isFinite(pRate) ? null : Math.max(0, Math.min(Math.round(supply * pRate), fee));
   return (
     <div style={{ fontSize: 12, color: text, fontWeight: 600, lineHeight: 1.7 }}>
-      협력사 분배: {isRate ? `공급가 × ${pct} 수수료` : `건당 수수료 ${fmtWon(fee)}`}
+      협력사 분배: {isRate ? `${isGross ? "받은 총금액" : "공급가"} × ${pct} 수수료` : `건당 수수료 ${fmtWon(fee)}`}
       {supply > 0 && (
         <>
           <br/>
@@ -149,7 +155,9 @@ export function SubFeePreview({ state, estimate, colors = {} }) {
         </>
       )}
       <div style={{ fontSize: 11, color: muted, marginTop: 4 }}>
-        견적은 부가세 제외 금액 기준입니다. 실제 수수료는 완료 때 받은 금액(공급가)으로 계산됩니다.
+        {isGross
+          ? "부가세 구분 없이 견적 금액 그대로 계산했습니다. 실제 수수료는 완료 때 받은 총금액으로 계산됩니다."
+          : "견적은 부가세 제외 금액 기준입니다. 실제 수수료는 완료 때 받은 금액(공급가)으로 계산됩니다."}
       </div>
     </div>
   );
