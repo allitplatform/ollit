@@ -1,23 +1,28 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
-  .s4 .photo { height: 680px; margin-top: 76px; object-position: center 30%; }
-  .s4 .qs { list-style: none; text-align: left; margin: 64px 80px 0; }
-  .s4 .qs li { display: flex; align-items: flex-start; gap: 22px; padding: 30px 0; border-bottom: 1px solid var(--line); font-size: 36px; font-weight: 600; letter-spacing: -0.035em; line-height: 1.35; color: var(--ink-deep); }
-  .s4 .qs li i { font-style: normal; flex: 0 0 auto; font-size: 72px; line-height: 0.8; font-weight: 800; color: var(--yellow); margin-top: 6px; }
+  .s4 .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 84px; }
+  .s4 .three img { display: block; width: 328px; height: 400px; object-fit: cover; }
+  .s4 .three figcaption { padding: 18px 0 0; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; color: var(--ink-deep); }
+  .s4 .three figcaption i { font-style: normal; color: var(--yellow-d); margin-right: 8px; }
+  .s4 .lead { margin-top: 72px; }
 </style></head>
 <body>
 <section class="sec s4">
 
-  <p class="eyebrow">PROLOGUE</p>
-  <h2 class="title"><span class="l">요즘,</span><br>이런 생각 해보셨나요?</h2>
-  <img class="full photo" src="../photos/h2_bright.png" alt="">
-  <ul class="qs">
-    <li><i>“</i><span>열심히 하는데 월급은 그대로다</span></li>
-    <li><i>“</i><span>몸 쓰는 건 자신 있는데 써먹을 데가 없다</span></li>
-    <li><i>“</i><span>내 기술 하나만 있으면 좋겠다</span></li>
-    <li><i>“</i><span>일한 만큼 가져가고 싶다</span></li>
+  <p class="eyebrow">WHY THIS WORK</p>
+  <h2 class="title"><span class="l">에어컨은</span><br>매년 다시 더러워집니다</h2>
+  <div class="three">
+    <figure><img src="../photos/v4_f_before.jpg" alt=""><figcaption><i>01</i>세척 전</figcaption></figure>
+    <figure><img src="../photos/v4_f_wash.jpg" alt=""><figcaption><i>02</i>세척 중</figcaption></figure>
+    <figure><img src="../photos/v4_f_after.jpg" alt=""><figcaption><i>03</i>세척 후</figcaption></figure>
+  </div>
+  <p class="lead">한 번 찾은 고객은, 내년에도 찾습니다.<br>집집마다 2~3대, 상가 · 사무실까지.</p>
+  <ul class="checks">
+    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>매년 <b>돌아오는 일</b></span></li>
+    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>재료비보다 <b>기술값이 큰 일</b></span></li>
+    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>기술 하나로 <b>혼자 시작할 수 있는 일</b></span></li>
   </ul>
-  <div class="next"><p>그 생각, 기술 하나면 바뀝니다</p><i>↓</i></div>
+  <div class="next"><p>그런데 왜 다들 시작을 못 할까요?</p><i>↓</i></div>
 </section>
 </body></html>

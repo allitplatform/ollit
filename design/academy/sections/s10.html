@@ -1,28 +1,38 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
-  .s10 .photo { height: 600px; margin-top: 64px; object-position: center 72%; }
-  .s10 .pair { display: flex; gap: 8px; margin-top: 8px; }
-  .s10 .pair img { display: block; width: 496px; height: 300px; object-fit: cover; object-position: center 70%; }
-  .s10 .cap { margin: 34px 60px 0; font-size: 28px; font-weight: 600; letter-spacing: -0.03em; color: var(--ink-deep); }
-  .s10 .checks li span b { display: block; font-size: 36px; }
-  .s10 .checks li span em { display: block; margin-top: 6px; font-style: normal; font-size: 30px; color: var(--sub); }
-  .s10 .checks li + li { margin-top: 34px; }
+  .s10 .two { display: grid; grid-template-columns: 1fr 1fr; margin: 84px 40px 0; text-align: left; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .s10 .col { padding: 48px 28px 52px; }
+  .s10 .col + .col { border-left: 1px solid var(--line); }
+  .s10 h3 { font-size: 36px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink-deep); }
+  .s10 .no h3 { color: var(--sub); }
+  .s10 ul { list-style: none; margin-top: 34px; }
+  .s10 li { display: flex; align-items: flex-start; gap: 14px; font-size: 29px; line-height: 1.4; letter-spacing: -0.045em; color: var(--ink); }
+  .s10 li + li { margin-top: 22px; }
+  .s10 .no li { color: var(--sub); }
+  .s10 .no li::before { content: ""; flex: 0 0 16px; height: 2px; margin-top: 20px; background: var(--sub); }
+  .s10 .ck { flex: 0 0 28px; width: 28px; height: 28px; margin-top: 5px; }
+  .s10 .foot { margin: 64px 80px 0; font-size: 30px; line-height: 1.55; letter-spacing: -0.035em; color: var(--ink-deep); }
 </style></head>
 <body>
 <section class="sec s10">
 
-  <p class="eyebrow">TRAINING CENTER</p>
-  <h2 class="title"><span class="l">막히면 언제든,</span><br>여기서 다시</h2>
-  <img class="full photo" src="../photos/v3_r27.jpg" alt="">
-  <div class="pair"><img src="../photos/v3_r26.jpg" alt=""><img src="../photos/v3_r21.jpg" alt=""></div>
-  <p class="cap">교육장 2곳 · 실습용 스탠드 · 벽걸이 · 천장형 상시 비치</p>
-  <ul class="checks">
-    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span><b>교육장 상시 개방</b><em>막히면 언제든 와서 연습</em></span></li>
-    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span><b>수리 동행 심화 과정</b><em>활동하면서 수리까지</em></span></li>
-    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span><b>앱으로 콜 · 정산</b><em>내가 한 만큼 숫자로 확인</em></span></li>
-    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span><b>비수기 일감</b><em>로봇청소기 · 난방 수리</em></span></li>
-  </ul>
-  <div class="next"><p>다만, 모든 분께 맞지는 않습니다</p><i>↓</i></div>
+  <p class="eyebrow">WHO FITS</p>
+  <h2 class="title"><span class="l">이 일,</span><br>맞는 분이 따로 있습니다</h2>
+  <div class="two">
+    <div class="col"><h3>이런 분께 맞습니다</h3><ul>
+      <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>일한 만큼 벌고 싶은 분</span></li>
+      <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>몸 쓰는 일에 자신 있는 분</span></li>
+      <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>내 기술로 독립하고 싶은 분</span></li>
+      <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>주말 · 성수기에 더 뛸 수 있는 분</span></li>
+    </ul></div>
+    <div class="col no"><h3>이런 분께는 맞지 않습니다</h3><ul>
+      <li><span>앉아서 일하고 싶은 분</span></li>
+      <li><span>고정 월급만 원하는 분</span></li>
+      <li><span>고객 응대가 싫은 분</span></li>
+    </ul></div>
+  </div>
+  <p class="foot">맞지 않는 분을 먼저 말씀드리는 이유는,<br>오래 함께할 분을 찾기 때문입니다</p>
+  <div class="next"><p>우리가 직접 기사를 키우는 이유</p><i>↓</i></div>
 </section>
 </body></html>

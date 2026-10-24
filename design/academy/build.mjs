@@ -1,5 +1,5 @@
-// 기사 양성 과정(academy) 통이미지 빌드: sections/s1~s14.html → Playwright 캡처 → JPG
-//   node build.mjs  → assets/academy/ 사진(실제 r*·f*.jpg, AI a*.png) 사용, public/img/academy/s1~s14.jpg + preview_all.jpg(390px 폭) 생성
+// 기사 양성 과정(academy) 통이미지 빌드: sections/s1~s13.html → Playwright 캡처 → JPG
+//   node build.mjs  → assets/academy/ 사진(실제 r*·f*.jpg, AI a*.png) 사용, public/img/academy/s1~s13.jpg + preview_all.jpg(390px 폭) 생성
 //   크롬 경로는 CHROME_PATH 환경변수로 지정
 import http from "node:http";
 import fs from "node:fs";
@@ -14,12 +14,12 @@ const PHOTO_DIR = path.resolve(ROOT, "../../assets/academy");
 const OUT_DIR = path.resolve(ROOT, "../../public/img/academy");
 const PREVIEW = path.join(ROOT, "preview_all.jpg");
 const PREVIEW_W = 390;   // 휴대폰 폭으로 확인
-// v3: 실제 교육 · 현장 사진은 밝게 보정한 v3_*.jpg, 밝은 AI 사진은 h*_bright.png
+// v4: 실제 교육 · 현장 사진은 색 복원 보정한 v4_*.jpg (흰 벽 결 보존), 밝은 AI 사진 h*_bright.png 는 원본
 const PHOTOS = [
   "h1_bright.png", "h2_bright.png", "h6_bright.png", "h13_bright.png",
-  "v3_f_before.jpg", "v3_f_wash.jpg", "v3_f_after.jpg",
-  "v3_r18.jpg", "v3_r23.jpg", "v3_r13.jpg", "v3_r16.jpg", "v3_r20.jpg", "v3_r22.jpg", "v3_r24.jpg", "v3_r15.jpg",
-  "v3_r27.jpg", "v3_r26.jpg", "v3_r21.jpg",
+  "v4_f_before.jpg", "v4_f_wash.jpg", "v4_f_after.jpg",
+  "v4_r18.jpg", "v4_r23.jpg", "v4_r13.jpg", "v4_r16.jpg", "v4_r20.jpg", "v4_r22.jpg", "v4_r24.jpg", "v4_r15.jpg",
+  "v4_r27.jpg", "v4_r12.jpg",
 ];
 const MAX_BYTES = 400 * 1024;
 const TYPES = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".jpg": "image/jpeg", ".png": "image/png", ".woff2": "font/woff2" };
@@ -55,7 +55,7 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1000, height: 1200 }, deviceScaleFactor: 1.5 });
   const outs = [];
   const sizes = {};
-  for (let i = 1; i <= 14; i++) {
+  for (let i = 1; i <= 13; i++) {
     await page.goto(`${base}/sections/s${i}.html`, { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
     const family = await page.evaluate(() => document.fonts.check('800 40px "Pretendard"'));

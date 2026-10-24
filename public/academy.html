@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>올데이케어 에어컨 기사 양성 과정 | 3주 배우고 일감까지</title>
-<meta name="description" content="에어컨 세척 기사 3주 과정. 수료 평가 통과 후 올데이케어 콜 배정 시작. 실제 직영기사 하루 평균 정산 공개. 1866-2003">
+<meta name="description" content="에어컨 세척 기사 3주 과정. 수료 평가 통과 후 올데이케어 콜 배정 시작. 극성수기 실제 정산 공개. 1866-2003">
 <meta name="robots" content="noindex">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.min.css">
 <style>
@@ -26,6 +26,28 @@ a{color:inherit;text-decoration:none}
 @keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(5px)}}
 .reveal{opacity:0;transform:translateY(28px);transition:opacity .7s ease,transform .7s ease}
 .reveal.on{opacity:1;transform:none}
+
+
+/* ===== 교육장 파노라마 투어 (HTML · 자동으로 흐르고 손으로 밀림 · 표시점 4개) ===== */
+.tour{background:#fff;padding:clamp(48px,12vw,120px) 0 clamp(40px,9vw,90px);text-align:center;color:var(--deep)}
+.tour .eb{font-size:clamp(10px,2.2vw,22px);font-weight:700;letter-spacing:.3em;color:#B38600}
+.tour h2{margin-top:clamp(10px,2.8vw,28px);font-size:clamp(29px,7.6vw,76px);line-height:1.2;letter-spacing:-.045em;font-weight:800}
+.tour h2 span{font-weight:300}
+.tour .hint{margin-top:clamp(12px,2.8vw,28px);font-size:clamp(13px,2.8vw,28px);font-weight:600;color:#6E6E6A}
+.tour-strip{margin-top:clamp(18px,4vw,40px);overflow-x:auto;overflow-y:hidden;-webkit-overflow-scrolling:touch;scrollbar-width:none;cursor:grab;touch-action:pan-x pan-y}
+.tour-strip::-webkit-scrollbar{display:none}
+.tour-strip.drag{cursor:grabbing}
+.tour-track{display:flex;width:max-content;height:360px}
+@media (min-width:700px){.tour-track{height:520px}}
+.tp{position:relative;height:100%;flex:0 0 auto}
+.tp img{display:block;height:100%;width:100%;user-select:none;-webkit-user-drag:none}
+@keyframes spotBlink{0%,100%{transform:translate(-50%,-50%) scale(1);opacity:1}50%{transform:translate(-50%,-50%) scale(1.25);opacity:.75}}
+.spot{position:absolute;width:22px;height:22px;border-radius:50%;background:#F2B705;border:3px solid #fff;padding:0;cursor:pointer;transform:translate(-50%,-50%);animation:spotBlink 1.8s ease-in-out infinite}
+.spot .tip{display:none;position:absolute;left:50%;bottom:calc(100% + 10px);transform:translateX(-50%);white-space:nowrap;background:#fff;color:#1F2328;border:1px solid #E4E4E1;padding:8px 12px;font-size:14px;font-weight:700;font-family:inherit;letter-spacing:-.3px}
+.spot.on{animation:none}
+.spot.on .tip{display:block}
+.tour .under{margin-top:clamp(16px,3.6vw,36px);font-size:clamp(14px,3vw,30px);font-weight:700;letter-spacing:-.03em}
+@media (prefers-reduced-motion:reduce){.spot{animation:none}}
 
 /* 상단 바 */
 .top{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.97);display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--line)}
@@ -100,7 +122,7 @@ footer b{color:#4A5263}
   <a class="top-tel" href="tel:18662003"><span class="live"><i></i>상담 가능</span>1866-2003</a>
 </header>
 
-<!-- 이미지 파일: public/img/academy/s1.jpg ~ s14.jpg -->
+<!-- 이미지 파일: public/img/academy/s1.jpg ~ s13.jpg (+ 교육장 투어 사진 img/academy/tour/) -->
 <div class="sec" data-img="img/academy/s1.jpg" data-w="1000" data-h="1898" data-alt="에어컨 기사, 고수익 월 1,000만원 이상, 3주면 시작합니다. 2026년 극성수기(7~8월) 월 1,000만원 넘긴 기사 4명, 올잇 정산 기준" data-label="S1 히어로"></div>
 <a class="tel-band" href="tel:18662003">
   <span class="ico"><i></i><svg width="26" height="26" viewBox="0 0 24 24" fill="#1F2328"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
@@ -130,27 +152,34 @@ footer b{color:#4A5263}
     </form>
   </div>
 </section>
-<div class="sec" data-img="img/academy/s2.jpg" data-w="1000" data-h="1676" data-alt="극성수기, 실제 정산입니다. 7월 1,000만원을 넘긴 기사 4명. 기사 A 1,302만원, 기사 B 1,245만원, 기사 C 1,233만원, 기사 D 1,132만원 (2026년 7월, 기사 지급액, 올잇 정산 기준)" data-label="S2 PROOF 극성수기"></div>
-<div class="sec" data-img="img/academy/s3.jpg" data-w="1000" data-h="1359" data-alt="올여름 일은 이만큼 있었습니다. 올여름 올데이케어 접수 3,508건, 직영기사 성수기 일 평균 34만원. 일은 넘치고, 기사는 모자랍니다" data-label="S3 PROOF 일감"></div>
-<div class="sec" data-img="img/academy/s4.jpg" data-w="1000" data-h="2030" data-alt="요즘, 이런 생각 해보셨나요? 열심히 하는데 월급은 그대로다, 몸 쓰는 건 자신 있는데 써먹을 데가 없다, 내 기술 하나만 있으면 좋겠다, 일한 만큼 가져가고 싶다" data-label="S4 공감"></div>
+<div class="sec" data-img="img/academy/s2.jpg" data-w="1000" data-h="1525" data-alt="극성수기, 실제 정산입니다. 2026년 7월 기사 A 1,302만원, 기사 B 1,245만원, 기사 C 1,233만원, 기사 D 1,132만원 (기사 지급액, 올잇 정산 기준). 일은 넘치고, 기사는 모자랍니다" data-label="S2 PROOF"></div>
+<div class="sec" data-img="img/academy/s3.jpg" data-w="1000" data-h="2030" data-alt="요즘, 이런 생각 해보셨나요? 열심히 하는데 월급은 그대로다, 몸 쓰는 건 자신 있는데 써먹을 데가 없다, 내 기술 하나만 있으면 좋겠다, 일한 만큼 가져가고 싶다" data-label="S3 공감"></div>
 <a class="tel-band" href="#apply2">
   <span class="ico go"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1F2328" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
   <span><small>하루 안에 전화로 과정 안내</small><b>지원하기</b></span>
 </a>
-<div class="sec" data-img="img/academy/s5.jpg" data-w="1000" data-h="1658" data-alt="에어컨은 매년 다시 더러워집니다. 실제 현장 사진: 세척 전, 세척 중, 세척 후" data-label="S5 왜 이 일"></div>
-<div class="sec" data-img="img/academy/s6.jpg" data-w="1000" data-h="1304" data-alt="기술을 배워도 일이 없으면 소용없습니다. 학원은 수료증, 혼자 창업은 광고비부터. 올데이케어는 일감을 드립니다" data-label="S6 진짜 문제"></div>
+<div class="sec" data-img="img/academy/s4.jpg" data-w="1000" data-h="1658" data-alt="에어컨은 매년 다시 더러워집니다. 실제 현장 사진: 세척 전, 세척 중, 세척 후" data-label="S4 왜 이 일"></div>
+<div class="sec" data-img="img/academy/s5.jpg" data-w="1000" data-h="3251" data-alt="왜 올데이케어여야 할까요? 회사가 일을 만들고 기사는 현장만. 광고 · 상담, 접수 · 일정, 기사 배정, 현장 작업, 사진 검수, 정산 중 기사님은 현장 작업 하나만. 배우는 곳이 아니라 일하는 곳에서 배웁니다" data-label="S5 왜 올데이케어"></div>
 <a class="tel-band" href="tel:18662003">
   <span class="ico"><i></i><svg width="26" height="26" viewBox="0 0 24 24" fill="#1F2328"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
   <span><small>궁금한 건 전화로 바로</small><b>1866-2003</b></span>
 </a>
-<div class="sec" data-img="img/academy/s7.jpg" data-w="1000" data-h="1892" data-alt="일 걱정은 저희가 합니다. 앱으로 콜 받기, 현장 작업, 사진으로 완료 보고, 투명한 정산" data-label="S7 해법"></div>
-<div class="sec" data-img="img/academy/s8.jpg" data-w="1000" data-h="1591" data-alt="여름에만 버는 일이 아닙니다. 여름 에어컨 세척 성수기, 가을 점검 · 냉매 · 수리, 겨울 로봇청소기 · 난방 수리, 봄 세척 예약 시작" data-label="S8 사계절"></div>
-<div class="sec" data-img="img/academy/s9.jpg" data-w="1000" data-h="3677" data-alt="3주, 현장에서 바로 쓰는 것만. 1주 벽걸이, 2주 스탠드 · 천장형 · 냉매 기초, 3주 로봇청소기 · 고객응대 · 현장 동행. 수료 평가 통과 후 바로 콜 배정" data-label="S9 3주 과정"></div>
-<div class="sec" data-img="img/academy/s10.jpg" data-w="1000" data-h="2317" data-alt="막히면 언제든, 여기서 다시. 교육장 2곳, 실습용 스탠드 · 벽걸이 · 천장형 상시 비치. 수리 동행 심화 과정" data-label="S10 교육장"></div>
-<div class="sec" data-img="img/academy/s11.jpg" data-w="1000" data-h="1360" data-alt="이런 분께 맞습니다, 이런 분께는 맞지 않습니다" data-label="S11 맞는 사람"></div>
-<div class="sec" data-img="img/academy/s12.jpg" data-w="1000" data-h="1218" data-alt="우리가 직접 기사를 키우는 이유. 성수기마다 기사가 모자랐습니다. 일은 넘치는데 사람이 없다면, 사람을 키우면 됩니다" data-label="S12 이유"></div>
-<div class="sec" data-img="img/academy/s13.jpg" data-w="1000" data-h="1948" data-alt="자주 묻는 질문. 경력, 나이, 차량, 교육 중 수입, 개강, 일감" data-label="S13 FAQ"></div>
-<div class="sec" data-img="img/academy/s14.jpg" data-w="1000" data-h="1679" data-alt="다음 여름, 당신 이름으로 콜이 옵니다. 지원은 30초, 상담은 무료" data-label="S14 마지막"></div>
+<div class="sec" data-img="img/academy/s6.jpg" data-w="1000" data-h="1892" data-alt="일 걱정은 저희가 합니다. 콜 배정, 현장 작업, 사진 보고, 정산" data-label="S6 해법"></div>
+<div class="sec" data-img="img/academy/s7.jpg" data-w="1000" data-h="1591" data-alt="여름에만 버는 일이 아닙니다. 여름 에어컨 세척 성수기, 가을 점검 · 냉매 · 수리, 겨울 로봇청소기 · 난방 수리, 봄 세척 예약 시작" data-label="S7 사계절"></div>
+<div class="sec" data-img="img/academy/s8.jpg" data-w="1000" data-h="3677" data-alt="3주, 현장에서 바로 쓰는 것만. 1주 벽걸이, 2주 스탠드 · 천장형 · 냉매 기초, 3주 로봇청소기 · 고객응대 · 현장 동행. 수료 평가 통과 후 바로 콜 배정" data-label="S8 3주 과정"></div>
+<!-- 교육장 둘러보기 — 파노라마 투어 (HTML). 진짜 파노라마 사진을 받으면 img/academy/tour/ 사진만 바꾸면 됨 -->
+<section class="tour" id="tour">
+  <p class="eb">TRAINING CENTER</p>
+  <h2><span>막히면 언제든,</span><br>여기서 다시</h2>
+  <p class="hint">← 밀어서 교육장 둘러보기 →</p>
+  <div class="tour-strip"><div class="tour-track"><div class="tp" style="aspect-ratio:960/720"><img src="img/academy/tour/t1.jpg" alt="" width="960" height="720" draggable="false"></div><div class="tp" style="aspect-ratio:960/720"><img src="img/academy/tour/t2.jpg" alt="" width="960" height="720" draggable="false"><button type="button" class="spot" style="left:48%;top:61%" aria-label="스탠드 실습기 — 브랜드별로 직접 분해"><span class="tip">스탠드 실습기 — 브랜드별로 직접 분해</span></button></div><div class="tp" style="aspect-ratio:960/720"><img src="img/academy/tour/t3.jpg" alt="" width="960" height="720" draggable="false"></div><div class="tp" style="aspect-ratio:540/720"><img src="img/academy/tour/t4.jpg" alt="" width="540" height="720" draggable="false"><button type="button" class="spot" style="left:52%;top:30%" aria-label="벽걸이 실습 랙"><span class="tip">벽걸이 실습 랙</span></button></div><div class="tp" style="aspect-ratio:415/720"><img src="img/academy/tour/t5.jpg" alt="" width="415" height="720" draggable="false"><button type="button" class="spot" style="left:90%;top:87%" aria-label="로봇청소기 실습"><span class="tip">로봇청소기 실습</span></button></div><div class="tp" style="aspect-ratio:540/720"><img src="img/academy/tour/t6.jpg" alt="" width="540" height="720" draggable="false"><button type="button" class="spot" style="left:72%;top:39%" aria-label="천장형(카세트) 실습"><span class="tip">천장형(카세트) 실습</span></button></div><div class="tp" style="aspect-ratio:960/720"><img src="img/academy/tour/t1.jpg" alt="" width="960" height="720" draggable="false"></div><div class="tp" style="aspect-ratio:960/720"><img src="img/academy/tour/t2.jpg" alt="" width="960" height="720" draggable="false"><button type="button" class="spot" style="left:48%;top:61%" aria-label="스탠드 실습기 — 브랜드별로 직접 분해"><span class="tip">스탠드 실습기 — 브랜드별로 직접 분해</span></button></div><div class="tp" style="aspect-ratio:960/720"><img src="img/academy/tour/t3.jpg" alt="" width="960" height="720" draggable="false"></div><div class="tp" style="aspect-ratio:540/720"><img src="img/academy/tour/t4.jpg" alt="" width="540" height="720" draggable="false"><button type="button" class="spot" style="left:52%;top:30%" aria-label="벽걸이 실습 랙"><span class="tip">벽걸이 실습 랙</span></button></div><div class="tp" style="aspect-ratio:415/720"><img src="img/academy/tour/t5.jpg" alt="" width="415" height="720" draggable="false"><button type="button" class="spot" style="left:90%;top:87%" aria-label="로봇청소기 실습"><span class="tip">로봇청소기 실습</span></button></div><div class="tp" style="aspect-ratio:540/720"><img src="img/academy/tour/t6.jpg" alt="" width="540" height="720" draggable="false"><button type="button" class="spot" style="left:72%;top:39%" aria-label="천장형(카세트) 실습"><span class="tip">천장형(카세트) 실습</span></button></div></div></div>
+  <p class="under">교육장 상시 개방 · 수료 후에도 언제든</p>
+</section>
+<div class="sec" data-img="img/academy/s9.jpg" data-w="1000" data-h="1193" data-alt="수료하고 끝이 아닙니다. 교육장 상시 개방, 수리 동행 심화 과정, 투명한 정산, 비수기 일감" data-label="S9 수료 후"></div>
+<div class="sec" data-img="img/academy/s10.jpg" data-w="1000" data-h="1360" data-alt="이런 분께 맞습니다, 이런 분께는 맞지 않습니다" data-label="S10 맞는 사람"></div>
+<div class="sec" data-img="img/academy/s11.jpg" data-w="1000" data-h="1218" data-alt="우리가 직접 기사를 키우는 이유. 성수기마다 기사가 모자랐습니다. 일은 넘치는데 사람이 없다면, 사람을 키우면 됩니다" data-label="S11 이유"></div>
+<div class="sec" data-img="img/academy/s12.jpg" data-w="1000" data-h="1948" data-alt="자주 묻는 질문. 경력, 나이, 차량, 교육 중 수입, 개강, 일감" data-label="S12 FAQ"></div>
+<div class="sec" data-img="img/academy/s13.jpg" data-w="1000" data-h="1679" data-alt="다음 여름, 당신 이름으로 콜이 옵니다. 지원은 30초, 상담은 무료" data-label="S13 마지막"></div>
 
 <section class="apply" id="apply2">
   <div class="card">
@@ -179,7 +208,7 @@ footer b{color:#4A5263}
 
 <footer>
   <b>올데이케어</b> · 사업자등록번호 430-07-03167 · 대표번호 1866-2003<br>
-  정산 사례는 실제 직영기사 정산 내역(기사 지급액, 작업한 날 기준)이며, 개인의 활동 일수 · 지역 · 숙련도에 따라 달라집니다. 수입을 보장하지 않습니다.<br>
+  정산 사례는 실제 기사 정산 내역(기사 지급액, 올잇 정산 기준)이며, 개인의 활동 일수 · 지역 · 숙련도에 따라 달라집니다. 수입을 보장하지 않습니다.<br>
   본 과정은 협력기사 양성 과정이며 고용 계약이 아닙니다.<br>
   <a href="/privacy">개인정보처리방침</a> · 일부 이미지는 이해를 돕기 위한 연출 이미지입니다.
 </footer>
@@ -204,6 +233,47 @@ document.querySelectorAll('.sec[data-img]').forEach((el,i)=>{
   img.src=el.dataset.img; el.appendChild(img); el.appendChild(lb);
 });
 document.querySelectorAll('.apply .card').forEach(c=>{c.classList.add('reveal');io.observe(c);});
+
+
+/* ===== 교육장 파노라마 투어: 한 바퀴 약 40초로 저절로 흐르고, 손으로 밀면 멈췄다가 손 떼고 3초 뒤 다시 흐름 ===== */
+(function(){
+  const strip=document.querySelector('.tour-strip'); if(!strip) return;
+  const track=strip.querySelector('.tour-track');
+  const reduce=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  let pausedUntil=0, last=0, acc=0, holding=false;
+  const half=()=>track.scrollWidth/2;                 /* 같은 사진 띠를 두 번 이어 붙임 → 반 바퀴 지나면 처음으로 */
+  const pause=ms=>{pausedUntil=performance.now()+ms;};
+  function wrap(){const h=half(); if(h>0){ if(strip.scrollLeft>=h) strip.scrollLeft-=h; else if(strip.scrollLeft<=0) strip.scrollLeft+=h; }}
+  function step(t){
+    const dt=last?Math.min(t-last,100):0; last=t;
+    if(!reduce&&!holding&&t>pausedUntil&&isVisible){
+      acc+=dt*(half()/40000);                           /* 한 바퀴 = 40초 */
+      const px=Math.floor(acc); if(px>=1){strip.scrollLeft+=px; acc-=px; wrap();}
+    }
+    requestAnimationFrame(step);
+  }
+  let isVisible=false;
+  new IntersectionObserver(es=>es.forEach(e=>{isVisible=e.isIntersecting;}),{threshold:.2}).observe(strip);
+  /* 손가락 · 마우스로 밀기 */
+  let sx=0, sl=0, moved=false;
+  strip.addEventListener('pointerdown',e=>{holding=true; moved=false; sx=e.clientX; sl=strip.scrollLeft; if(e.pointerType==='mouse'){strip.classList.add('drag'); strip.setPointerCapture(e.pointerId);}});
+  strip.addEventListener('pointermove',e=>{if(!holding) return; if(Math.abs(e.clientX-sx)>4) moved=true; if(e.pointerType==='mouse'){strip.scrollLeft=sl-(e.clientX-sx); wrap();}});
+  const release=()=>{if(!holding) return; holding=false; strip.classList.remove('drag'); pause(3000);};
+  strip.addEventListener('pointerup',release); strip.addEventListener('pointercancel',release);
+  strip.addEventListener('touchstart',()=>{holding=true;},{passive:true});
+  strip.addEventListener('touchend',release,{passive:true});
+  strip.addEventListener('scroll',()=>{ if(holding) wrap(); },{passive:true});
+  strip.addEventListener('wheel',()=>pause(3000),{passive:true});
+  /* 표시점: 누르면 말 상자 (하나만 열림) */
+  strip.querySelectorAll('.spot').forEach(b=>b.addEventListener('click',e=>{
+    if(moved) return; e.stopPropagation();
+    const on=b.classList.contains('on');
+    strip.querySelectorAll('.spot.on').forEach(x=>x.classList.remove('on'));
+    if(!on){b.classList.add('on'); pause(6000);}
+  }));
+  document.addEventListener('click',e=>{ if(!e.target.closest('.spot')) strip.querySelectorAll('.spot.on').forEach(x=>x.classList.remove('on')); });
+  requestAnimationFrame(step);
+})();
 
 /* 하단 '지원하기' : 지금 위치 아래쪽 폼으로, 없으면 첫 폼으로 */
 document.getElementById('goForm').addEventListener('click',e=>{

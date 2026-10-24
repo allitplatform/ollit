@@ -1,28 +1,66 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
-  .s5 .three { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-top: 84px; }
-  .s5 .three img { display: block; width: 328px; height: 400px; object-fit: cover; }
-  .s5 .three figcaption { padding: 18px 0 0; font-size: 28px; font-weight: 700; letter-spacing: -0.03em; color: var(--ink-deep); }
-  .s5 .three figcaption i { font-style: normal; color: var(--yellow-d); margin-right: 8px; }
-  .s5 .lead { margin-top: 72px; }
+  .s5 .subt { margin-top: 30px; font-size: 32px; line-height: 1.5; letter-spacing: -0.035em; color: var(--sub); }
+  .s5 .ic { width: 56px; height: 56px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+  /* 5-1 세 갈래 */
+  .s5 .three { display: grid; grid-template-columns: 1fr 1fr 1.25fr; gap: 12px; margin: 76px 40px 0; text-align: left; }
+  .s5 .three > div { padding: 36px 26px 38px; border: 1px solid var(--line); color: var(--sub); }
+  .s5 .three h3 { margin-top: 18px; font-size: 34px; font-weight: 800; letter-spacing: -0.04em; }
+  .s5 .three p { margin-top: 16px; font-size: 28px; font-weight: 700; letter-spacing: -0.04em; line-height: 1.35; }
+  .s5 .three p i { font-style: normal; margin-right: 6px; }
+  .s5 .three .ours { background: var(--yellow); border-color: var(--yellow); color: var(--ink-deep); }
+  .s5 .three .ours h3 { font-size: 40px; }
+  .s5 .three .ours p { font-size: 30px; font-weight: 800; }
+  /* 5-2 운영 흐름도 */
+  .s5 .flowt { margin-top: 96px; font-size: 40px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink-deep); }
+  .s5 .frow { display: flex; align-items: stretch; justify-content: center; gap: 6px; margin: 34px 30px 0; }
+  .s5 .frow + .frow { margin-top: 14px; }
+  .s5 .fc { flex: 0 0 270px; padding: 26px 10px 24px; border: 2px solid var(--yellow); color: var(--ink-deep); }
+  .s5 .fc .ic { width: 52px; height: 52px; color: var(--yellow-d); }
+  .s5 .fc .no { margin-top: 8px; font-size: 24px; font-weight: 800; color: var(--yellow-d); }
+  .s5 .fc .t { margin-top: 4px; font-size: 32px; font-weight: 800; letter-spacing: -0.04em; }
+  .s5 .fc .who { margin-top: 8px; font-size: 24px; font-weight: 600; color: var(--sub); }
+  .s5 .fc.me { background: var(--ink-deep); border-color: var(--ink-deep); color: var(--yellow); }
+  .s5 .fc.me .ic, .s5 .fc.me .no, .s5 .fc.me .who { color: var(--yellow); }
+  .s5 .ar { align-self: center; font-size: 34px; font-weight: 800; color: var(--yellow-d); }
+  .s5 .down { margin-top: 10px; font-size: 34px; font-weight: 800; color: var(--yellow-d); }
+  .s5 .one { margin-top: 40px; font-size: 34px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink-deep); }
+  .s5 .one b { text-decoration: underline; text-decoration-color: var(--yellow); text-decoration-thickness: 4px; text-underline-offset: 10px; }
+  /* 5-3 튼튼한 회사 4칸 */
+  .s5 .tiles { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 12px; margin: 96px 40px 0; text-align: left; }
+  .s5 .tiles img { display: block; width: 454px; height: 330px; object-fit: cover; }
+  .s5 .tiles b { display: block; margin-top: 22px; font-size: 34px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink-deep); }
+  .s5 .tiles p { margin: 8px 0 26px; font-size: 26px; font-weight: 500; letter-spacing: -0.04em; line-height: 1.45; color: var(--sub); }
+  .s5 .big { margin-top: 70px; font-size: 64px; line-height: 1.3; letter-spacing: -0.045em; font-weight: 800; color: var(--ink-deep); }
+  .s5 .big .l { font-weight: 300; }
 </style></head>
 <body>
 <section class="sec s5">
 
-  <p class="eyebrow">WHY THIS WORK</p>
-  <h2 class="title"><span class="l">에어컨은</span><br>매년 다시 더러워집니다</h2>
+  <p class="eyebrow">WHY ALLDAYCARE</p>
+  <h2 class="title"><span class="l">왜</span><br>올데이케어여야 할까요?</h2>
+  <p class="subt">기사 혼자 버티는 구조가 아니라,<br>회사가 받쳐주는 구조입니다</p>
+
   <div class="three">
-    <figure><img src="../photos/v3_f_before.jpg" alt=""><figcaption><i>01</i>세척 전</figcaption></figure>
-    <figure><img src="../photos/v3_f_wash.jpg" alt=""><figcaption><i>02</i>세척 중</figcaption></figure>
-    <figure><img src="../photos/v3_f_after.jpg" alt=""><figcaption><i>03</i>세척 후</figcaption></figure>
+    <div><svg class="ic" viewBox="0 0 48 48"><rect x="6" y="8" width="36" height="26" rx="2"/><path d="M12 16h18M12 22h12"/><circle cx="34" cy="34" r="6"/><path d="M31 39l-2 7 5-3 5 3-2-7"/></svg><h3>학원</h3><p><i>→</i>끝</p></div>
+    <div><svg class="ic" viewBox="0 0 48 48"><rect x="5" y="12" width="32" height="24" rx="3"/><path d="M5 18h32M28 27h5"/><circle cx="42" cy="12" r="3"/><circle cx="44" cy="22" r="2.5"/><path d="M38 8l3 2M41 16l2 3"/></svg><h3>혼자 창업</h3><p><i>→</i>광고비부터</p></div>
+    <div class="ours"><svg class="ic" viewBox="0 0 48 48"><path d="M8 42V14l14-6v34M22 42V18l18 6v18M4 42h40"/><path d="M13 20h4M13 27h4M13 34h4M28 28h4M28 35h4"/></svg><h3>올데이케어</h3><p>회사가 일을 만들고,<br>기사는 현장만</p></div>
   </div>
-  <p class="lead">한 번 찾은 고객은, 내년에도 찾습니다.<br>집집마다 2~3대, 상가 · 사무실까지.</p>
-  <ul class="checks">
-    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>매년 <b>돌아오는 일</b></span></li>
-    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>재료비보다 <b>기술값이 큰 일</b></span></li>
-    <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>기술 하나로 <b>혼자 시작할 수 있는 일</b></span></li>
-  </ul>
-  <div class="next"><p>그런데 왜 다들 시작을 못 할까요?</p><i>↓</i></div>
+
+  <p class="flowt">일이 돌아가는 순서</p>
+  <div class="frow"><div class="fc"><svg class="ic" viewBox="0 0 48 48"><path d="M8 20v8h6l14 8V12l-14 8H8z"/><path d="M34 18c3 2 3 10 0 12M38 14c6 4 6 16 0 20"/><path d="M14 28l3 10h5l-3-10"/></svg><p class="no">01</p><p class="t">광고 · 상담</p><p class="who">회사가 합니다</p></div><span class="ar">→</span><div class="fc"><svg class="ic" viewBox="0 0 48 48"><rect x="6" y="10" width="36" height="32" rx="3"/><path d="M6 18h36M15 6v8M33 6v8M14 26h4M22 26h4M30 26h4M14 33h4M22 33h4"/></svg><p class="no">02</p><p class="t">접수 · 일정</p><p class="who">회사가 합니다</p></div><span class="ar">→</span><div class="fc"><svg class="ic" viewBox="0 0 48 48"><circle cx="24" cy="15" r="7"/><path d="M10 42c0-9 6-14 14-14s14 5 14 14"/></svg><p class="no">03</p><p class="t">기사 배정</p><p class="who">회사가 합니다</p></div></div>
+  <p class="down">↓</p>
+  <div class="frow" style="margin-top:6px"><div class="fc me"><svg class="ic" viewBox="0 0 48 48"><path d="M30 6a9 9 0 0 0-8 12L8 32a4 4 0 0 0 6 6l14-14a9 9 0 0 0 12-8l-5 5-6-2-2-6z"/></svg><p class="no">04</p><p class="t">현장 작업</p><p class="who">기사님</p></div><span class="ar">→</span><div class="fc"><svg class="ic" viewBox="0 0 48 48"><rect x="5" y="14" width="38" height="26" rx="3"/><path d="M16 14l3-6h10l3 6"/><circle cx="24" cy="27" r="7"/></svg><p class="no">05</p><p class="t">사진 검수</p><p class="who">회사가 합니다</p></div><span class="ar">→</span><div class="fc"><svg class="ic" viewBox="0 0 48 48"><ellipse cx="24" cy="14" rx="14" ry="6"/><path d="M10 14v10c0 3.3 6.3 6 14 6s14-2.7 14-6V14M10 24v10c0 3.3 6.3 6 14 6s14-2.7 14-6V24"/></svg><p class="no">06</p><p class="t">정산</p><p class="who">회사가 합니다</p></div></div>
+  <p class="one"><b>6단계 중 기사님은 하나만</b> 하시면 됩니다</p>
+
+  <div class="tiles">
+    <figure><img src="../photos/h6_bright.png" alt="" style="object-position:center 35%"><b>일이 들어오는 회사</b><p>광고 · 상담 전담, 기사님은 콜만 받으면</p></figure>
+    <figure><img src="../photos/v4_r27.jpg" alt="" style="object-position:center 70%"><b>교육장이 있는 회사</b><p>교육장 상시 개방, 막히면 언제든</p></figure>
+    <figure><img src="../photos/v4_r12.jpg" alt="" style="object-position:center 100%"><b>끝까지 가르치는 회사</b><p>수료 후에도 수리 동행 심화 과정</p></figure>
+    <figure><img src="../photos/v4_r24.jpg" alt="" style="object-position:center 40%"><b>사계절 일하는 회사</b><p>겨울엔 로봇청소기 · 난방 수리</p></figure>
+  </div>
+  <p class="big"><span class="l">배우는 곳이 아니라,</span><br><span class="uline">일하는 곳에서 배웁니다</span></p>
+  <div class="next"><p>그래서 일 걱정은 저희가 합니다</p><i>↓</i></div>
 </section>
 </body></html>
