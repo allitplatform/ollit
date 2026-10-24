@@ -1,49 +1,25 @@
 <!doctype html>
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
-  .s3 .nums { display: grid; grid-template-columns: 1.15fr 1.15fr 0.9fr; margin: 84px 30px 0; }
-  .s3 .nums > div { padding: 4px 6px; }
+  .s3 { padding-bottom: 0; }
+  .s3 .nums { display: grid; grid-template-columns: 1fr 1fr; margin: 90px 40px 0; }
+  .s3 .nums > div { padding: 6px 10px; }
   .s3 .nums > div + div { border-left: 1px solid var(--line); }
-  .s3 .nums p { font-size: 28px; font-weight: 600; letter-spacing: -0.03em; color: var(--sub); }
-  .s3 .nums b { display: block; margin-top: 14px; font-size: 76px; font-weight: 800; letter-spacing: -0.05em; line-height: 1; color: var(--ink-deep); white-space: nowrap; }
-  .s3 .nums b small { font-size: 32px; font-weight: 800; margin-left: 2px; }
-  .s3 .nums .top b { color: var(--ink-deep); text-decoration: underline; text-decoration-color: var(--yellow); text-decoration-thickness: 6px; text-underline-offset: 14px; text-decoration-skip-ink: none; }
-  .s3 .basis { margin: 52px 60px 0; font-size: 28px; font-weight: 600; letter-spacing: -0.03em; color: var(--ink-deep); }
-  .s3 .chart-t { margin-top: 96px; font-size: 32px; font-weight: 800; letter-spacing: -0.03em; color: var(--ink-deep); }
-  .s3 svg { display: block; margin: 36px auto 0; width: 1000px; height: 560px; }
-  .s3 svg .v { font: 700 26px Pretendard; fill: #1F2328; text-anchor: middle; letter-spacing: -0.03em; }
-  .s3 svg .m { font: 600 28px Pretendard; fill: #6E6E6A; text-anchor: middle; }
-  .s3 .note { margin: 64px 70px 0; font-size: 26px; line-height: 1.6; letter-spacing: -0.03em; color: var(--sub); }
+  .s3 .nums b { display: block; font-size: 120px; font-weight: 800; letter-spacing: -0.055em; line-height: 1; color: var(--ink-deep); white-space: nowrap; }
+  .s3 .nums b small { font-size: 48px; letter-spacing: -0.03em; margin-left: 2px; }
+  .s3 .nums p { margin-top: 26px; font-size: 32px; font-weight: 700; letter-spacing: -0.035em; color: var(--sub); }
+  .s3 .band { margin-top: 100px; }
+  .s3 .note { background: var(--white); padding: 44px 60px 70px; font-size: 20px; line-height: 1.65; letter-spacing: -0.01em; color: var(--sub); }
 </style></head>
 <body>
 <section class="sec s3">
   <p class="eyebrow">PROOF</p>
-  <h2 class="title"><span class="l">말 대신,</span><br>정산 내역으로 보여드립니다</h2>
+  <h2 class="title"><span class="l">말 대신,</span><br>정산으로 보여드립니다</h2>
   <div class="nums">
-    <div class="top"><p>월 최고</p><b>1,485<small>만원</small></b></div>
-    <div><p>상위 3명 평균</p><b>1,198<small>만원</small></b></div>
-    <div><p>한 달 작업</p><b>65<small>건</small></b></div>
+    <div><b>34<small>만원</small></b><p>성수기 일 평균</p></div>
+    <div><b>3,508<small>건</small></b><p>올여름 올데이케어 접수</p></div>
   </div>
-  <p class="basis">2026년 8월 · 협력기사 A · 월 정산 1,485만원 · 작업 65건<br>(올잇 정산 기준, 기사 지급액)</p>
-  <p class="chart-t">2026년 월별 최고 정산액</p>
-  <svg viewBox="0 0 1000 560">
-    <line x1="60" y1="470" x2="940" y2="470" stroke="#E4E4E1" stroke-width="2"/>
-    <rect x="90" y="431" width="96" height="39" fill="#1F2328"/>
-    <text x="138" y="413" class="v">137만원</text>
-    <text x="138" y="520" class="m">5월</text>
-    <rect x="258" y="160" width="96" height="310" fill="#1F2328"/>
-    <text x="306" y="142" class="v">1,095만원</text>
-    <text x="306" y="520" class="m">6월</text>
-    <rect x="426" y="102" width="96" height="368" fill="#1F2328"/>
-    <text x="474" y="84" class="v">1,302만원</text>
-    <text x="474" y="520" class="m">7월</text>
-    <rect x="594" y="50" width="96" height="420" fill="#F2B705"/>
-    <text x="642" y="32" class="v">1,485만원</text>
-    <text x="642" y="520" class="m">8월</text>
-    <rect x="762" y="375" width="96" height="95" fill="#1F2328"/>
-    <text x="810" y="357" class="v">336만원</text>
-    <text x="810" y="520" class="m">9월</text>
-  </svg>
-  <p class="note">실제 협력기사 정산 내역(기사 지급액, 올잇 정산 기준)입니다. 활동 일수 · 지역 · 숙련도에 따라 달라지며 수입을 보장하지 않습니다.</p>
+  <div class="band">일은 넘치고, 기사는 모자랍니다</div>
+  <p class="note">실제 직영기사 정산(기사 지급액, 올잇 정산, 작업한 날 기준)입니다. 활동 일수 · 지역 · 숙련도 · 계절에 따라 달라지며 수입을 보장하지 않습니다.</p>
 </section>
 </body></html>

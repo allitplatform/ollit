@@ -1,5 +1,5 @@
 // 기사 양성 과정(academy) 통이미지 빌드: sections/s1~s13.html → Playwright 캡처 → JPG
-//   node build.mjs  → assets/academy/*.png 사진 사용, public/img/academy/s1~s13.jpg + preview_all.jpg(390px 폭) 생성
+//   node build.mjs  → assets/academy/ 사진(실제 r*·f*.jpg, AI a*.png) 사용, public/img/academy/s1~s13.jpg + preview_all.jpg(390px 폭) 생성
 //   크롬 경로는 CHROME_PATH 환경변수로 지정
 import http from "node:http";
 import fs from "node:fs";
@@ -14,9 +14,11 @@ const PHOTO_DIR = path.resolve(ROOT, "../../assets/academy");
 const OUT_DIR = path.resolve(ROOT, "../../public/img/academy");
 const PREVIEW = path.join(ROOT, "preview_all.jpg");
 const PREVIEW_W = 390;   // 휴대폰 폭으로 확인
+// 실제 교육 사진(r*) · 현장 사진(f_*)은 jpg, AI 사진(a*)은 png
 const PHOTOS = [
-  "a1_hero", "a2_office", "a4_dirty", "a6_van", "a7_summer", "a7_autumn", "a7_winter", "a7_spring",
-  "a8_training", "a9_practice", "a13_sunset",
+  "r19.jpg", "a2_office.png", "f_before.jpg", "f_wash.jpg", "f_after.jpg", "a6_van.png",
+  "r12.jpg", "r01.jpg", "r23.jpg", "r16.jpg", "r20.jpg", "r22.jpg", "r24.jpg", "r15.jpg",
+  "r27.jpg", "r03.jpg", "r21.jpg", "a13_sunset.png",
 ];
 const MAX_BYTES = 400 * 1024;
 const TYPES = { ".html": "text/html; charset=utf-8", ".css": "text/css", ".jpg": "image/jpeg", ".png": "image/png", ".woff2": "font/woff2" };
@@ -43,7 +45,7 @@ async function toJpeg(png) {
 
 async function main() {
   for (const name of PHOTOS) {
-    if (!fs.existsSync(path.join(PHOTO_DIR, `${name}.png`))) throw new Error(`사진 없음: ${PHOTO_DIR}/${name}.png`);
+    if (!fs.existsSync(path.join(PHOTO_DIR, name))) throw new Error(`사진 없음: ${PHOTO_DIR}/${name}`);
   }
   fs.mkdirSync(OUT_DIR, { recursive: true });
   const server = await serve();
