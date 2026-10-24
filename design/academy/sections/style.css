@@ -1,0 +1,36 @@
+@import url("/node_modules/pretendard/dist/web/static/pretendard.css");
+
+/* 올데이케어 기사 양성 과정 — 색은 아래만. 그라데이션 · 알약 · 도형 안 글자 · 기울임 · 진한 그림자 없음 */
+:root {
+  --ink-deep: #1F2328;   /* 먹 */
+  --yellow:   #F2B705;   /* 안전 노랑 */
+  --yellow-d: #B38600;   /* 노랑 진하게 (흰 바탕 글자용) */
+  --soft:     #FFF7DB;   /* 옅은 노랑 */
+  --ink:      #2A2A2A;   /* 본문 */
+  --sub:      #6E6E6A;   /* 보조 */
+  --line:     #E4E4E1;   /* 선 */
+  --white:    #FFFFFF;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body { width: 1000px; background: var(--white); font-family: "Pretendard", sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; word-break: keep-all; }
+
+.sec { position: relative; width: 1000px; overflow: hidden; text-align: center; padding: 120px 0; background: var(--white); }
+.pad { padding-left: 80px; padding-right: 80px; }
+.full { display: block; width: 1000px; object-fit: cover; }
+
+.eyebrow { font-size: 22px; font-weight: 700; letter-spacing: 0.3em; text-transform: uppercase; color: var(--yellow-d); }
+.title { margin-top: 28px; font-size: 76px; line-height: 1.2; letter-spacing: -0.045em; font-weight: 800; color: var(--ink-deep); }
+.title .l { font-weight: 300; }
+.uline { text-decoration: underline; text-decoration-color: var(--yellow); text-decoration-thickness: 4px; text-underline-offset: 12px; text-decoration-skip-ink: none; }
+.lead { margin-top: 36px; font-size: 32px; line-height: 1.55; letter-spacing: -0.03em; color: var(--ink); }
+.subtxt { font-size: 28px; line-height: 1.6; letter-spacing: -0.03em; color: var(--sub); }
+
+.checks { list-style: none; display: inline-block; text-align: left; margin-top: 56px; }
+.checks li { display: flex; align-items: flex-start; gap: 20px; font-size: 32px; line-height: 1.45; letter-spacing: -0.03em; }
+.checks li + li { margin-top: 22px; }
+.checks b { font-weight: 800; }
+.ck { flex: 0 0 32px; width: 32px; height: 32px; margin-top: 7px; fill: none; stroke: var(--yellow-d); stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+
+.hr { height: 1px; background: var(--line); }
+.band { background: var(--ink-deep); color: var(--yellow); padding: 64px 40px; font-size: 44px; font-weight: 800; letter-spacing: -0.04em; line-height: 1.35; }

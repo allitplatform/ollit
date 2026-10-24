@@ -23,6 +23,8 @@ import {
   hoodDetail,
   isRobotSource,          // 2026-10-10 — 로봇청소기 랜딩 (source robot_landing*)
   robotDetail,
+  isAcademySource,        // 2026-10-24 — 기사 양성 과정 지원 (source academy_*) — 작업 전환 대상 아님
+  academyDetail,
   landingDetail,
   isGraveSource,          // 2026-10-02 — 벌초·산소 랜딩 (source grave_landing*)
   inquiryWorkType,
@@ -141,12 +143,13 @@ function sourceBadge(src) {
   if (isHoodSource(v)) return { label: "주방후드", color: "#D7261E", bg: "#FDECEB" };
   // 2026-10-10 — robot_landing*=로봇청소기. 같은 방식.
   if (isRobotSource(v)) return { label: "로봇청소기", color: "#087A74", bg: "#E9F5F4" };
+  if (isAcademySource(v)) return { label: "교육 지원", color: "#8A6400", bg: "#FFF3C4" };
   return null;
 }
 function showServicePill(row) {
   // 2026-10-02 — 벌초도 유입 배지("벌초·산소")와 종목 배지가 겹치므로 숨김
   const src = row && row.source;
-  return !isIpjuSource(src) && !isHoodSource(src) && !isGraveSource(src) && !isRobotSource(src);
+  return !isIpjuSource(src) && !isHoodSource(src) && !isGraveSource(src) && !isRobotSource(src) && !isAcademySource(src);
 }
 
 function _kstYmd(iso) {
@@ -727,6 +730,12 @@ function MiniCardRow({ row, busy, apiTasks = [], onCall, onSpam, onDelete, onCon
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>{robotDetail(row.source)}</div>
           )}
+          {academyDetail(row.source) && (
+            <div style={{
+              fontSize: 11.5, color: "#8A6400", fontWeight: 700, marginTop: 2,
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+            }}>{academyDetail(row.source)}</div>
+          )}
           {row.memo && (
             <div style={{
               fontSize: 11.5, color: "#4A5A70", marginTop: 2,
@@ -778,9 +787,12 @@ function MiniCardRow({ row, busy, apiTasks = [], onCall, onSpam, onDelete, onCon
               cursor: isContacted ? "default" : "pointer",
             }}
           >{isContacted ? "✓ 통화함" : "① 통화함"}</button>
+          {/* 2026-10-24 — 교육 지원은 고객 작업이 아니므로 작업 전환 없음 */}
+          {!isAcademySource(row.source) && (
           <button onClick={onConvert} disabled={busy}
             style={{ ...stepBase, color: "#2563EB" }}
           >② 작업 전환</button>
+          )}
           <button onClick={onSpam} disabled={busy}
             style={{ ...stepBase, borderRight: "none", color: "#93A2B4" }}
           >✕ 스팸</button>
@@ -990,6 +1002,12 @@ function PcListRow({ row, selected, apiTasks = [], onClick }) {
           whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
         }}>{robotDetail(row.source)}</div>
       )}
+      {academyDetail(row.source) && (
+        <div style={{
+          marginTop: 2, fontSize: 11, color: "#8A6400", fontWeight: 700,
+          whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+        }}>{academyDetail(row.source)}</div>
+      )}
       {row.memo && (
         <div style={{
           marginTop: 2, fontSize: 11, color: "#4A5A70",
@@ -1113,6 +1131,10 @@ function PcDetailPanel({ t, user, row, busy, apiTasks = [], onCall, onSpam, onDe
             <span style={{ color: "#93A2B4", fontWeight: 600 }}>로봇청소기</span>
             <span style={{ fontWeight: 700, color: "#087A74" }}>{robotDetail(row.source)}</span>
           </>)}
+          {academyDetail(row.source) && (<>
+            <span style={{ color: "#93A2B4", fontWeight: 600 }}>교육 지원</span>
+            <span style={{ fontWeight: 700, color: "#8A6400" }}>{academyDetail(row.source)}</span>
+          </>)}
           {row.memo && (<>
             <span style={{ color: "#93A2B4", fontWeight: 600 }}>메모</span>
             <span style={{ color: "#4A5A70", whiteSpace: "pre-line" }}>{row.memo}</span>
@@ -1186,7 +1208,16 @@ function PcDetailPanel({ t, user, row, busy, apiTasks = [], onCall, onSpam, onDe
         )}
       </div>
 
-      {/* 하단 — 새 접수 폼 임베드 (prefill) */}
+      {/* 하단 — 새 접수 폼 임베드 (prefill). 2026-10-24 — 교육 지원은 작업 전환 대상이 아니라 숨김 */}
+      {isAcademySource(row.source) ? (
+        <div style={{
+          background: "#FFFBEA", border: "1px solid #F2E3A6", borderRadius: 12,
+          padding: "14px 18px", fontSize: 13, color: "#6B5300", lineHeight: 1.6,
+        }}>
+          기사 양성 과정 지원입니다. 고객 작업이 아니므로 작업 전환은 하지 않습니다.<br/>
+          전화로 과정을 안내한 뒤 [통화함] 으로 처리해 주세요.
+        </div>
+      ) : (
       <div style={{
         background: "#fff", border: "1px solid #E5EAF1", borderRadius: 12,
         padding: 0, overflow: "hidden",
@@ -1208,6 +1239,7 @@ function PcDetailPanel({ t, user, row, busy, apiTasks = [], onCall, onSpam, onDe
           />
         </div>
       </div>
+      )}
     </div>
   );
 }

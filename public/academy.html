@@ -1,0 +1,266 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>올데이케어 에어컨 기사 양성 과정 | 3주 배우고 일감까지</title>
+<meta name="description" content="에어컨 세척 기사 3주 과정. 수료 평가 통과 후 올데이케어 콜 배정 시작. 실제 협력기사 정산 사례 공개. 1866-2003">
+<meta name="robots" content="noindex">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root{--point:#F2B705;--deep:#1F2328;--dark:#000000;--soft:#FFF7DB;--ink:#2A2A2A;--line:#E4E4E1;--sub:#8A8A86}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Pretendard,-apple-system,'Noto Sans KR',sans-serif;color:var(--ink);background:#EEEEEC;overflow-x:clip;word-break:keep-all}
+.wrap{max-width:1000px;margin:0 auto;background:#fff;padding-bottom:84px}
+a{color:inherit;text-decoration:none}
+
+/* ===== 애니메이션 (단색 깜빡임 · 크기 · 흔들림 · 파동만. 그라데이션 · 빛 스침 · 글로우 없음) ===== */
+@keyframes telFlash{0%,100%{background:#1F2328}50%{background:#3A3F46}}
+@keyframes telBeat{0%,60%,100%{transform:scale(1)}66%{transform:scale(1.14)}72%{transform:scale(.97)}78%{transform:scale(1.08)}}
+@keyframes telShake{0%,70%,100%{transform:rotate(0)}73%{transform:rotate(-22deg)}76%{transform:rotate(20deg)}79%{transform:rotate(-16deg)}82%{transform:rotate(12deg)}85%{transform:rotate(-6deg)}}
+@keyframes telRing{0%{transform:scale(1);opacity:.85}100%{transform:scale(2.4);opacity:0}}
+@keyframes telBounce{0%,80%,100%{transform:translateY(0)}86%{transform:translateY(-8px)}92%{transform:translateY(0)}96%{transform:translateY(-3px)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes slideUp{from{transform:translate(-50%,110%)}to{transform:translate(-50%,0)}}
+@keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(5px)}}
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .7s ease,transform .7s ease}
+.reveal.on{opacity:1;transform:none}
+
+/* 상단 바 */
+.top{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.97);display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--line)}
+.logo{font-weight:900;font-size:19px;color:var(--deep)}
+.logo span{color:var(--ink);font-weight:700;font-size:13px;margin-left:6px}
+.top-tel{display:inline-flex;align-items:center;gap:7px;font-weight:800;color:var(--deep);font-size:16px;animation:telBeat 1.6s ease-in-out infinite}
+.live{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--sub)}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--point);animation:blink 1.2s infinite}
+
+/* 통이미지 섹션 */
+.sec{display:block;width:100%;line-height:0;position:relative}
+.sec img{width:100%;height:auto;display:block}
+.sec .ph-label{display:none}
+.sec.missing{aspect-ratio:2/3;background:#EEEEEC;line-height:1.6}
+.sec.missing img{display:none}
+.sec.missing .ph-label{display:flex;position:absolute;inset:0;align-items:center;justify-content:center;text-align:center;padding:24px;font-size:14px;color:#7C8699}
+
+/* 전화 띠 */
+.tel-band{display:flex;align-items:center;justify-content:center;gap:20px;color:#fff;padding:24px 16px;text-align:center;position:relative;overflow:hidden;animation:telFlash 1.2s ease-in-out infinite}
+.tel-band small{display:block;font-size:14px;opacity:.92}
+.tel-band b{display:inline-block;font-size:36px;font-weight:900;letter-spacing:-1px;animation:telBeat 1.6s ease-in-out infinite}
+.ico{position:relative;width:56px;height:56px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 56px}
+.ico::before,.ico::after,.ico i{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid #fff;animation:telRing 1.6s ease-out infinite}
+.ico::after{animation-delay:.53s}
+.ico i{animation-delay:1.06s}
+.ico svg{animation:telShake 1.6s ease-in-out infinite}
+.ico.go svg{animation:nudge 1.1s ease-in-out infinite}
+
+/* 접수 폼 */
+.apply{background:var(--soft);padding:34px 18px 40px}
+.card{max-width:540px;margin:0 auto;background:#fff;border-radius:18px;padding:24px 20px;border:1px solid #EADFB8}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.card h3{font-size:22px;font-weight:900;letter-spacing:-.5px}
+.card h3 em{font-style:normal;color:var(--deep)}
+.card .hint{font-size:14px;color:var(--sub);margin-top:6px}
+.f{margin-top:12px}
+.f label{display:block;font-size:13.5px;font-weight:700;margin-bottom:6px}
+.f label small{font-weight:500;color:var(--sub)}
+.f input,.f select{width:100%;height:50px;border:1.5px solid var(--line);border-radius:12px;padding:0 14px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink);transition:border-color .2s}
+.f input:focus,.f select:focus{outline:none;border-color:var(--point)}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.agree{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13.5px;color:var(--sub)}
+.agree input{width:20px;height:20px;accent-color:var(--deep)}
+.agree a{text-decoration:underline}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:58px;border:0;border-radius:14px;background:var(--deep);color:#fff;font-size:18px;font-weight:900;font-family:inherit;margin-top:16px;cursor:pointer}
+.btn .arr{display:inline-block;animation:nudge 1.1s ease-in-out infinite}
+.btn:disabled{opacity:.6}
+.msg{display:none;margin-top:12px;padding:14px;border-radius:12px;font-size:14px;line-height:1.55}
+.msg.ok{display:block;background:var(--soft);color:var(--deep);font-weight:700}
+.msg.err{display:block;background:#FDECEC;color:#B42318}
+
+footer{padding:28px 22px 36px;font-size:12px;color:#8A93A5;line-height:1.75;border-top:1px solid var(--line)}
+footer b{color:#4A5263}
+
+/* 하단 고정 바 */
+.fixed{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:1000px;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:rgba(255,255,255,.97);border-top:1px solid var(--line);z-index:40;animation:slideUp .6s .8s both cubic-bezier(.2,.9,.3,1.2)}
+.fixed a{height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:7px;font-weight:900;font-size:16px}
+.fixed .call{color:#fff;animation:telBounce 2.2s ease-in-out infinite,telFlash 1.2s ease-in-out infinite}
+.fixed .call svg{animation:telShake 1.6s ease-in-out infinite}
+.fixed .go{background:#fff;color:var(--deep);border:2px solid var(--deep)}
+.fixed .go .arr{display:inline-block;animation:nudge 1.1s ease-in-out infinite}
+
+@media (max-width:420px){.tel-band b{font-size:30px}.tel-band{gap:14px}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}
+</style>
+<style>.tel-band b{color:#F2B705}.btn{background:#F2B705;color:#1F2328}.logo{color:#1F2328}.logo span{color:#8A6A00}.fixed .call{color:#F2B705}.fixed .go{color:#1F2328;border-color:#1F2328}.card h3 em{color:#B38600}</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top">
+  <div class="logo">올데이케어<span>기사 양성 과정</span></div>
+  <a class="top-tel" href="tel:18662003"><span class="live"><i></i>상담 가능</span>1866-2003</a>
+</header>
+
+<!-- 이미지 파일: public/img/academy/s1.jpg ~ s13.jpg -->
+<div class="sec" data-img="img/academy/s1.jpg" data-w="1000" data-h="1988" data-alt="에어컨 기사, 월 1,000만원을 넘기는 사람들이 있습니다. 2026년 8월 협력기사 A 월 정산 1,485만원 (올잇 정산 기준). 3주 배우고 4주차부터 일합니다" data-label="S1 히어로"></div>
+<a class="tel-band" href="tel:18662003">
+  <span class="ico"><i></i><svg width="26" height="26" viewBox="0 0 24 24" fill="#1F2328"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
+  <span><small>과정 상담 · 지금 누르면 바로 연결</small><b>1866-2003</b></span>
+</a>
+<section class="apply" id="apply">
+  <div class="card">
+    <div class="card-head"><h3><em>30초</em> 지원하기</h3><span class="live"><i></i>모집 중</span></div>
+    <p class="hint">남겨주시면 하루 안에 전화로 과정을 안내해 드립니다</p>
+    <form class="lead-form" novalidate>
+      <div class="f2">
+        <div class="f"><label for="n1">성함</label><input id="n1" name="name" autocomplete="name" placeholder="홍길동"></div>
+        <div class="f"><label for="a1">나이대</label>
+          <select id="a1" name="age"><option value="">선택해 주세요</option><option value="20s">20대</option><option value="30s">30대</option><option value="40s">40대</option><option value="50s">50대 이상</option></select></div>
+      </div>
+      <div class="f"><label for="p1">연락처</label><input id="p1" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000"></div>
+      <div class="f2">
+        <div class="f"><label for="j1">지금 하는 일 <small>(선택)</small></label>
+          <select id="j1" name="job"><option value="">선택해 주세요</option><option value="office">직장인</option><option value="field">현장 · 기술직</option><option value="self">자영업</option><option value="none">구직 중</option><option value="etc">기타</option></select></div>
+        <div class="f"><label for="s1">시작 가능 시기 <small>(선택)</small></label>
+          <select id="s1" name="start"><option value="">선택해 주세요</option><option value="now">바로</option><option value="1m">1개월 안</option><option value="3m">3개월 안</option></select></div>
+      </div>
+      <div class="f"><label for="r1">사는 지역</label><input id="r1" name="addr" placeholder="예) 고양시 덕양구"></div>
+      <label class="agree"><input type="checkbox" name="agree"> 개인정보 수집·이용 동의 <a href="/privacy" target="_blank">보기</a></label>
+      <button class="btn" type="submit">지원하기 <span class="arr">→</span></button>
+      <div class="msg"></div>
+    </form>
+  </div>
+</section>
+<div class="sec" data-img="img/academy/s2.jpg" data-w="1000" data-h="1935" data-alt="이런 생각 해본 적 있으신가요. 월급은 그대로인데, 몸 쓰는 건 자신 있는데, 내 기술 하나만 있으면" data-label="S2 프롤로그"></div>
+<div class="sec" data-img="img/academy/s3.jpg" data-w="1000" data-h="1690" data-alt="말 대신, 정산 내역으로 보여드립니다. 2026년 8월 협력기사 A 월 정산 1,485만원, 작업 65건 (올잇 정산 기준, 기사 지급액). 활동 일수 · 지역 · 숙련도에 따라 달라집니다" data-label="S3 수입 증빙"></div>
+<div class="sec" data-img="img/academy/s4.jpg" data-w="1000" data-h="1872" data-alt="에어컨은 매년 다시 더러워집니다. 한 번 찾은 고객은 내년에도 찾습니다. 올여름(6~8월) 올데이케어 접수 3,508건" data-label="S4 왜 이 일인가"></div>
+<a class="tel-band" href="#apply2">
+  <span class="ico go"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1F2328" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
+  <span><small>하루 안에 전화로 과정 안내</small><b>지원하기</b></span>
+</a>
+<div class="sec" data-img="img/academy/s5.jpg" data-w="1000" data-h="1069" data-alt="기술을 배워도 일이 없으면 소용없습니다. 학원은 수료증을 주고, 혼자 창업하면 광고비부터 나갑니다" data-label="S5 진짜 문제"></div>
+<div class="sec" data-img="img/academy/s6.jpg" data-w="1000" data-h="1640" data-alt="올데이케어는 일감을 드립니다. 수료 평가를 통과하면 바로 콜 배정이 시작됩니다" data-label="S6 해법"></div>
+<div class="sec" data-img="img/academy/s7.jpg" data-w="1000" data-h="2061" data-alt="사계절 일하는 구조. 여름 에어컨 세척, 가을 겨울 수리와 로봇청소기, 봄 세척 시즌" data-label="S7 사계절"></div>
+<a class="tel-band" href="tel:18662003">
+  <span class="ico"><i></i><svg width="26" height="26" viewBox="0 0 24 24" fill="#1F2328"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
+  <span><small>궁금한 건 전화로 바로</small><b>1866-2003</b></span>
+</a>
+<div class="sec" data-img="img/academy/s8.jpg" data-w="1000" data-h="2420" data-alt="3주 과정. 1주 벽걸이, 2주 스탠드 천장형 냉매 기초, 3주 로봇청소기 고객응대 현장 동행 후 수료 평가" data-label="S8 3주 커리큘럼"></div>
+<div class="sec" data-img="img/academy/s9.jpg" data-w="1000" data-h="1838" data-alt="수료 후에도 계속. 교육장 상시 개방, 수리 동행 심화 과정, 앱으로 콜 받기, 정산 투명 공개" data-label="S9 수료 후"></div>
+<div class="sec" data-img="img/academy/s10.jpg" data-w="1000" data-h="1125" data-alt="이런 분께 맞습니다, 이런 분께는 맞지 않습니다" data-label="S10 맞는 사람"></div>
+<div class="sec" data-img="img/academy/s11.jpg" data-w="1000" data-h="983" data-alt="우리가 직접 기사를 키우는 이유. 성수기마다 기사가 모자랐습니다. 일은 넘치는데 사람이 없다면, 사람을 키우면 됩니다" data-label="S11 대표 이야기"></div>
+<div class="sec" data-img="img/academy/s12.jpg" data-w="1000" data-h="1948" data-alt="자주 묻는 질문. 경력, 나이, 차량, 교육 중 수입, 개강" data-label="S12 FAQ"></div>
+<div class="sec" data-img="img/academy/s13.jpg" data-w="1000" data-h="1686" data-alt="다음 여름, 당신 이름으로 콜이 옵니다. 지원은 30초, 상담은 무료" data-label="S13 마지막"></div>
+
+<section class="apply" id="apply2">
+  <div class="card">
+    <div class="card-head"><h3>지원하기</h3><span class="live"><i></i>모집 중</span></div>
+    <p class="hint">부담 없이 남겨주세요 · 전화로 과정부터 설명드립니다</p>
+    <form class="lead-form" novalidate>
+      <div class="f2">
+        <div class="f"><label for="n2">성함</label><input id="n2" name="name" autocomplete="name" placeholder="홍길동"></div>
+        <div class="f"><label for="a2">나이대</label>
+          <select id="a2" name="age"><option value="">선택해 주세요</option><option value="20s">20대</option><option value="30s">30대</option><option value="40s">40대</option><option value="50s">50대 이상</option></select></div>
+      </div>
+      <div class="f"><label for="p2">연락처</label><input id="p2" name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000"></div>
+      <div class="f2">
+        <div class="f"><label for="j2">지금 하는 일 <small>(선택)</small></label>
+          <select id="j2" name="job"><option value="">선택해 주세요</option><option value="office">직장인</option><option value="field">현장 · 기술직</option><option value="self">자영업</option><option value="none">구직 중</option><option value="etc">기타</option></select></div>
+        <div class="f"><label for="s2">시작 가능 시기 <small>(선택)</small></label>
+          <select id="s2" name="start"><option value="">선택해 주세요</option><option value="now">바로</option><option value="1m">1개월 안</option><option value="3m">3개월 안</option></select></div>
+      </div>
+      <div class="f"><label for="r2">사는 지역</label><input id="r2" name="addr" placeholder="예) 고양시 덕양구"></div>
+      <label class="agree"><input type="checkbox" name="agree"> 개인정보 수집·이용 동의 <a href="/privacy" target="_blank">보기</a></label>
+      <button class="btn" type="submit">지원하기 <span class="arr">→</span></button>
+      <div class="msg"></div>
+    </form>
+  </div>
+</section>
+
+<footer>
+  <b>올데이케어</b> · 사업자등록번호 430-07-03167 · 대표번호 1866-2003<br>
+  수입 사례는 실제 협력기사 정산 내역이며, 개인의 활동 일수 · 지역 · 숙련도에 따라 달라집니다. 수입을 보장하지 않습니다.<br>
+  본 과정은 협력기사 양성 과정이며 고용 계약이 아닙니다.<br>
+  <a href="/privacy">개인정보처리방침</a> · 일부 이미지는 이해를 돕기 위한 연출 이미지입니다.
+</footer>
+<nav class="fixed">
+  <a class="call" href="tel:18662003"><svg width="18" height="18" viewBox="0 0 24 24" fill="#F2B705"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg>1866-2003</a>
+  <a class="go" href="#apply" id="goForm">지원하기 <span class="arr">→</span></a>
+</nav>
+</div>
+<script>
+/* ===== 설정: leak.html 의 값과 동일하게 채울 것 ===== */
+const SB_URL = 'https://jtxmzgqykmjyzzsnjqio.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eG16Z3F5a21qeXp6c25qcWlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjQ2MDYsImV4cCI6MjA5MzEwMDYwNn0.v07Gsm2vUx0Gs6r5EqMZvzOVHt2btIipt5a6tnsGFS4';
+
+/* 통이미지: 첫 장은 즉시, 나머지는 지연 로딩 + 스크롤 등장. 파일 없으면 안내 라벨 */
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('on');io.unobserve(e.target);}}),{threshold:.08});
+document.querySelectorAll('.sec[data-img]').forEach((el,i)=>{
+  const img=new Image(); img.alt=el.dataset.alt||''; img.decoding='async';
+  if(el.dataset.w&&el.dataset.h){img.width=+el.dataset.w; img.height=+el.dataset.h;}  /* 지연 로딩이어도 자리를 미리 잡음 */
+  if(i>0){img.loading='lazy'; el.classList.add('reveal'); io.observe(el);}
+  const lb=document.createElement('div'); lb.className='ph-label'; lb.textContent=el.dataset.label+' — '+el.dataset.img;
+  img.onerror=()=>el.classList.add('missing');
+  img.src=el.dataset.img; el.appendChild(img); el.appendChild(lb);
+});
+document.querySelectorAll('.apply .card').forEach(c=>{c.classList.add('reveal');io.observe(c);});
+
+/* 하단 '지원하기' : 지금 위치 아래쪽 폼으로, 없으면 첫 폼으로 */
+document.getElementById('goForm').addEventListener('click',e=>{
+  e.preventDefault();
+  const forms=[...document.querySelectorAll('.apply')];
+  const next=forms.find(f=>f.getBoundingClientRect().top>80)||forms[0];
+  next.scrollIntoView({behavior:'smooth',block:'start'});
+  setTimeout(()=>next.querySelector('input[name=name]').focus({preventScroll:true}),600);
+});
+
+/* 오늘 이전 날짜 막기 */
+const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset());
+document.querySelectorAll('input[name=date]').forEach(i=>i.min=d.toISOString().slice(0,10));
+
+/* 전화번호 자동 하이픈 */
+document.querySelectorAll('input[name=phone]').forEach(ph=>ph.addEventListener('input',()=>{
+  let v=ph.value.replace(/\D/g,'').slice(0,11);
+  ph.value=v.length<4?v:v.length<8?v.slice(0,3)+'-'+v.slice(3):v.slice(0,3)+'-'+v.slice(3,v.length-4)+'-'+v.slice(-4);
+}));
+
+/* 지원: create_inquiry_v2 → 404면 create_inquiry 폴백 (접수함에서 "교육 지원" 배지로 구분)
+   service_type 은 'unknown', 지원 정보는 source (DB 가 40자까지만 저장 — 아래 형식은 최대 25자)
+   형식: academy_t/40s/office/now  (t=위 폼, b=아래 폼 / 나이대 / 지금 하는 일 / 시작 시기, 미선택은 na) */
+async function rpc(fn,body){
+  return fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:{'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY},body:JSON.stringify(body)});
+}
+document.querySelectorAll('.lead-form').forEach((form,idx)=>{
+  const q=n=>form.querySelector('[name='+n+']');
+  const msg=form.querySelector('.msg'), btn=form.querySelector('.btn');
+  const label=btn.innerHTML;
+  const show=(t,ok)=>{msg.className='msg '+(ok?'ok':'err'); msg.innerHTML=t;};
+  form.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const name=q('name').value.trim(), phone=q('phone').value.replace(/\D/g,''), addr=q('addr').value.trim();
+    const age=q('age').value, job=q('job').value, start=q('start').value;
+    if(!name) return show('성함을 적어주세요');
+    if(phone.length<10) return show('연락처를 확인해주세요');
+    if(!age) return show('나이대를 선택해주세요');
+    if(!addr) return show('사는 지역을 적어주세요');
+    if(!q('agree').checked) return show('개인정보 수집·이용에 동의해주세요');
+    btn.disabled=true; btn.textContent='접수 중…';
+    /* 형식: academy_t/{20s|30s|40s|50s}/{job}/{now|1m|3m} — 40자 이내 */
+    const source=['academy_'+(idx===0?'t':'b'),age,job||'na',start||'na'].join('/');
+    const base={p_service_type:'unknown',p_name:name,p_phone:phone,p_address:addr,p_agreed_privacy:true};
+    try{
+      let r=await rpc('create_inquiry_v2',{...base,p_source:source});
+      if(r.status===404) r=await rpc('create_inquiry',base);
+      if(!r.ok) throw new Error(await r.text());
+      form.querySelectorAll('input,select').forEach(i=>i.disabled=true);
+      btn.textContent='지원 완료';
+      show('지원되었습니다. 담당자가 하루 안에 전화로 과정을 안내해 드립니다.',true);
+      if(window.gtag) gtag('event','generate_lead',{source:'academy'});
+    }catch(err){
+      btn.disabled=false; btn.innerHTML=label;
+      show('접수가 되지 않았습니다. <a href="tel:18662003" style="text-decoration:underline">1866-2003</a> 으로 전화 주세요.');
+    }
+  });
+});
+</script>
+</body>
+</html>

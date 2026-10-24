@@ -114,9 +114,24 @@ export function robotInquiryItems(source) {
   return ROBOT_ITEM[kind] ? [{ workType: "로봇청소기", appliance: ROBOT_ITEM[kind], qty: 1 }] : [];
 }
 
-// 랜딩 접수 풀이 공통 — 입주청소·주방후드·로봇청소기 중 해당하는 쪽. 어느 것도 아니면 "".
+// 2026-10-24 — 기사 양성 과정 지원(public/academy.html) 판별. 고객 작업이 아니라 교육 지원자 (service_type 은 'unknown').
+//   source 형식: academy_t/40s/office/now  (_t=위 폼 · _b=아래 폼 / 나이대 / 지금 하는 일 / 시작 시기, 미선택은 na)
+export function isAcademySource(source) {
+  return String(source || "").startsWith("academy_");
+}
+const ACADEMY_AGE   = { "20s": "20대", "30s": "30대", "40s": "40대", "50s": "50대 이상" };
+const ACADEMY_JOB   = { office: "직장인", field: "현장 · 기술직", self: "자영업", none: "구직 중", etc: "기타" };
+const ACADEMY_START = { now: "바로 시작", "1m": "1개월 안 시작", "3m": "3개월 안 시작" };
+// → "40대 · 직장인 · 바로 시작" (선택 안 한 항목은 생략). 교육 지원이 아니면 "".
+export function academyDetail(source) {
+  if (!isAcademySource(source)) return "";
+  const [, age = "", job = "", start = ""] = String(source).split("/");
+  return [ACADEMY_AGE[age], ACADEMY_JOB[job], ACADEMY_START[start]].filter(Boolean).join(" · ");
+}
+
+// 랜딩 접수 풀이 공통 — 입주청소·주방후드·로봇청소기·교육 지원 중 해당하는 쪽. 어느 것도 아니면 "".
 export function landingDetail(source) {
-  return ipjuDetail(source) || hoodDetail(source) || robotDetail(source);
+  return ipjuDetail(source) || hoodDetail(source) || robotDetail(source) || academyDetail(source);
 }
 // 접수함·전환 메모에 쓰는 희망 서비스 라벨 — 입주청소·주방후드 랜딩은 service_type 과 관계없이 고정 라벨.
 export function inquiryServiceLabel(row) {
@@ -124,6 +139,7 @@ export function inquiryServiceLabel(row) {
   if (row && isHoodSource(row.source)) return "주방후드";
   if (row && isRobotSource(row.source)) return "로봇청소기";
   if (row && isGraveSource(row.source)) return "벌초·산소";
+  if (row && isAcademySource(row.source)) return "교육 지원";
   return serviceLabel(row && row.service_type);
 }
 
@@ -165,7 +181,7 @@ export function inquiryPrefill(row) {
 
 export function inquiryWorkType(row) {
   const src = row && row.source;
-  if (isHoodSource(src) || isIpjuSource(src) || isGraveSource(src) || isRobotSource(src)) return "";
+  if (isHoodSource(src) || isIpjuSource(src) || isGraveSource(src) || isRobotSource(src) || isAcademySource(src)) return "";
   return SERVICE_WORKTYPE[row && row.service_type] || "";
 }
 

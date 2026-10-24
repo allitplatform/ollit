@@ -1,0 +1,36 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
+<style>
+  .s10 .two { display: grid; grid-template-columns: 1fr 1fr; margin: 84px 40px 0; text-align: left; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
+  .s10 .col { padding: 48px 28px 52px; }
+  .s10 .col + .col { border-left: 1px solid var(--line); }
+  .s10 h3 { font-size: 36px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink-deep); }
+  .s10 .no h3 { color: var(--sub); }
+  .s10 ul { list-style: none; margin-top: 34px; }
+  .s10 li { display: flex; align-items: flex-start; gap: 14px; font-size: 29px; line-height: 1.4; letter-spacing: -0.045em; color: var(--ink); }
+  .s10 li + li { margin-top: 22px; }
+  .s10 .no li { color: var(--sub); }
+  .s10 .no li::before { content: ""; flex: 0 0 16px; height: 2px; margin-top: 20px; background: var(--sub); }
+  .s10 .ck { flex: 0 0 28px; width: 28px; height: 28px; margin-top: 5px; }
+  .s10 .foot { margin: 64px 80px 0; font-size: 30px; line-height: 1.55; letter-spacing: -0.035em; color: var(--ink-deep); }
+</style></head>
+<body>
+<section class="sec s10">
+  <p class="eyebrow">WHO FITS</p>
+  <h2 class="title"><span class="l">이 일,</span><br>맞는 분이 따로 있습니다</h2>
+  <div class="two">
+    <div class="col"><h3>이런 분께 맞습니다</h3><ul>
+      <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>일한 만큼 벌고 싶은 분</span></li>
+      <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>몸 쓰는 일에 자신 있는 분</span></li>
+      <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>내 기술로 독립하고 싶은 분</span></li>
+      <li><svg class="ck" viewBox="0 0 24 24"><path d="M4 12.5l5.5 5.5L20 6.5"/></svg><span>주말 · 성수기에 더 뛸 수 있는 분</span></li>
+    </ul></div>
+    <div class="col no"><h3>이런 분께는 맞지 않습니다</h3><ul>
+      <li><span>앉아서 일하고 싶은 분</span></li>
+      <li><span>고정 월급만 원하는 분</span></li>
+      <li><span>고객 응대가 싫은 분</span></li>
+    </ul></div>
+  </div>
+  <p class="foot">맞지 않는 분을 먼저 말씀드리는 이유는,<br>오래 함께할 분을 찾기 때문입니다</p>
+</section>
+</body></html>
