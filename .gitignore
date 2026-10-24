@@ -100,3 +100,4 @@ design/hood/out_placeholder/
 # 기사 양성 과정 랜딩 통이미지 · 미리보기
 !public/img/academy/*.jpg
 !design/academy/preview_all.jpg
+!public/img/academy/tour/*.jpg
