@@ -2,9 +2,14 @@
 <html lang="ko"><head><meta charset="utf-8"><link rel="stylesheet" href="style.css">
 <style>
   .s8 .photo { height: 700px; margin-top: 76px; object-position: center 60%; }
-  .s8 .weeks { margin: 76px 40px 0; text-align: left; border-top: 1px solid var(--line); }
+  .s8 .grp { margin: 76px 40px 0; text-align: left; }
+  .s8 .grp + .grp { margin-top: 64px; }
+  .s8 .gh { font-size: 34px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink-deep); padding-bottom: 18px; border-bottom: 3px solid var(--yellow); }
+  .s8 .weeks { text-align: left; }
+  .s8 .grp.after { opacity: 0.5; }
+  .s8 .grp.after .gh { border-bottom-color: var(--line); color: var(--sub); }
   .s8 .wk { display: flex; padding: 44px 0; border-bottom: 1px solid var(--line); }
-  .s8 .wk .n { flex: 0 0 96px; padding-right: 20px; margin-right: 24px; border-right: 1px solid var(--line); font-size: 40px; font-weight: 800; letter-spacing: -0.04em; color: var(--yellow-d); }
+  .s8 .wk .n { flex: 0 0 120px; padding-right: 20px; margin-right: 24px; border-right: 1px solid var(--line); font-size: 40px; font-weight: 800; letter-spacing: -0.04em; color: var(--yellow-d); }
   .s8 .wk .b { flex: 1; }
   .s8 .wk b { display: block; font-size: 38px; font-weight: 800; letter-spacing: -0.04em; color: var(--ink-deep); }
   .s8 .wk p { margin-top: 12px; font-size: 30px; line-height: 1.55; letter-spacing: -0.035em; color: var(--sub); }
@@ -17,13 +22,21 @@
 <body>
 <section class="sec s8">
 
-  <p class="eyebrow">3 WEEKS</p>
-  <h2 class="title"><span class="l">3주,</span><br>현장에서 바로 쓰는 것만</h2>
+  <p class="eyebrow">1 WEEK</p>
+  <h2 class="title"><span class="l">일주일,</span><br>현장에서 바로 쓰는 것만</h2>
   <img class="full photo" src="../photos/v4_r18.jpg" alt="">
-  <div class="weeks">
-    <div class="wk"><div class="n">1주</div><div class="b"><b>벽걸이</b><p>구조 · 공구 · 안전<br>분해 → 세척 → 조립 반복<br>단독 테스트</p><div class="ph"><img src="../photos/v4_r23.jpg" alt="" style="width:402px"><img src="../photos/v4_r13.jpg" alt="" style="width:402px"></div></div></div>
-    <div class="wk"><div class="n">2주</div><div class="b"><b>스탠드 · 천장형</b><p>3종 세척<br>냉매 기초(게이지 · 압력 점검)</p><div class="ph"><img src="../photos/v4_r16.jpg" alt="" style="width:265px"><img src="../photos/v4_r20.jpg" alt="" style="width:265px"><img src="../photos/v4_r22.jpg" alt="" style="width:265px"></div></div></div>
-    <div class="wk"><div class="n">3주</div><div class="b"><b>실전</b><p>로봇청소기<br>고객응대 · 분쟁 예방<br>앱 사용법 · 실제 현장 동행</p><div class="ph"><img src="../photos/v4_r24.jpg" alt="" style="width:402px"><img src="../photos/v4_r15.jpg" alt="" style="width:402px"></div></div></div>
+  <div class="grp">
+    <p class="gh">일주일 기본</p>
+    <div class="weeks">
+      <div class="wk"><div class="n">1단계</div><div class="b"><b>벽걸이</b><p>구조 · 공구 · 안전<br>분해 → 세척 → 조립 반복<br>단독 테스트</p><div class="ph"><img src="../photos/v4_r23.jpg" alt="" style="width:402px"><img src="../photos/v4_r13.jpg" alt="" style="width:402px"></div></div></div>
+      <div class="wk"><div class="n">2단계</div><div class="b"><b>스탠드 · 천장형</b><p>3종 세척<br>냉매 기초(게이지 · 압력 점검)</p><div class="ph"><img src="../photos/v4_r16.jpg" alt="" style="width:265px"><img src="../photos/v4_r20.jpg" alt="" style="width:265px"><img src="../photos/v4_r22.jpg" alt="" style="width:265px"></div></div></div>
+    </div>
+  </div>
+  <div class="grp after">
+    <p class="gh">수료 후 · 별도 과정</p>
+    <div class="weeks">
+      <div class="wk"><div class="n">실전</div><div class="b"><b>현장에서 더 배우기</b><p>로봇청소기<br>고객응대 · 분쟁 예방<br>실제 현장 동행</p><div class="ph"><img src="../photos/v4_r24.jpg" alt="" style="width:402px"><img src="../photos/v4_r15.jpg" alt="" style="width:402px"></div></div></div>
+    </div>
   </div>
   <p class="big"><span class="l">수료 평가 통과 →</span><br><span class="uline">바로 콜 배정 시작</span></p>
   <div class="next"><p>끝나도 혼자가 아닙니다</p><i>↓</i></div>
