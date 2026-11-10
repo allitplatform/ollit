@@ -49,6 +49,21 @@ a{color:inherit;text-decoration:none}
 .tour .under{margin-top:clamp(16px,3.6vw,36px);font-size:clamp(14px,3vw,30px);font-weight:700;letter-spacing:-.03em}
 @media (prefers-reduced-motion:reduce){.spot{animation:none}}
 
+
+/* ===== 교육비 0원 띠 (HTML) — 움직임은 두 가지뿐: 처음 보일 때 "0원" 착지(0.6초, 1회) · 4초마다 흰 빛 한 번 스침 ===== */
+.fee-band{position:relative;overflow:hidden;background:#F2B705;color:#1F2328;text-align:center;padding:clamp(48px,14vw,72px) 12px clamp(48px,14vw,72px)}
+.fee-top{display:flex;align-items:baseline;justify-content:center;gap:clamp(8px,1.6vw,16px);line-height:1;white-space:nowrap}
+.fee-k{font-weight:500;font-size:clamp(26px,10vw,44px);letter-spacing:-.04em}
+.fee-zero{display:inline-block;font-weight:900;font-size:clamp(84px,33vw,150px);letter-spacing:-.05em;line-height:.9}
+.fee-sub{margin-top:clamp(14px,3vw,24px);font-weight:700;font-size:clamp(16px,5vw,28px);letter-spacing:-.05em;white-space:nowrap}
+@keyframes feeDrop{0%{transform:translateY(-55%) scale(1.25);opacity:0}60%{transform:translateY(4%) scale(.97);opacity:1}80%{transform:translateY(-2%) scale(1.02)}100%{transform:none;opacity:1}}
+@keyframes feeShine{0%{left:-45%}22%,100%{left:120%}}
+.fee-band.ready .fee-zero{opacity:0}
+.fee-band.on .fee-zero{animation:feeDrop .6s cubic-bezier(.2,.8,.3,1.2) both}
+.fee-band::after{content:"";position:absolute;top:0;bottom:0;left:-45%;width:30%;background:linear-gradient(100deg,rgba(255,255,255,0),rgba(255,255,255,.55),rgba(255,255,255,0));pointer-events:none;opacity:0}
+.fee-band.on::after{opacity:1;animation:feeShine 4s ease-in-out .9s infinite}
+@media (prefers-reduced-motion:reduce){.fee-band.ready .fee-zero{opacity:1}.fee-band.on .fee-zero,.fee-band.on::after{animation:none}.fee-band::after{display:none}}
+
 /* 상단 바 */
 .top{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.97);display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--line)}
 .logo{font-weight:900;font-size:19px;color:var(--deep)}
@@ -124,8 +139,14 @@ footer b{color:#4A5263}
   <a class="top-tel" href="tel:18662003"><span class="live"><i></i>상담 가능</span>1866-2003</a>
 </header>
 
-<!-- 이미지 파일: public/img/academy/s1.jpg ~ s13.jpg (+ 교육장 투어 사진 img/academy/tour/) -->
-<div class="sec" data-img="img/academy/s1.jpg" data-w="1000" data-h="1968" data-alt="에어컨 기사, 고수익 월 1,000만원 이상, 일주일이면 시작합니다. 교육비 0원. 일 가르쳐 드리고, 일감까지 드립니다" data-label="S1 히어로"></div>
+<!-- 이미지 파일: public/img/academy/s1a · s1b · s2 ~ s13.jpg (+ 교육장 투어 사진 img/academy/tour/) -->
+<div class="sec" data-img="img/academy/s1a.jpg" data-w="1000" data-h="1381" data-alt="에어컨 기사, 고수익 월 1,000만원 이상, 일주일이면 시작합니다" data-label="S1a 히어로"></div>
+<!-- 교육비 0원 띠 (HTML — 화면에 보일 때 "0원" 이 툭 떨어져 자리 잡고, 4초마다 흰 빛이 한 번 스침) -->
+<div class="fee-band" id="feeBand">
+  <p class="fee-top"><span class="fee-k">교육비</span><b class="fee-zero">0원</b></p>
+  <p class="fee-sub">일 가르쳐 드리고, 일감까지 드립니다</p>
+</div>
+<div class="sec" data-img="img/academy/s1b.jpg" data-w="1000" data-h="525" data-alt="교육비 0원, 일감은 저희가, 교육장 상시 개방" data-label="S1b 히어로 아래"></div>
 <a class="tel-band" href="tel:18662003">
   <span class="ico"><i></i><svg width="26" height="26" viewBox="0 0 24 24" fill="#1F2328"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
   <span><small>과정 상담 · 지금 누르면 바로 연결</small><b>1866-2003</b></span>
@@ -159,7 +180,7 @@ footer b{color:#4A5263}
 <div class="sec" data-img="img/academy/s3.jpg" data-w="1000" data-h="2030" data-alt="요즘, 이런 생각 해보셨나요? 열심히 하는데 월급은 그대로다, 몸 쓰는 건 자신 있는데 써먹을 데가 없다, 내 기술 하나만 있으면 좋겠다, 일한 만큼 가져가고 싶다" data-label="S3 공감"></div>
 <a class="tel-band" href="#apply2">
   <span class="ico go"><svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="#1F2328" stroke-width="2.5"><path d="M5 12h14M13 6l6 6-6 6"/></svg></span>
-  <span><small>하루 안에 전화로 과정 안내</small><b>지원하기</b></span>
+  <span><small>교육비 0원 · 하루 안에 전화 안내</small><b>지원하기</b></span>
 </a>
 <div class="sec" data-img="img/academy/s4.jpg" data-w="1000" data-h="1658" data-alt="에어컨은 매년 다시 더러워집니다. 실제 현장 사진: 세척 전, 세척 중, 세척 후" data-label="S4 왜 이 일"></div>
 <div class="sec" data-img="img/academy/s5.jpg" data-w="1000" data-h="3251" data-alt="왜 올데이케어여야 할까요? 학원은 돈 내고 배우고 수료증으로 끝, 올데이케어는 교육비 0원으로 배우고 일감까지. 6단계 중 기사님은 현장 작업 하나만. 배우는 곳이 아니라 일하는 곳에서 배웁니다" data-label="S5 왜 올데이케어"></div>
@@ -277,6 +298,14 @@ document.querySelectorAll('.apply .card').forEach(c=>{c.classList.add('reveal');
   }));
   document.addEventListener('click',e=>{ if(!e.target.closest('.spot')) strip.querySelectorAll('.spot.on').forEach(x=>x.classList.remove('on')); });
   requestAnimationFrame(step);
+})();
+
+
+/* 교육비 0원 띠: 화면에 보이는 순간 한 번만 시작 */
+(function(){
+  const band=document.getElementById('feeBand'); if(!band) return;
+  band.classList.add('ready');
+  new IntersectionObserver((es,ob)=>es.forEach(e=>{if(e.isIntersecting){band.classList.add('on'); ob.disconnect();}}),{threshold:.5}).observe(band);
 })();
 
 /* 하단 '지원하기' : 지금 위치 아래쪽 폼으로, 없으면 첫 폼으로 */

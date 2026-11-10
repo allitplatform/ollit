@@ -1,4 +1,4 @@
-// 기사 양성 과정(academy) 통이미지 빌드: sections/s1~s13.html → Playwright 캡처 → JPG
+// 기사 양성 과정(academy) 통이미지 빌드: sections/s1a · s1b · s2~s13.html → Playwright 캡처 → JPG
 //   node build.mjs  → assets/academy/ 사진(실제 r*·f*.jpg, AI a*.png) 사용, public/img/academy/s1~s13.jpg + preview_all.jpg(390px 폭) 생성
 //   크롬 경로는 CHROME_PATH 환경변수로 지정
 import http from "node:http";
@@ -55,7 +55,7 @@ async function main() {
   const page = await browser.newPage({ viewport: { width: 1000, height: 1200 }, deviceScaleFactor: 1.5 });
   const outs = [];
   const sizes = {};
-  for (let i = 1; i <= 13; i++) {
+  for (const i of ["1a", "1b", 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) {
     await page.goto(`${base}/sections/s${i}.html`, { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
     const family = await page.evaluate(() => document.fonts.check('800 40px "Pretendard"'));
