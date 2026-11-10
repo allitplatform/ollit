@@ -51,16 +51,17 @@ a{color:inherit;text-decoration:none}
 
 
 /* ===== 교육비 0원 띠 (HTML) — 움직임은 두 가지뿐: 처음 보일 때 "0원" 착지(0.6초, 1회) · 4초마다 흰 빛 한 번 스침 ===== */
-.fee-band{position:relative;overflow:hidden;background:#F2B705;color:#1F2328;text-align:center;padding:clamp(48px,14vw,72px) 12px clamp(48px,14vw,72px)}
-.fee-top{display:flex;align-items:baseline;justify-content:center;gap:clamp(8px,1.6vw,16px);line-height:1;white-space:nowrap}
-.fee-k{font-weight:500;font-size:clamp(26px,10vw,44px);letter-spacing:-.04em}
-.fee-zero{display:inline-block;font-weight:900;font-size:clamp(84px,33vw,150px);letter-spacing:-.05em;line-height:.9}
-.fee-sub{margin-top:clamp(14px,3vw,24px);font-weight:700;font-size:clamp(16px,5vw,28px);letter-spacing:-.05em;white-space:nowrap}
+.fee-band{container-type:inline-size;position:relative;overflow:hidden;background:#F2B705;color:#1F2328;text-align:center}
+/* cqw: 1000px 이미지 기준 1cqw = 10px → 위아래 이미지와 같은 비율로 줄어듦. 띠 자신의 padding 은 cqw 가 띠를 못 보므로 위아래 여백은 자식에 */
+.fee-top{padding-top:6cqw;display:flex;align-items:center;justify-content:center;gap:2cqw;line-height:1;white-space:nowrap}
+.fee-k{font-weight:300;font-size:7.6cqw;letter-spacing:-.045em;color:#1F2328}
+.fee-zero{display:inline-block;font-weight:800;font-size:15cqw;letter-spacing:-.045em;line-height:1}
+.fee-sub{margin-top:2.4cqw;padding-bottom:6cqw;font-weight:700;font-size:3.2cqw;letter-spacing:-.04em;white-space:nowrap;color:#1F2328}
 @keyframes feeDrop{0%{transform:translateY(-55%) scale(1.25);opacity:0}60%{transform:translateY(4%) scale(.97);opacity:1}80%{transform:translateY(-2%) scale(1.02)}100%{transform:none;opacity:1}}
-@keyframes feeShine{0%{left:-45%}22%,100%{left:120%}}
+@keyframes feeShine{0%{left:-10%}22%,100%{left:120%}}
 .fee-band.ready .fee-zero{opacity:0}
 .fee-band.on .fee-zero{animation:feeDrop .6s cubic-bezier(.2,.8,.3,1.2) both}
-.fee-band::after{content:"";position:absolute;top:0;bottom:0;left:-45%;width:30%;background:linear-gradient(100deg,rgba(255,255,255,0),rgba(255,255,255,.55),rgba(255,255,255,0));pointer-events:none;opacity:0}
+.fee-band::after{content:"";position:absolute;top:0;bottom:0;left:-10%;width:8%;background:linear-gradient(100deg,rgba(255,255,255,0),rgba(255,255,255,.25),rgba(255,255,255,0));pointer-events:none;opacity:0}
 .fee-band.on::after{opacity:1;animation:feeShine 4s ease-in-out .9s infinite}
 @media (prefers-reduced-motion:reduce){.fee-band.ready .fee-zero{opacity:1}.fee-band.on .fee-zero,.fee-band.on::after{animation:none}.fee-band::after{display:none}}
 
