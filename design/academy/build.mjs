@@ -1,5 +1,6 @@
-// 기사 양성 과정(academy) 통이미지 빌드: sections/s1a · s1b · s2~s13.html → Playwright 캡처 → JPG
-//   node build.mjs  → assets/academy/ 사진(실제 r*·f*.jpg, AI a*.png) 사용, public/img/academy/s1~s13.jpg + preview_all.jpg(390px 폭) 생성
+// 기사 양성 과정(academy) 통이미지 빌드: sections/s1a · s1b · s2~s12.html → Playwright 캡처 → JPG
+//   node build.mjs  → assets/academy/ 사진(실제 r*·f*.jpg, AI a*.png) 사용, public/img/academy/s1a~s12.jpg + preview_all.jpg(390px 폭) 생성
+//   node build.mjs 6 → 지정한 칸만 다시 렌더 (preview_all 은 전체 이미지로 다시 이음)
 //   크롬 경로는 CHROME_PATH 환경변수로 지정
 import http from "node:http";
 import fs from "node:fs";
@@ -53,9 +54,10 @@ async function main() {
   const base = `http://127.0.0.1:${server.address().port}`;
   const browser = await chromium.launch({ executablePath: process.env.CHROME_PATH || "/opt/pw-browsers/chromium" });
   const page = await browser.newPage({ viewport: { width: 1000, height: 1200 }, deviceScaleFactor: 1.5 });
-  const outs = [];
   const sizes = {};
-  for (const i of ["1a", "1b", 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13]) {
+  const ALL = ["1a", "1b", 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12];
+  const only = process.argv.slice(2);
+  for (const i of only.length ? only : ALL) {
     await page.goto(`${base}/sections/s${i}.html`, { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
     const family = await page.evaluate(() => document.fonts.check('800 40px "Pretendard"'));
@@ -66,12 +68,12 @@ async function main() {
     fs.writeFileSync(out, buf);
     const meta = await sharp(buf).metadata();
     console.log(`s${i}.jpg  ${meta.width}x${meta.height}  q${q}  ${(buf.length / 1024).toFixed(0)}KB`);
-    outs.push(out);
     sizes[`s${i}`] = [meta.width, meta.height];
   }
   await browser.close();
   server.close();
 
+  const outs = ALL.map((i) => path.join(OUT_DIR, `s${i}.jpg`));
   const parts = await Promise.all(outs.map((f) => sharp(f).resize({ width: PREVIEW_W }).toBuffer({ resolveWithObject: true })));
   const total = parts.reduce((s, p) => s + p.info.height, 0);
   let top = 0;
