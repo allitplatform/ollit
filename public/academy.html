@@ -51,12 +51,12 @@ a{color:inherit;text-decoration:none}
 
 
 /* ===== 교육비 0원 띠 (HTML) — 움직임은 두 가지뿐: 처음 보일 때 "0원" 착지(0.6초, 1회) · 4초마다 흰 빛 한 번 스침 ===== */
-.fee-band{container-type:inline-size;position:relative;overflow:hidden;background:#F2B705;color:#1F2328;text-align:center}
+.fee-band{container-type:inline-size;position:relative;overflow:hidden;background:#1F2328;color:#fff;text-align:center}
 /* cqw: 1000px 이미지 기준 1cqw = 10px → 위아래 이미지와 같은 비율로 줄어듦. 띠 자신의 padding 은 cqw 가 띠를 못 보므로 위아래 여백은 자식에 */
 .fee-top{padding-top:6cqw;display:flex;align-items:center;justify-content:center;gap:2cqw;line-height:1;white-space:nowrap}
-.fee-k{font-weight:300;font-size:7.6cqw;letter-spacing:-.045em;color:#1F2328}
-.fee-zero{display:inline-block;font-weight:800;font-size:15cqw;letter-spacing:-.045em;line-height:1}
-.fee-sub{margin-top:2.4cqw;padding-bottom:6cqw;font-weight:700;font-size:3.2cqw;letter-spacing:-.04em;white-space:nowrap;color:#1F2328}
+.fee-k{font-weight:300;font-size:7.6cqw;letter-spacing:-.045em;color:#fff}
+.fee-zero{display:inline-block;color:#F2B705;font-weight:800;font-size:15cqw;letter-spacing:-.045em;line-height:1}
+.fee-sub{margin-top:2.4cqw;padding-bottom:6cqw;font-weight:700;font-size:3.2cqw;letter-spacing:-.04em;white-space:nowrap;color:#fff}
 @keyframes feeDrop{0%{transform:translateY(-55%) scale(1.25);opacity:0}60%{transform:translateY(4%) scale(.97);opacity:1}80%{transform:translateY(-2%) scale(1.02)}100%{transform:none;opacity:1}}
 @keyframes feeShine{0%{left:-10%}22%,100%{left:120%}}
 .fee-band.ready .fee-zero{opacity:0}
