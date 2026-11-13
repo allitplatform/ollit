@@ -21,7 +21,7 @@ body{font-family:Pretendard,-apple-system,'Noto Sans KR',sans-serif;background:#
 a{color:inherit;text-decoration:none}
 .page{max-width:430px;margin:0 auto;background:#fff;overflow:hidden;padding-bottom:78px}
 .top{position:sticky;top:0;z-index:30;background:#fff;display:flex;justify-content:space-between;align-items:center;padding:14px 18px;border-bottom:1px solid #eee}.top b{color:var(--c);font-weight:800;font-size:19px}.top b small{font-size:12px;color:#22252B}.top a{color:var(--cd);font-weight:800;font-size:16px}
-.hero{position:relative}.hero video{width:100%;display:block;aspect-ratio:720/955;object-fit:cover;background:#eee}.hero .txt{padding:26px 22px 8px}
+.hero{position:relative;overflow:hidden}.hv{animation:kb 14s ease-in-out infinite alternate;transform-origin:30% 30%}@keyframes kb{from{transform:scale(1)}to{transform:scale(1.07)}}@media (prefers-reduced-motion:reduce){.hv{animation:none}}.hero video{width:100%;display:block;aspect-ratio:720/955;object-fit:cover;background:#eee}.hero .txt{padding:26px 22px 8px}
 .eyebrow{font-size:13px;font-weight:700;color:var(--cd);letter-spacing:.02em}
 h1{margin-top:10px;font-size:40px;line-height:1.22;letter-spacing:-.045em;font-weight:300}h1 b{font-weight:800;text-decoration:underline;text-decoration-color:var(--c);text-decoration-thickness:5px;text-underline-offset:8px}
 .lead{margin-top:16px;font-size:17px;color:var(--sub);line-height:1.6}
@@ -30,7 +30,12 @@ h1{margin-top:10px;font-size:40px;line-height:1.22;letter-spacing:-.045em;font-w
 .next{text-align:center;padding:34px 20px 38px}.next p{font-size:20px;font-weight:800;color:var(--n);letter-spacing:-.03em}.next i{display:block;font-style:normal;color:var(--c);font-weight:800;margin-top:6px}
 .tel{display:block;background:var(--cd);color:#fff;text-align:center;padding:18px}.tel small{display:block;font-size:13px;opacity:.9}.tel b{font-size:30px;font-weight:800;letter-spacing:-.02em}
 section{display:block}.sec{padding:44px 20px 0}.sec h2{font-size:28px;line-height:1.3;letter-spacing:-.045em;font-weight:300}.sec h2 b{font-weight:800}.sec h2 em{font-style:normal;color:var(--c);font-weight:800}
-.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:22px}.sym{display:block;text-decoration:none;color:inherit;border:1px solid #eee;border-radius:14px;overflow:hidden;background:#fff}.sym img{width:100%;height:auto;aspect-ratio:1;object-fit:cover;display:block}.sym b{display:block;padding:12px 12px 4px;font-size:15px;font-weight:800;letter-spacing:-.03em;line-height:1.35}.sym small{display:block;padding:0 12px;font-size:12px;color:var(--sub);line-height:1.5}.sym em{display:block;font-style:normal;padding:8px 12px 13px;font-size:12px;font-weight:700;color:var(--c)}
+.sy-q{font-size:14px;color:var(--sub);margin-top:10px}.sylist{margin-top:14px;display:grid;gap:8px}
+.sy{display:flex;align-items:center;gap:14px;padding:10px;border:1.5px solid #ECECEC;border-radius:14px;background:#fff;cursor:pointer;transition:border-color .2s,background .2s}.sy input{display:none}
+.sy img{flex:none;width:72px;height:72px;border-radius:10px;object-fit:cover}.sy-t{flex:1;min-width:0}.sy-t b{display:block;font-size:16px;font-weight:800;letter-spacing:-.03em;line-height:1.35}.sy-t small{display:block;font-size:12.5px;color:var(--sub);margin-top:4px}
+.sy-c{flex:none;width:24px;height:24px;border-radius:50%;border:2px solid #D5D7DC;position:relative;margin-right:4px;transition:all .2s}
+.sy:has(input:checked){border-color:var(--c);background:#FFF6F2}.sy:has(input:checked) .sy-c{background:var(--c);border-color:var(--c)}.sy:has(input:checked) .sy-c::after{content:"";position:absolute;left:7px;top:3px;width:5px;height:10px;border:solid #fff;border-width:0 2.5px 2.5px 0;transform:rotate(45deg)}
+.sy-go{display:block;margin-top:12px;text-align:center;padding:16px;border-radius:12px;background:#E4E5E8;color:#8A8C92;font-weight:800;font-size:16px;text-decoration:none;pointer-events:none;transition:all .2s}.sy-go.on{background:var(--cd);color:#fff;pointer-events:auto}
 .check{margin-top:28px;background:#F6F7F9;border-radius:16px;padding:22px 16px 18px}.ck-h{font-size:21px;font-weight:300;letter-spacing:-.03em}.ck-h b{font-weight:800}.ck-s{font-size:13px;color:var(--sub);margin:4px 0 14px}
 .ci{display:flex;align-items:center;gap:14px;background:#fff;border-radius:12px;padding:16px 14px;margin-top:8px;cursor:pointer;border:1.5px solid transparent;transition:border-color .2s}.ci input{display:none}
 .box{flex:none;width:28px;height:28px;border:2px solid #C9CCD2;border-radius:7px;position:relative;transition:all .2s}.ci input:checked+.box{background:var(--c);border-color:var(--c)}.ci input:checked+.box::after{content:"";position:absolute;left:8px;top:3px;width:7px;height:13px;border:solid #fff;border-width:0 3px 3px 0;transform:rotate(45deg)}
@@ -86,7 +91,7 @@ footer a{text-decoration:underline}
 <header class="top"><b>올데이케어 <small>냉난방기 수리</small></b><a href="tel:18662003">1866-2003</a></header>
 
 <div class="hero">
-  <video src="img/heat/hero.mp4" poster="img/heat/01_hero.jpg" autoplay muted loop playsinline preload="auto" aria-label="추운 카페 안, 외투를 입은 채 앉아 있는 손님들"></video>
+  <video class="hv" src="img/heat/hero.mp4" poster="img/heat/01_hero.jpg" autoplay muted loop playsinline preload="auto" aria-label="추운 카페 안, 외투를 입은 채 앉아 있는 손님들"></video>
   <p class="ai">이해를 돕기 위한 연출 이미지입니다</p>
   <div class="txt">
     <div class="eyebrow">매장 · 사무실 냉난방기 수리</div>
@@ -107,13 +112,15 @@ footer a{text-decoration:underline}
 <a class="tel" href="tel:18662003"><small>지금 누르면 바로 연결</small><b>☎ 1866-2003</b></a>
 
 <section class="sec" style="padding-top:36px"><h2>지금 우리 매장 냉난방기,<br><em>어떤 상태인가요?</em></h2>
-<div class="grid">
-  <a class="sym" href="#apply" data-sy="no_heat"><img src="img/heat/02_palm.jpg" width="720" height="720" loading="lazy" alt="송풍구에 손을 대 보는 모습"><b>따뜻한 바람이 안 나와요</b><small>흔한 원인 · 냉매 부족 · 사방밸브 · 실외기 팬</small><em>이 증상으로 접수 →</em></a>
-  <a class="sym" href="#apply" data-sy="cold_air"><img src="img/heat/03_remote.jpg" width="720" height="720" loading="lazy" alt="리모컨을 든 손"><b>난방인데 찬바람이 나와요</b><small>흔한 원인 · 사방밸브 · 온도 센서 · 제상 반복</small><em>이 증상으로 접수 →</em></a>
-  <a class="sym" href="#apply" data-sy="blink"><img src="img/heat/04_light.jpg" width="720" height="720" loading="lazy" alt="표시등이 켜진 스탠드 냉난방기"><b>불이 깜빡이고 멈춰요</b><small>흔한 원인 · 센서 · 기판 · 통신 불량</small><em>이 증상으로 접수 →</em></a>
-  <a class="sym" href="#apply" data-sy="leak"><img src="img/heat/05_leak.jpg" width="720" height="720" loading="lazy" alt="배관 연결부의 기름 자국"><b>배관에 기름 자국이 있어요</b><small>흔한 원인 · 누설 의심 · 연결부 · 용접부</small><em>이 증상으로 접수 →</em></a>
-  <a class="sym" href="#apply" data-sy="gas"><img src="img/heat/06_frost.jpg" width="720" height="720" loading="lazy" alt="성에가 낀 실외기"><b>실외기는 도는데 바람이 약해요</b><small>흔한 원인 · 가스 부족 의심 · 대부분 어딘가 새는 것</small><em>이 증상으로 접수 →</em></a>
-  <a class="sym" href="#apply" data-sy="etc"><img src="img/heat/07_drip.jpg" width="720" height="720" loading="lazy" alt="천장형 냉난방기에서 떨어지는 물"><b>물이 떨어지거나 그 밖의 고장</b><small>흔한 원인 · 배수펌프 · 팬모터 · 전원부</small><em>이 증상으로 접수 →</em></a>
+<p class="sy-q">해당하는 증상을 하나 눌러 주세요</p>
+<div class="sylist">
+  <label class="sy"><input type="radio" name="sym" value="no_heat" data-label="따뜻한 바람이 안 나와요"><img src="img/heat/02_palm.jpg" width="720" height="720" loading="lazy" alt="송풍구에 손을 대 보는 모습"><span class="sy-t"><b>따뜻한 바람이 안 나와요</b><small>주로 · 냉매 부족 · 사방밸브 · 실외기 팬</small></span><span class="sy-c"></span></label>
+  <label class="sy"><input type="radio" name="sym" value="cold_air" data-label="난방인데 찬바람이 나와요"><img src="img/heat/03_remote.jpg" width="720" height="720" loading="lazy" alt="리모컨을 든 손"><span class="sy-t"><b>난방인데 찬바람이 나와요</b><small>주로 · 사방밸브 · 온도 센서 · 제상 반복</small></span><span class="sy-c"></span></label>
+  <label class="sy"><input type="radio" name="sym" value="blink" data-label="불이 깜빡이고 멈춰요"><img src="img/heat/04_light.jpg" width="720" height="720" loading="lazy" alt="표시등이 켜진 스탠드 냉난방기"><span class="sy-t"><b>불이 깜빡이고 멈춰요</b><small>주로 · 센서 · 기판 · 통신 불량</small></span><span class="sy-c"></span></label>
+  <label class="sy"><input type="radio" name="sym" value="leak" data-label="배관에 기름 자국이 있어요"><img src="img/heat/05_leak.jpg" width="720" height="720" loading="lazy" alt="배관 연결부의 기름 자국"><span class="sy-t"><b>배관에 기름 자국이 있어요</b><small>주로 · 냉매 누설 · 연결부 · 용접부</small></span><span class="sy-c"></span></label>
+  <label class="sy"><input type="radio" name="sym" value="gas" data-label="실외기는 도는데 바람이 약해요"><img src="img/heat/06_frost.jpg" width="720" height="720" loading="lazy" alt="성에가 낀 실외기"><span class="sy-t"><b>실외기는 도는데 바람이 약해요</b><small>주로 · 가스 부족 · 대부분 새는 곳이 있음</small></span><span class="sy-c"></span></label>
+  <label class="sy"><input type="radio" name="sym" value="etc" data-label="물이 떨어지거나 그 밖의 고장"><img src="img/heat/07_drip.jpg" width="720" height="720" loading="lazy" alt="천장형 냉난방기에서 떨어지는 물"><span class="sy-t"><b>물이 떨어지거나 그 밖의 고장</b><small>주로 · 배수펌프 · 팬모터 · 전원부</small></span><span class="sy-c"></span></label>
+  <a class="sy-go" id="sygo" href="#apply">증상을 골라 주세요</a>
 </div><p class="ai">이해를 돕기 위한 연출 이미지입니다</p>
 <div class="check"><p class="ck-h">부르기 전에 <b>30초 체크</b></p><p class="ck-s">하나씩 눌러 확인해 보세요</p><label class="ci"><input type="checkbox"><span class="box"></span><span class="t"><b>리모컨이 '난방' 모드인가요?</b><small>송풍 · 제습이면 찬바람이 나와요</small></span></label><label class="ci"><input type="checkbox"><span class="box"></span><span class="t"><b>'제상' 표시라면, 10분 기다려 보셨나요?</b><small>성에를 녹이는 정상 동작이에요</small></span></label><label class="ci"><input type="checkbox"><span class="box"></span><span class="t"><b>필터 먼지를 털어 보셨나요?</b><small>막히면 바람이 약해져요</small></span></label>
 <div class="ck-done" id="ckdone"><b>세 가지 다 확인했는데 그대로라면, 고장입니다</b><a href="#apply" class="to-form">이 상태로 수리 접수 →</a></div></div></section>
@@ -214,13 +221,11 @@ new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting
 
 /* 폼으로 이동 + 이름칸 포커스 */
 function goTo(f){f.scrollIntoView({behavior:'smooth',block:'start'});setTimeout(()=>f.querySelector('input[name=name]').focus({preventScroll:true}),600);}
-/* 증상 칸 → 위 폼의 증상 미리 선택 */
-document.querySelectorAll('.sym').forEach(a=>a.addEventListener('click',e=>{
-  e.preventDefault();
-  const f=document.querySelector('#apply');
-  f.querySelector('select[name=sy]').value=a.dataset.sy;
-  goTo(f);
-}));
+/* 증상 목록: 하나 고르면 아래 버튼 문구가 바뀌고, 누르면 위 폼의 증상을 미리 선택해 폼으로 */
+(function(){const g=document.getElementById('sygo');
+document.querySelectorAll('.sy input').forEach(x=>x.addEventListener('change',()=>{g.classList.add('on');g.textContent='"'+x.dataset.label+'" 으로 수리 접수 →';}));
+g.addEventListener('click',e=>{e.preventDefault();const c=document.querySelector('.sy input:checked');if(!c)return;
+  const f=document.querySelector('#apply');f.querySelector('select[name=sy]').value=c.value;goTo(f);});})();
 /* 30초 체크 '이 상태로 수리 접수' → 위 폼 */
 document.querySelectorAll('.to-form').forEach(a=>a.addEventListener('click',e=>{e.preventDefault();goTo(document.querySelector('#apply'));}));
 /* 하단 '수리 접수' : 지금 위치 아래쪽 폼으로, 없으면 첫 폼으로 */
