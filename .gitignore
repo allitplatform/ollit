@@ -101,3 +101,6 @@ design/hood/out_placeholder/
 !public/img/academy/*.jpg
 !design/academy/preview_all.jpg
 !public/img/academy/tour/*.jpg
+!public/img/heat/*.jpg
+!public/img/heat/sym/*.jpg
+!design/heat/preview_all.jpg

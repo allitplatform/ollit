@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>냉난방기 수리 · 에어컨 수리 | 올데이케어 — 따뜻한 바람이 안 나올 때</title>
+<meta name="description" content="냉난방기 수리 · 에어컨 수리. 따뜻한 바람이 안 나오거나 찬바람이 나올 때, 불이 깜빡일 때, 가스 누설이 의심될 때. 기사가 방문해 압력 · 바람 온도를 재서 원인부터 확인하고, 동의한 금액으로만 고칩니다. 서울 · 경기 · 인천 1866-2003">
+<meta name="robots" content="noindex">
+<meta property="og:title" content="냉난방기 수리 · 에어컨 수리 — 손님이 외투를 벗지 않을 때">
+<meta property="og:description" content="매장 · 사무실 냉난방기 방문 수리. 원인 확인 후 동의한 금액으로만 진행. 1866-2003">
+<meta property="og:image" content="/img/heat/s1a.jpg">
+<link rel="icon" href="/favicon-allday-32.png">
+<link rel="icon" sizes="192x192" href="/favicon-allday-192.png">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/pretendard@1.3.9/dist/web/static/pretendard.min.css">
+<style>
+:root{--point:#E0673D;--deep:#C2502A;--dark:#9E3F20;--soft:#FDF1EC;--navy:#1F2A44;--ink:#2A2A2A;--line:#E4E4E1;--sub:#8A8A86}
+*{box-sizing:border-box;margin:0;padding:0}
+html{scroll-behavior:smooth}
+body{font-family:Pretendard,-apple-system,'Noto Sans KR',sans-serif;color:var(--ink);background:#EEEEEC;overflow-x:clip;word-break:keep-all}
+.wrap{max-width:1000px;margin:0 auto;background:#fff;padding-bottom:84px}
+a{color:inherit;text-decoration:none}
+
+@keyframes telFlash{0%,100%{background:#C2502A}50%{background:#9E3F20}}
+@keyframes telBeat{0%,60%,100%{transform:scale(1)}66%{transform:scale(1.14)}72%{transform:scale(.97)}78%{transform:scale(1.08)}}
+@keyframes telShake{0%,70%,100%{transform:rotate(0)}73%{transform:rotate(-22deg)}76%{transform:rotate(20deg)}79%{transform:rotate(-16deg)}82%{transform:rotate(12deg)}85%{transform:rotate(-6deg)}}
+@keyframes telRing{0%{transform:scale(1);opacity:.85}100%{transform:scale(2.4);opacity:0}}
+@keyframes telBounce{0%,80%,100%{transform:translateY(0)}86%{transform:translateY(-8px)}92%{transform:translateY(0)}96%{transform:translateY(-3px)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.25}}
+@keyframes nudge{0%,100%{transform:translateX(0)}50%{transform:translateX(5px)}}
+.reveal{opacity:0;transform:translateY(28px);transition:opacity .7s ease,transform .7s ease}
+.reveal.on{opacity:1;transform:none}
+
+.top{position:sticky;top:0;z-index:30;background:rgba(255,255,255,.97);display:flex;align-items:center;justify-content:space-between;padding:12px 18px;border-bottom:1px solid var(--line)}
+.logo{font-weight:900;font-size:19px;color:var(--deep)}
+.logo span{color:var(--ink);font-weight:700;font-size:13px;margin-left:6px}
+.top-tel{display:inline-flex;align-items:center;gap:7px;font-weight:800;color:var(--deep);font-size:16px;animation:telBeat 1.6s ease-in-out infinite}
+.live{display:inline-flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--sub)}
+.live i{width:6px;height:6px;border-radius:50%;background:var(--point);animation:blink 1.2s infinite}
+
+/* 통이미지 섹션 (design/heat/sections → build.mjs) */
+.si{display:block;width:100%;height:auto;background:#F4F4F2}
+
+/* HTML 블록은 이미지와 같은 비율: 1000px 기준 1cqw = 10px */
+.cq{container-type:inline-size;text-align:center;background:#fff}
+.cq .in{padding:0}
+.ttl{font-size:7.2cqw;line-height:1.24;letter-spacing:-.045em;font-weight:800;color:var(--navy)}
+.ttl .l{font-weight:300}
+.ul{text-decoration:underline;text-decoration-color:var(--point);text-decoration-thickness:.5cqw;text-underline-offset:1.4cqw;text-decoration-skip-ink:none}
+.ai{margin-top:4.8cqw;font-size:max(11px,1.8cqw);font-weight:500;color:#9A9A9E}
+.next{margin-top:9.6cqw;padding-top:5.6cqw;border-top:1px solid var(--line)}
+.next p{font-size:3.2cqw;font-weight:800;letter-spacing:-.035em;color:var(--navy)}
+.next i{display:block;margin-top:1.4cqw;font-style:normal;font-size:3cqw;font-weight:800;line-height:1;color:var(--point)}
+
+/* s1 제목 (광고 키워드별로 바뀜) */
+.hhead{padding-top:7.6cqw}
+.hhead .ey{font-size:max(13px,2.6cqw);font-weight:700;letter-spacing:-.02em;color:var(--deep)}
+.hhead h1{margin-top:2.6cqw}
+
+/* s2 증상 6칸 */
+.s2{padding:12cqw 0}
+.sym{display:grid;grid-template-columns:1fr 1fr;gap:max(10px,1.6cqw);margin:7.2cqw 4cqw 0;text-align:left}
+@container (min-width:700px){.sym{grid-template-columns:repeat(3,1fr)}}
+.sym a{display:block;background:#fff;border:1px solid var(--line);transition:border-color .2s}
+.sym a:hover,.sym a:active{border-color:var(--point)}
+.sym img{display:block;width:100%;height:auto;aspect-ratio:1;object-fit:cover;background:#F4F4F2}
+.sym .t{padding:max(12px,2cqw) max(12px,2cqw) max(14px,2.4cqw)}
+.sym b{display:block;font-size:clamp(15px,2.8cqw,28px);font-weight:800;letter-spacing:-.045em;line-height:1.32;color:var(--navy)}
+.sym b small{display:block;margin-top:.4em;font-size:.72em;font-weight:700;color:var(--deep)}
+.sym span{display:block;margin-top:max(6px,1cqw);font-size:clamp(12px,2.1cqw,21px);font-weight:500;letter-spacing:-.03em;line-height:1.45;color:#8A8A86}
+.sym em{display:block;margin-top:max(8px,1.4cqw);font-style:normal;font-size:clamp(12px,2cqw,20px);font-weight:800;color:var(--deep)}
+.notice{margin:4.8cqw 4cqw 0;background:#FFF8E1;border-left:max(4px,.6cqw) solid #F2B705;padding:max(16px,3cqw);text-align:left}
+.notice b{font-size:clamp(15px,2.6cqw,26px);font-weight:800;letter-spacing:-.04em;color:var(--navy)}
+.notice p{margin-top:max(6px,1cqw);font-size:clamp(13.5px,2.2cqw,22px);line-height:1.65;letter-spacing:-.03em;color:#4A4A48}
+
+.tel-band{background:var(--deep);display:flex;align-items:center;justify-content:center;gap:20px;color:#fff;padding:24px 16px;text-align:center;position:relative;overflow:hidden;animation:telFlash 1.2s ease-in-out infinite}
+.tel-band small{display:block;font-size:14px;opacity:.92}
+.tel-band b{display:inline-block;font-size:36px;font-weight:900;letter-spacing:-1px;animation:telBeat 1.6s ease-in-out infinite}
+.ico{position:relative;width:56px;height:56px;border-radius:50%;background:#fff;display:flex;align-items:center;justify-content:center;flex:0 0 56px}
+.ico::before,.ico::after,.ico i{content:"";position:absolute;inset:0;border-radius:50%;border:3px solid #fff;animation:telRing 1.6s ease-out infinite}
+.ico::after{animation-delay:.53s}
+.ico i{animation-delay:1.06s}
+.ico svg{animation:telShake 1.6s ease-in-out infinite}
+.ico.go svg{animation:nudge 1.1s ease-in-out infinite}
+
+/* 접수 폼 */
+.apply{background:var(--soft);padding:34px 18px 40px}
+.card{max-width:540px;margin:0 auto;background:#fff;border-radius:18px;padding:24px 20px;border:1px solid #F1D2C4}
+.card-head{display:flex;align-items:center;justify-content:space-between;gap:10px}
+.card h3{font-size:22px;font-weight:900;letter-spacing:-.5px}
+.card h3 em{font-style:normal;color:var(--deep)}
+.card .hint{font-size:14px;color:var(--sub);margin-top:6px}
+.f{margin-top:12px}
+.f label{display:block;font-size:13.5px;font-weight:700;margin-bottom:6px}
+.f label small{font-weight:500;color:var(--sub)}
+.f input,.f select{width:100%;height:50px;border:1.5px solid var(--line);border-radius:12px;padding:0 14px;font-size:16px;font-family:inherit;background:#fff;color:var(--ink);transition:border-color .2s}
+.f input:focus,.f select:focus{outline:none;border-color:var(--point)}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.agree{display:flex;align-items:center;gap:8px;margin-top:14px;font-size:13.5px;color:var(--sub)}
+.agree input{width:20px;height:20px;accent-color:var(--deep)}
+.agree a{text-decoration:underline}
+.btn{display:flex;align-items:center;justify-content:center;gap:8px;width:100%;height:58px;border:0;border-radius:14px;background:var(--deep);color:#fff;font-size:18px;font-weight:900;font-family:inherit;margin-top:16px;cursor:pointer}
+.btn .arr{display:inline-block;animation:nudge 1.1s ease-in-out infinite}
+.btn:disabled{opacity:.6}
+.msg{display:none;margin-top:12px;padding:14px;border-radius:12px;font-size:14px;line-height:1.55}
+.msg.ok{display:block;background:var(--soft);color:var(--deep);font-weight:700}
+.msg.err{display:block;background:#FDECEC;color:#B42318}
+
+footer{padding:28px 22px 36px;font-size:12px;color:#8A93A5;line-height:1.75;border-top:1px solid var(--line)}
+footer b{color:#4A5263}
+
+.fixed{position:fixed;left:50%;transform:translateX(-50%);bottom:0;width:100%;max-width:1000px;display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:10px 12px calc(10px + env(safe-area-inset-bottom));background:rgba(255,255,255,.97);border-top:1px solid var(--line);z-index:40}
+.fixed a{height:54px;border-radius:12px;display:flex;align-items:center;justify-content:center;gap:7px;font-weight:900;font-size:16px}
+.fixed .call{background:var(--deep);color:#fff;animation:telBounce 2.2s ease-in-out infinite,telFlash 1.2s ease-in-out infinite}
+.fixed .call svg{animation:telShake 1.6s ease-in-out infinite}
+.fixed .go{background:#fff;color:var(--deep);border:2px solid var(--deep)}
+.fixed .go .arr{display:inline-block;animation:nudge 1.1s ease-in-out infinite}
+
+@media (max-width:420px){.tel-band b{font-size:30px}.tel-band{gap:14px}}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}.reveal{opacity:1;transform:none}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <div class="logo">올데이케어<span>냉난방기 수리</span></div>
+  <a class="top-tel" href="tel:18662003"><span class="live"><i></i>상담 가능</span>1866-2003</a>
+</header>
+
+<!-- 이미지 파일: public/img/heat/s1a · s1b · s3 ~ s7.jpg (design/heat/build.mjs) · 증상 칸 사진 img/heat/sym/ -->
+<!-- s1 히어로: 사진(이미지) + 제목(HTML, 광고 키워드별로 바뀜) + 부제 · 3칸(이미지) -->
+<img class="si" src="img/heat/s1a.jpg" width="1000" height="1060" alt="추운 카페 안, 외투를 입은 채 앉아 있는 손님들과 천장 냉난방기를 올려다보는 직원" fetchpriority="high">
+<div class="cq hhead">
+  <p class="ey">매장 · 사무실 냉난방기 수리</p>
+  <h1 class="ttl" id="heroTitle"><span class="l">손님이 외투를</span><br><span class="ul">벗지 않습니다</span></h1>
+</div>
+<script>
+/* 광고 키워드에 '에어컨'이 있고 '난방'이 없으면 제목을 에어컨용으로 (n_keyword, 없으면 n_query) */
+(function(){try{
+  var q=new URLSearchParams(location.search), k=q.get('n_keyword')||q.get('n_query')||'';
+  if(!k){var s=sessionStorage.getItem('ollit_adp'); if(s){var o=JSON.parse(s); k=o.kw||o.q||'';}}
+  if(/에어컨/.test(k)&&!/난방/.test(k)) document.getElementById('heroTitle').innerHTML='<span class="l">에어컨 고장,</span><br><span class="ul">원인부터 숫자로</span> 확인합니다';
+}catch(e){}})();
+</script>
+<img class="si" src="img/heat/s1b.jpg" width="1000" height="586" alt="냉난방기에서 따뜻한 바람이 안 나올 때. 서울 · 경기 · 인천, 브랜드 상관없이, 원인 확인 후 견적">
+
+<a class="tel-band" href="tel:18662003">
+  <span class="ico"><i></i><svg width="26" height="26" viewBox="0 0 24 24" fill="#C2502A"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg></span>
+  <span><small>지금 누르면 바로 연결</small><b>1866-2003</b></span>
+</a>
+
+<!-- s2 증상 6칸 (HTML) — 누르면 위 폼의 증상이 선택됨 -->
+<section class="cq s2">
+  <h2 class="ttl"><span class="l">지금 우리 매장 냉난방기,</span><br>어떤 상태인가요?</h2>
+  <div class="sym">
+    <a href="#apply" data-sy="no_heat"><img src="img/heat/sym/02_palm.jpg" alt="송풍구에 손을 대 보는 모습" width="600" height="600" loading="lazy"><div class="t"><b>따뜻한 바람이 안 나와요</b><span>흔한 원인: 냉매 부족 · 사방밸브 · 실외기 팬</span><em>접수하기 →</em></div></a>
+    <a href="#apply" data-sy="cold_air"><img src="img/heat/sym/03_remote.jpg" alt="리모컨을 든 손" width="600" height="600" loading="lazy"><div class="t"><b>난방인데 찬바람이 나와요</b><span>흔한 원인: 사방밸브 · 온도 센서 · 제상 반복</span><em>접수하기 →</em></div></a>
+    <a href="#apply" data-sy="blink"><img src="img/heat/sym/04_light.jpg" alt="표시등이 켜진 스탠드 냉난방기" width="600" height="600" loading="lazy"><div class="t"><b>불이 깜빡이고 멈춰요</b><span>흔한 원인: 센서 · 기판 · 통신 불량</span><em>접수하기 →</em></div></a>
+    <a href="#apply" data-sy="leak"><img src="img/heat/sym/05_leak.jpg" alt="배관 연결부의 기름 자국" width="600" height="600" loading="lazy"><div class="t"><b>배관에 기름 자국이 있어요<small>누설 의심</small></b><span>흔한 원인: 배관 연결부 · 용접부 · 열교환기</span><em>접수하기 →</em></div></a>
+    <a href="#apply" data-sy="gas"><img src="img/heat/sym/06_frost.jpg" alt="성에가 낀 실외기" width="600" height="600" loading="lazy"><div class="t"><b>실외기는 도는데 바람이 약해요<small>가스 부족 의심</small></b><span>흔한 원인: 대부분 어딘가 새고 있는 것</span><em>접수하기 →</em></div></a>
+    <a href="#apply" data-sy="etc"><img src="img/heat/sym/07_drip.jpg" alt="천장형 냉난방기에서 떨어지는 물" width="600" height="600" loading="lazy"><div class="t"><b>물이 떨어지거나 그 밖의 고장</b><span>흔한 원인: 배수펌프 · 팬모터 · 전원부</span><em>접수하기 →</em></div></a>
+  </div>
+  <div class="notice">
+    <b>잠깐! "제상"이 뜨고 바람이 멈췄다면</b>
+    <p>난방 중 실외기에 낀 성에를 녹이는 정상 동작일 수 있어요. 보통 10분 안팎이면 다시 따뜻한 바람이 나옵니다. 그 이상 계속되거나 자주 반복되면 전화 주세요.</p>
+  </div>
+  <p class="ai">이해를 돕기 위한 연출 이미지입니다</p>
+  <div class="next"><p>하루만 참으면 될까요?</p><i>↓</i></div>
+</section>
+
+<!-- 접수 폼 1 -->
+<section class="apply" id="apply">
+  <div class="card">
+    <div class="card-head"><h3><em>10초</em> 수리 접수</h3><span class="live"><i></i>접수 가능</span></div>
+    <p class="hint">남겨주시면 10분 안에 확인 전화를 드립니다 · 브랜드 상관없이 방문</p>
+    <form class="lead-form" novalidate>
+      <div class="f2">
+        <div class="f"><label>성함 · 상호</label><input name="name" autocomplete="name" placeholder="홍길동 / ○○카페"></div>
+        <div class="f"><label>증상</label>
+          <select name="sy"><option value="">선택해 주세요</option><option value="no_heat">따뜻한 바람 안 나옴</option><option value="cold_air">난방인데 찬바람</option><option value="blink">불 깜빡임 · 에러</option><option value="leak">누설 의심</option><option value="gas">가스 부족 의심</option><option value="etc">그 밖의 고장</option></select></div>
+      </div>
+      <div class="f"><label>연락처</label><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000"></div>
+      <div class="f2">
+        <div class="f"><label>장소</label>
+          <select name="pl"><option value="store">매장 · 업소</option><option value="office">사무실</option><option value="home">가정</option></select></div>
+        <div class="f"><label>기종 <small>(선택)</small></label>
+          <select name="ty"><option value="">잘 모르겠어요</option><option value="ceil">천장형</option><option value="stand">스탠드</option><option value="wall">벽걸이</option></select></div>
+      </div>
+      <div class="f"><label>지역 (동 · 상호명까지)</label><input name="addr" placeholder="예) 고양시 삼송동 ○○카페"></div>
+      <label class="agree"><input type="checkbox" name="agree"> 개인정보 수집·이용 동의 <a href="/privacy" target="_blank">보기</a></label>
+      <button class="btn" type="submit">수리 접수하기 <span class="arr">→</span></button>
+      <div class="msg"></div>
+    </form>
+  </div>
+</section>
+
+<img class="si" src="img/heat/s3.jpg" width="1000" height="1791" loading="lazy" alt="고장은 하루지만, 추웠던 매장은 오래 기억됩니다. 손님은 외투를 입은 채 일찍 일어나고, 리뷰에는 추웠어요가 남고, 직원은 하루 종일 떨며 일합니다">
+<img class="si" src="img/heat/s4.jpg" width="1000" height="1283" loading="lazy" alt="가스만 넣고 가는 수리는 몇 주 뒤 또 빠지고 출장비는 또. 올데이케어는 새는 곳부터 찾고, 막은 뒤 충전합니다. 질소 압력 시험 · 누설 탐지">
+<img class="si" src="img/heat/s5.jpg" width="1000" height="2579" loading="lazy" alt="방문하면 이 순서로 고칩니다. 01 전화 · 접수, 02 방문 진단(압력 · 바람 온도 측정), 03 원인 설명 · 견적(동의하신 금액으로만 진행), 04 수리 · 작동 확인(고친 뒤 온도 다시 재고 작업 사진 전송). 실제 작업 사진: 압력 측정, 바람 온도 측정, 실외기 점검">
+<img class="si" src="img/heat/s6.jpg" width="1000" height="2034" loading="lazy" alt="이런 냉난방기를 브랜드 상관없이 고칩니다. 천장형 1WAY · 4WAY, 스탠드, 벽걸이, 시스템 냉난방기, 업소용. 카페 · 식당 · 미용실 · 학원 · 사무실. 영업에 지장 없게 방문 시간은 통화로 먼저 맞춥니다">
+<img class="si" src="img/heat/s7.jpg" width="1000" height="1599" loading="lazy" alt="다시, 외투를 벗는 매장으로. 증상만 남기면 10분 안에 전화">
+
+<!-- 접수 폼 2 -->
+<section class="apply" id="apply2">
+  <div class="card">
+    <div class="card-head"><h3>수리 접수</h3><span class="live"><i></i>접수 가능</span></div>
+    <p class="hint">원인 확인 후 동의한 금액으로만 진행 · 접수 후 10분 안에 전화</p>
+    <form class="lead-form" novalidate>
+      <div class="f2">
+        <div class="f"><label>성함 · 상호</label><input name="name" autocomplete="name" placeholder="홍길동 / ○○식당"></div>
+        <div class="f"><label>증상</label>
+          <select name="sy"><option value="">선택해 주세요</option><option value="no_heat">따뜻한 바람 안 나옴</option><option value="cold_air">난방인데 찬바람</option><option value="blink">불 깜빡임 · 에러</option><option value="leak">누설 의심</option><option value="gas">가스 부족 의심</option><option value="etc">그 밖의 고장</option></select></div>
+      </div>
+      <div class="f"><label>연락처</label><input name="phone" type="tel" inputmode="numeric" autocomplete="tel" placeholder="010-0000-0000"></div>
+      <div class="f2">
+        <div class="f"><label>장소</label>
+          <select name="pl"><option value="store">매장 · 업소</option><option value="office">사무실</option><option value="home">가정</option></select></div>
+        <div class="f"><label>기종 <small>(선택)</small></label>
+          <select name="ty"><option value="">잘 모르겠어요</option><option value="ceil">천장형</option><option value="stand">스탠드</option><option value="wall">벽걸이</option></select></div>
+      </div>
+      <div class="f"><label>지역 (동 · 상호명까지)</label><input name="addr" placeholder="예) 수원시 영통동 ○○학원"></div>
+      <label class="agree"><input type="checkbox" name="agree"> 개인정보 수집·이용 동의 <a href="/privacy" target="_blank">보기</a></label>
+      <button class="btn" type="submit">수리 접수하기 <span class="arr">→</span></button>
+      <p class="hint" style="font-size:12.5px;margin-top:10px">방문 후 고객 사정으로 작업을 취소하시면 출장비가 청구될 수 있습니다</p>
+      <div class="msg"></div>
+    </form>
+  </div>
+</section>
+
+<footer>
+  <b>올데이케어</b> · 사업자등록번호 430-07-03167 · 대표번호 1866-2003<br>
+  서비스 지역: 서울 · 경기 · 인천 · 브랜드 상관없이 방문<br>
+  방문 후 고객 사정으로 작업을 취소하시면 출장비가 청구될 수 있습니다.<br>
+  <a href="/privacy">개인정보처리방침</a> · 블로그 <a href="https://blog.naver.com/alldaycare365">blog.naver.com/alldaycare365</a><br>
+  제품 상표는 각 제조사의 소유입니다.
+</footer>
+
+<nav class="fixed">
+  <a class="call" href="tel:18662003"><svg width="18" height="18" viewBox="0 0 24 24" fill="#fff"><path d="M6.6 10.8a15.1 15.1 0 0 0 6.6 6.6l2.2-2.2a1 1 0 0 1 1-.25 11.4 11.4 0 0 0 3.6.57 1 1 0 0 1 1 1V20a1 1 0 0 1-1 1A17 17 0 0 1 3 4a1 1 0 0 1 1-1h3.5a1 1 0 0 1 1 1c0 1.25.2 2.45.57 3.57a1 1 0 0 1-.25 1z"/></svg>전화 상담</a>
+  <a class="go" href="#apply" id="goForm">수리 접수 <span class="arr">→</span></a>
+</nav>
+</div>
+
+<script>
+/* ===== 설정: robot.html · leak.html 과 동일 ===== */
+const SB_URL = 'https://jtxmzgqykmjyzzsnjqio.supabase.co';
+const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Imp0eG16Z3F5a21qeXp6c25qcWlvIiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzc1MjQ2MDYsImV4cCI6MjA5MzEwMDYwNn0.v07Gsm2vUx0Gs6r5EqMZvzOVHt2btIipt5a6tnsGFS4';
+
+/* 스크롤 등장 */
+const io=new IntersectionObserver(es=>es.forEach(e=>{if(e.isIntersecting){e.target.classList.add('on');io.unobserve(e.target);}}),{threshold:.08});
+document.querySelectorAll('.apply .card').forEach(c=>{c.classList.add('reveal');io.observe(c);});
+
+/* 증상 카드 → 위 폼의 증상 미리 선택 */
+document.querySelectorAll('.sym a').forEach(a=>a.addEventListener('click',e=>{
+  e.preventDefault();
+  const f=document.querySelector('#apply');
+  f.querySelector('select[name=sy]').value=a.dataset.sy;
+  f.scrollIntoView({behavior:'smooth',block:'start'});
+  setTimeout(()=>f.querySelector('input[name=name]').focus({preventScroll:true}),600);
+}));
+
+/* 하단 '수리 접수' : 지금 위치 아래쪽 폼으로, 없으면 첫 폼으로 */
+document.getElementById('goForm').addEventListener('click',e=>{
+  e.preventDefault();
+  const forms=[...document.querySelectorAll('.apply')];
+  const next=forms.find(f=>f.getBoundingClientRect().top>80)||forms[0];
+  next.scrollIntoView({behavior:'smooth',block:'start'});
+  setTimeout(()=>next.querySelector('input[name=name]').focus({preventScroll:true}),600);
+});
+
+/* 전화번호 자동 하이픈 */
+document.querySelectorAll('input[name=phone]').forEach(ph=>ph.addEventListener('input',()=>{
+  let v=ph.value.replace(/\D/g,'').slice(0,11);
+  ph.value=v.length<4?v:v.length<8?v.slice(0,3)+'-'+v.slice(3):v.slice(0,3)+'-'+v.slice(3,v.length-4)+'-'+v.slice(-4);
+}));
+
+/* 접수: create_inquiry_v2 → 404면 create_inquiry 폴백
+   service_type 은 'repair' (허용값: refrigerant · cleaning · repair · install · unknown · leak · water_leak …)
+   source 형식(40자 이내): heat_landing_t/no_heat/store/ceil  (t=위 폼, b=아래 폼) */
+const HDRS={'Content-Type':'application/json',apikey:SB_KEY,Authorization:'Bearer '+SB_KEY};
+async function rpc(fn,body){
+  return fetch(SB_URL+'/rest/v1/rpc/'+fn,{method:'POST',headers:HDRS,body:JSON.stringify(body)});
+}
+/* 광고 유입정보 (mig 262) — hood.html 과 동일. 키워드별 접수당 광고비 계산용 */
+function adParams(){
+  try{
+    var K='ollit_adp', q=new URLSearchParams(location.search), cur={};
+    var map={n_keyword:'kw',n_keyword_id:'kwid',n_ad_group:'grp',n_rank:'rank',
+             n_query:'q',n_media:'media',n_campaign_type:'ctype',n_ad:'ad',
+             utm_source:'utm_s',utm_medium:'utm_m',utm_campaign:'utm_c',utm_term:'utm_t',
+             gclid:'gclid'};
+    for(var a in map){ var v=q.get(a); if(v) cur[map[a]]=String(v).slice(0,120); }
+    if(Object.keys(cur).length){
+      var ref=(document.referrer||''); if(ref) cur.ref=ref.slice(0,120);
+      try{ sessionStorage.setItem(K, JSON.stringify(cur)); }catch(e){}
+      return cur;
+    }
+    try{ var s=sessionStorage.getItem(K); if(s) return JSON.parse(s); }catch(e){}
+  }catch(e){}
+  return null;
+}
+/* 광고정보를 넣어 먼저 보내고, 실패하면 광고정보만 빼고 다시 보낸다 (접수는 끊기지 않음) */
+async function postV2(body){
+  var ap=adParams();
+  if(ap){ var r=await rpc('create_inquiry_v2',Object.assign({p_ad_params:ap},body)); if(r.ok) return r; }
+  return rpc('create_inquiry_v2',body);
+}
+adParams();
+document.querySelectorAll('.lead-form').forEach((form,idx)=>{
+  const q=n=>form.querySelector('[name='+n+']');
+  const msg=form.querySelector('.msg'), btn=form.querySelector('.btn');
+  const label=btn.innerHTML;
+  const show=(t,ok)=>{msg.className='msg '+(ok?'ok':'err'); msg.innerHTML=t;};
+  form.addEventListener('submit',async e=>{
+    e.preventDefault();
+    const name=q('name').value.trim(), phone=q('phone').value.replace(/\D/g,''), addr=q('addr').value.trim();
+    const sy=q('sy').value, pl=q('pl').value, ty=q('ty').value||'na';
+    if(!name) return show('성함 또는 상호를 적어주세요');
+    if(phone.length<10) return show('연락처를 확인해주세요');
+    if(!sy) return show('증상을 선택해주세요');
+    if(!addr) return show('지역을 적어주세요');
+    if(!q('agree').checked) return show('개인정보 수집·이용에 동의해주세요');
+    btn.disabled=true; btn.textContent='접수 중…';
+    const source=['heat_landing_'+(idx===0?'t':'b'),sy,pl,ty].join('/');
+    const base={p_service_type:'repair',p_name:name,p_phone:phone,p_address:addr,p_agreed_privacy:true};
+    try{
+      let r=await postV2({...base,p_source:source});
+      if(r.status===404) r=await rpc('create_inquiry',base);
+      if(!r.ok) throw new Error(await r.text());
+      form.querySelectorAll('input,select').forEach(i=>i.disabled=true);
+      btn.textContent='접수 완료';
+      show('접수되었습니다. 10분 안에 확인 전화를 드립니다.',true);
+      if(window.gtag) gtag('event','generate_lead',{source:'heat_landing'});
+    }catch(err){
+      btn.disabled=false; btn.innerHTML=label;
+      show('접수가 되지 않았습니다. <a href="tel:18662003" style="text-decoration:underline">1866-2003</a> 으로 전화 주세요.');
+    }
+  });
+});
+</script>
+</body>
+</html>
