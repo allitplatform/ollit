@@ -122,8 +122,8 @@ footer a{text-decoration:underline}
   <label class="sy"><input type="radio" name="sym" value="etc" data-label="물이 떨어지거나 그 밖의 고장"><img src="img/heat/07_drip.jpg" width="720" height="720" loading="lazy" alt="천장형 냉난방기에서 떨어지는 물"><span class="sy-t"><b>물이 떨어지거나 그 밖의 고장</b><small>주로 · 배수펌프 · 팬모터 · 전원부</small></span><span class="sy-c"></span></label>
   <a class="sy-go" id="sygo" href="#apply">증상을 골라 주세요</a>
 </div><p class="ai">이해를 돕기 위한 연출 이미지입니다</p>
-<div class="check"><p class="ck-h">부르기 전에 <b>30초 체크</b></p><p class="ck-s">하나씩 눌러 확인해 보세요</p><label class="ci"><input type="checkbox"><span class="box"></span><span class="t"><b>리모컨이 '난방' 모드인가요?</b><small>송풍 · 제습이면 찬바람이 나와요</small></span></label><label class="ci"><input type="checkbox"><span class="box"></span><span class="t"><b>'제상' 표시라면, 10분 기다려 보셨나요?</b><small>성에를 녹이는 정상 동작이에요</small></span></label><label class="ci"><input type="checkbox"><span class="box"></span><span class="t"><b>필터 먼지를 털어 보셨나요?</b><small>막히면 바람이 약해져요</small></span></label>
-<div class="ck-done" id="ckdone"><b>세 가지 다 확인했는데 그대로라면, 고장입니다</b><a href="#apply" class="to-form">이 상태로 수리 접수 →</a></div></div></section>
+<div class="check"><p class="ck-h">부르기 전에 <b>30초 체크</b></p><p class="ck-s">하나씩 눌러 확인해 보세요</p><label class="ci"><input type="checkbox"><span class="box"></span><span class="t"><b>리모컨이 '난방' 모드인가요?</b><small>송풍 · 제습이면 찬바람이 나와요</small></span></label><label class="ci"><input type="checkbox"><span class="box"></span><span class="t"><b>'제상' 표시라면, 10분 기다려 보셨나요?</b><small>성에를 녹이는 정상 동작이에요</small></span></label>
+<div class="ck-done" id="ckdone"><b>둘 다 아닌데 그대로라면, 고장입니다</b><a href="#apply" class="to-form">이 상태로 수리 접수 →</a></div></div></section>
 
 <!-- 접수 폼 1 -->
 <div class="formwrap" id="apply">
@@ -214,7 +214,7 @@ const SB_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJ
 (function(){var e=document.getElementById('cnt');if(!e)return;var to=+e.dataset.to,done=false;function run(){if(done)return;done=true;var t0=null;function f(t){if(!t0)t0=t;var p=Math.min((t-t0)/1800,1);p=1-Math.pow(1-p,3);e.textContent=Math.round(to*p).toLocaleString('ko-KR');if(p<1)requestAnimationFrame(f)}requestAnimationFrame(f)}
 if(window.matchMedia('(prefers-reduced-motion: reduce)').matches){e.textContent=to.toLocaleString('ko-KR');return}
 new IntersectionObserver(function(es){es.forEach(function(x){if(x.isIntersecting)run()})},{threshold:.6}).observe(e)})();
-/* 30초 체크: 3개 다 누르면 접수 상자 */
+/* 30초 체크: 2개 다 누르면 접수 상자 */
 (function(){var c=document.querySelectorAll('.ci input'),d=document.getElementById('ckdone');c.forEach(function(x){x.addEventListener('change',function(){var all=[].every.call(c,function(y){return y.checked});d.classList.toggle('on',all)})})})();
 /* 손해 카드 3장 순서대로 */
 (function(){var io=new IntersectionObserver(function(es){es.forEach(function(e){if(e.isIntersecting){e.target.querySelectorAll('.ls').forEach(function(x){x.classList.add('on')});io.unobserve(e.target)}})},{threshold:.3});var l=document.querySelector('.loss');if(l)io.observe(l)})();
