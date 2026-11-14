@@ -122,11 +122,13 @@ export function isAcademySource(source) {
 const ACADEMY_AGE   = { "20s": "20대", "30s": "30대", "40s": "40대", "50s": "50대 이상" };
 const ACADEMY_JOB   = { office: "직장인", field: "현장 · 기술직", self: "자영업", none: "구직 중", etc: "기타" };
 const ACADEMY_START = { now: "바로 시작", "1m": "1개월 안 시작", "3m": "3개월 안 시작" };
+// 2026-11-14 — 5번째 칸 = 유입 채널 (academy.html?src=ig 등)
+const ACADEMY_CH    = { ig: "인스타", meta: "메타 광고", dg: "당근", nv: "네이버" };
 // → "40대 · 직장인 · 바로 시작" (선택 안 한 항목은 생략). 교육 지원이 아니면 "".
 export function academyDetail(source) {
   if (!isAcademySource(source)) return "";
-  const [, age = "", job = "", start = ""] = String(source).split("/");
-  return [ACADEMY_AGE[age], ACADEMY_JOB[job], ACADEMY_START[start]].filter(Boolean).join(" · ");
+  const [, age = "", job = "", start = "", ch = ""] = String(source).split("/");
+  return [ACADEMY_AGE[age], ACADEMY_JOB[job], ACADEMY_START[start], ACADEMY_CH[ch] || (ch ? ch : "")].filter(Boolean).join(" · ");
 }
 
 // 랜딩 접수 풀이 공통 — 입주청소·주방후드·로봇청소기·교육 지원 중 해당하는 쪽. 어느 것도 아니면 "".
